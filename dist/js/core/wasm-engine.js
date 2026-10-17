@@ -2,12 +2,12 @@
 // this file wraps its C ABI in classes with the same shape as the JS Scanner / Sender /
 // Receiver, so the app can switch engines freely.
 
-import { makeLayout, codewordsPerFrame } from './layout.js';
+import { makeLayout, codewordsPerFrame } from './layout.js?v=37123c580f';
 
 let X = null; // wasm exports
 
 // `src`: URL of lumen.wasm, or its bytes (e.g. in Node).
-export async function loadWasm(src = new URL('../../wasm/lumen.wasm', import.meta.url)) {
+export async function loadWasm(src = new URL('../../wasm/lumen.wasm?v=37123c580f', import.meta.url)) {
   if (X) return X;
   const bytes = src instanceof ArrayBuffer || ArrayBuffer.isView(src) ? src : await (await fetch(src)).arrayBuffer();
   const { instance } = await WebAssembly.instantiate(bytes, {});
@@ -35,6 +35,11 @@ class Buf {
       this.ptr = X.lm_alloc(this.cap);
     }
     return this.ptr;
+  }
+  free() {
+    if (this.ptr) X.lm_free(this.ptr, this.cap);
+    this.ptr = 0;
+    this.cap = 0;
   }
 }
 
@@ -95,15 +100,26 @@ export class WasmScanner {
       o += k;
     }
     if (!ok) return { ok, reason, candidates };
-    const header = { mode, X: Xg, Y: Yg, n: nn, nsym, seq };
+    // seq > 255: every header copy was unreadable and the last good header was reused
+    const headerReused = seq > 255;
+    const header = { mode, X: Xg, Y: Yg, n: nn, nsym, seq: headerReused ? -1 : seq };
     return {
       ok,
       skipped,
+      headerReused,
       header,
-      frameKey: `${seq}:${Xg}:${Yg}:${mode}:${nn}:${nsym}`,
+      frameKey: headerReused ? null : `${seq}:${Xg}:${Yg}:${mode}:${nn}:${nsym}`,
       codewords,
       stats: { cellPx, corners, markers, cornerFound: !!cornerFound, cwOk, cwTotal, cwCount, corrected },
     };
+  }
+
+  // releases the scanner and its input buffers (a 1080p frame buffer is ~10 MB of WASM memory)
+  free() {
+    if (this.h) X.lm_scanner_free(this.h);
+    this.h = 0;
+    this.img.free();
+    this.skip.free();
   }
 }
 

@@ -7,7 +7,7 @@
 | Date | 2026-10-17 |
 | Language | ASD-STE100 Simplified Technical English |
 | Chinese version | [PROTOCOL.zh-CN.md](PROTOCOL.zh-CN.md) |
-| Test vectors | [test/vectors/test-vectors.json](test/vectors/test-vectors.json) |
+| Test vectors | [test/vectors/test-vectors.json](../test/vectors/test-vectors.json) |
 | Reference implementations | JavaScript (`src/core/`), Rust (`src/rust/`) |
 | License | MIT (this document and the reference implementations) |
 
@@ -478,7 +478,7 @@ nsym = max(4, 2 · floor((n · pct + 100) / 200))
 - Put a quiet zone of at least 2 cells of ink around the grid.
 - Rounded corners of the patterns and of the cells are permitted. A gap between cells is permitted. The gap MUST be ink. The colour of a cell MUST fill at least the centre half of the cell in each direction.
 - Use a frame rate that the receiver can capture. The reference sender uses 12 frames per second by default.
-- Select the cell size from the physical size of the screen. The reference sender uses approximately 0.75 mm for each cell. It also limits the short side to 52 … 150 cells and the aspect ratio to 1.78.
+- Select the cell size from the physical size of the screen. The reference sender uses approximately 0.75 mm for each cell. It also limits the short side to 52 … 150 cells. The grid fills the display area, and the aspect ratio is not more than 2.4.
 
 ## 11 Receiver (informative)
 
@@ -491,6 +491,7 @@ A receiver can use any algorithm. The reference receivers use this procedure:
 5. Classify the colours with k-means. Start from the nominal palette. Correct local gain (moiré, uneven light) and classify again.
 6. Decode each codeword. If decoding fails, try again with the least reliable bytes as erasures. Keep at least nsym / 2 bytes of redundancy.
 7. Keep only packets with a correct CRC.
+8. If no header copy is correct but the grid is located, the receiver can use the last correct header of the same transfer. X, Y, mode, n and nsym do not change in a transfer, and seq is not necessary to decode data. The size check, the alignment markers and the packet CRCs find an incorrect header.
 
 These rules are recommended for all receivers:
 
@@ -513,7 +514,7 @@ These rules are recommended for all receivers:
 
 - A conforming sender makes frames that agree bit by bit with the test vectors for the same inputs. The inputs are the file, the TID, the first seq, X, Y, the mode and the ECC level.
 - A conforming receiver accepts every frame and packet sequence that a conforming sender can make.
-- [test/vectors/test-vectors.json](test/vectors/test-vectors.json) contains values for: CRC-32, CRC-16, mix32, Rng, Reed–Solomon, grid layouts, header bits, codeword selection, fountain parameters, seeds, symbol lists, symbols, block plans, a packet, a descriptor and two complete frames.
+- [test/vectors/test-vectors.json](../test/vectors/test-vectors.json) contains values for: CRC-32, CRC-16, mix32, Rng, Reed–Solomon, grid layouts, header bits, codeword selection, fountain parameters, seeds, symbol lists, symbols, block plans, a packet, a descriptor and two complete frames.
 
 ---
 

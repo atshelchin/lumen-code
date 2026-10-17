@@ -46,12 +46,21 @@
         <div><h3 data-i18n="f4t"></h3><p data-i18n="f4p"></p></div>
       </section>
 
-      <p class="foot"><span data-i18n="foot"></span> · <a href="PROTOCOL.md" data-i18n="protocolLink"></a> (EN) · <a href="PROTOCOL.zh-CN.md">中文</a></p>
+      <p class="foot"><span data-i18n="foot"></span> · <a href="docs/PROTOCOL.md" data-i18n="protocolLink"></a> (EN) · <a href="docs/PROTOCOL.zh-CN.md">中文</a> · <a href="docs/guide/README.md" data-i18n="guideLink"></a></p>
     </main>
     <script type="module">
-      import { applyI18n, toggleLang } from './js/i18n.js';
+      import { applyI18n, toggleLang, currentLang } from './js/i18n.js';
+      // the guides exist in both languages; link the one matching the page
+      const guide = document.querySelector('a[data-i18n="guideLink"]');
+      const sync = () => (guide.href = currentLang() === 'zh' ? 'docs/guide/README.zh-CN.md' : 'docs/guide/README.md');
       applyI18n();
-      document.getElementById('lang').onclick = () => toggleLang();
+      sync();
+      document.getElementById('lang').onclick = () => {
+        toggleLang();
+        sync();
+      };
     </script>
+    <!-- traffic analytics; kept last so it never delays the app -->
+    <script src="https://tj.appsdata.org/api/script.js" data-site-id="c474d69b2974" defer></script>
   </body>
 </html>

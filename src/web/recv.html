@@ -9,16 +9,15 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0d14'/%3E%3Crect x='6' y='6' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='6' width='6' height='6' rx='1.5' fill='%23ff3d9a'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23f2f4f8'/%3E%3Crect x='20' y='13' width='6' height='6' rx='1.5' fill='%23ffd60a'/%3E%3Crect x='13' y='20' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='20' width='6' height='6' rx='1.5' fill='%232bdc74'/%3E%3C/svg%3E" />
   </head>
   <body>
-    <div class="stage">
+    <div class="stage recv" id="stage">
       <video id="video" playsinline muted autoplay></video>
       <canvas id="overlay"></canvas>
 
       <div class="topbar">
-        <a class="brand chip" href="./"><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
+        <a class="home" href="./" data-i18n-title="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6" /></svg><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
         <span class="chip" id="statusChip"><span class="dot" id="statusDot"></span><b id="statusText" data-i18n="waiting"></b></span>
         <span class="spacer"></span>
         <div class="seg" id="segEngine" title="Engine"><button data-v="js">JS</button><button data-v="wasm">WASM</button></div>
-        <button class="lang" id="lang">中 / EN</button>
       </div>
 
       <div class="side-tools hidden" id="sideTools">
@@ -27,7 +26,7 @@
         </button>
       </div>
 
-      <div class="zoom panel hidden" id="zoomBox"><span data-i18n="zoom"></span><input type="range" id="zoom" /><b class="num" id="zoomVal"></b></div>
+      <button class="zoom-chip hidden" id="zoomChip" data-i18n-title="zoomHint"><b class="num" id="zoomVal">1.0×</b></button>
 
       <div class="recv-bottom panel hidden" id="hud">
         <div class="recv-title">
@@ -58,14 +57,30 @@
           </div>
           <input type="file" id="mediaFile" accept="image/*,video/*" hidden />
           <div class="err" id="startErr"></div>
+          <a class="switch-page" href="send.html"><span data-i18n="goSend"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
         </div>
       </div>
 
       <div class="done hidden" id="done">
         <div class="panel">
-          <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></div>
-          <h2 id="doneName"></h2>
-          <div class="sub" id="doneSub"></div>
+          <div class="done-head">
+            <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></div>
+            <div class="done-title">
+              <h2 id="doneName"></h2>
+              <div class="sub" id="doneSub"></div>
+            </div>
+            <span class="head-tools" id="headTools">
+              <button class="tbtn" id="fontDown" data-i18n-title="smaller"><span class="a-sm">A</span></button>
+              <button class="tbtn" id="fontUp" data-i18n-title="larger"><span class="a-lg">A</span></button>
+            </span>
+            <button class="stats-btn" id="statsBtn" aria-expanded="false"><span data-i18n="details"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg></button>
+          </div>
+          <div class="done-stats" id="doneStats"></div>
+          <div class="reader-bar hidden" id="readerBar">
+            <div class="seg hidden" id="segView"><button data-v="pretty" data-i18n="vPretty"></button><button data-v="raw" data-i18n="vRaw"></button></div>
+            <span class="spacer"></span>
+            <button class="tbtn" id="wrapBtn" data-i18n-title="wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4" /><path d="m15 16-2 2 2 2M4 18h5" /></svg></button>
+          </div>
           <div class="preview hidden" id="preview"></div>
           <div class="more-hint hidden" id="moreHint"></div>
           <div class="row">
@@ -79,5 +94,7 @@
       </div>
     </div>
     <script type="module" src="js/recv-app.js"></script>
+    <!-- traffic analytics; kept last so it never delays the app -->
+    <script src="https://tj.appsdata.org/api/script.js" data-site-id="c474d69b2974" defer></script>
   </body>
 </html>

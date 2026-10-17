@@ -354,7 +354,7 @@ a {
   align-items: center;
   gap: 10px;
   padding: max(12px, env(safe-area-inset-top)) 14px 10px;
-  z-index: 5;
+  z-index: 9; /* above the receiver's start screen, so the engine can be chosen first */
   pointer-events: none;
 }
 .topbar > * {
@@ -706,18 +706,28 @@ input[type='range'] {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
-.zoom {
+/* zoom: pinch on the camera image (or ctrl + wheel); the chip shows the level, a tap resets */
+.zoom-chip {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   bottom: calc(max(14px, env(safe-area-inset-bottom)) + 190px);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
   z-index: 6;
-  font-size: 12px;
-  color: var(--muted);
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: rgba(12, 16, 23, 0.86);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.zoom-chip.active {
+  border-color: var(--cyan);
+}
+.stage.recv #video,
+.stage.recv #overlay {
+  touch-action: none; /* pinch zooms the camera, not the page */
 }
 
 .start {
@@ -763,7 +773,7 @@ input[type='range'] {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
-/* the panel never exceeds the screen; a long preview scrolls inside it */
+/* card (files without a preview): never exceeds the screen */
 .done .panel {
   width: min(460px, 100%);
   max-height: 100%;
@@ -772,11 +782,17 @@ input[type='range'] {
   padding: 24px;
   text-align: center;
 }
-.done .panel.wide {
-  width: min(760px, 100%);
-}
 .done .panel > * {
   flex: none;
+}
+.done-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.done-title {
+  min-width: 0;
+  max-width: 100%;
 }
 .done .badge {
   width: 58px;
@@ -801,6 +817,39 @@ input[type='range'] {
   color: var(--muted);
   font-size: 13.5px;
 }
+.stats-btn {
+  display: none;
+}
+.done-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 8px;
+  margin-top: 16px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+.done-stats div {
+  font-size: 11px;
+  color: var(--faint);
+  min-width: 0;
+}
+.done-stats b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.done-stats .code {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+}
 .done .panel > .preview {
   flex: 0 1 auto;
   min-height: 72px;
@@ -812,15 +861,16 @@ input[type='range'] {
   border: 1px solid var(--line);
   text-align: left;
 }
-.done .preview img {
-  display: block;
-  max-width: 100%;
-  max-height: 55vh;
-  margin: 0 auto;
-  object-fit: contain;
-}
-.done .preview.text {
-  background: rgba(0, 0, 0, 0.28);
+.done .preview pre {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
 }
 /* fade at the bottom while there is more text below */
 .done .preview.fade {
@@ -832,22 +882,6 @@ input[type='range'] {
   font-size: 12px;
   color: var(--faint);
 }
-.done .preview.text pre {
-  font-family: var(--font);
-  font-size: 15px;
-  line-height: 1.55;
-  user-select: text;
-  -webkit-user-select: text;
-}
-.done .preview pre {
-  margin: 0;
-  padding: 12px;
-  font-family: var(--mono);
-  font-size: 12.5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-}
 .done .row {
   display: flex;
   gap: 10px;
@@ -856,6 +890,244 @@ input[type='range'] {
   flex-wrap: wrap;
 }
 
+/* ---------- reader: received text or image fills the screen */
+.done.reader {
+  padding: 0;
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.done.reader .panel {
+  width: min(1200px, 100%);
+  height: 100%;
+  max-height: none;
+  padding: max(10px, env(safe-area-inset-top)) 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  text-align: left;
+}
+@media (min-width: 1201px) {
+  .done.reader .panel {
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
+}
+.done.reader .done-head {
+  flex-direction: row;
+  gap: 12px;
+  padding: 4px 16px 10px;
+}
+.done.reader .badge {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+}
+.done.reader .badge svg {
+  width: 18px;
+  height: 18px;
+}
+.done.reader .done-title {
+  flex: 1;
+}
+.done.reader h2 {
+  margin: 0;
+  font-size: 16px;
+  word-break: normal;
+}
+.done.reader h2,
+.done.reader .sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.done.reader .sub {
+  font-size: 12.5px;
+}
+.done.reader .stats-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 9px 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.stats-btn svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s;
+}
+.stats-btn[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.done.reader .done-stats {
+  display: none;
+  margin: 0 16px 10px;
+}
+.done.reader.show-stats .done-stats {
+  display: grid;
+}
+@media (min-width: 720px) {
+  .done.reader .done-stats {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+.done.reader .reader-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 8px;
+}
+.reader-bar .spacer {
+  flex: 1;
+}
+.head-tools {
+  display: none;
+}
+.done.reader .head-tools {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.reader-bar .seg button {
+  min-height: 28px;
+}
+.tbtn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.tbtn svg {
+  width: 18px;
+  height: 18px;
+}
+.tbtn .a-sm {
+  font-size: 12px;
+}
+.tbtn .a-lg {
+  font-size: 18px;
+}
+.tbtn[aria-pressed='true'] {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--line-2);
+}
+.done.reader .panel > .preview {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.22);
+  --rfs: 13px;
+}
+.done.reader .preview pre {
+  padding: 14px 16px 48px;
+  font-size: calc(var(--rfs) + var(--rfs-d, 0) * 1px);
+  line-height: 1.6;
+}
+/* plain text: book-like measure, centred; the whole screen scrolls */
+.done.reader .preview.text {
+  --rfs: 17px;
+}
+.done.reader .preview.text pre {
+  max-width: 44em;
+  margin: 0 auto;
+  padding: 22px 20px 64px;
+  font-family: var(--font);
+  line-height: 1.75;
+}
+.done.reader .preview.nowrap pre {
+  width: max-content;
+  min-width: 100%;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+.done.reader .preview a {
+  color: var(--cyan);
+  text-decoration-color: rgba(34, 216, 255, 0.4);
+  text-underline-offset: 3px;
+  word-break: break-all;
+}
+.done.reader .preview.image {
+  overflow: hidden;
+  background: #000;
+}
+.done.reader .preview.image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.done.reader .more-hint {
+  margin: 0;
+  padding: 6px 16px 0;
+}
+.done.reader .row {
+  margin: 0;
+  padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+/* buttons share the row; they wrap instead of clipping their labels */
+.done.reader .row .btn {
+  flex: 1 1 auto;
+  max-width: 240px;
+  padding: 0 14px;
+}
+
+/* JSON: line numbers and syntax colours */
+.preview pre.json {
+  counter-reset: ln;
+}
+.preview pre.json .l {
+  display: block;
+  position: relative;
+  padding-left: calc(var(--gut, 4ch) + (var(--d, 0) + 2) * 2ch);
+  text-indent: -4ch;
+}
+.preview pre.json .l::before {
+  counter-increment: ln;
+  content: counter(ln);
+  position: absolute;
+  left: 0;
+  width: calc(var(--gut, 4ch) - 1.5ch);
+  text-indent: 0;
+  text-align: right;
+  color: var(--faint);
+  opacity: 0.6;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.j-k { color: #79d3ff; }
+.j-s { color: #9fe39a; }
+.j-n { color: #ffcf5c; }
+.j-b { color: #ff7ab8; }
+.j-z { color: #b9a4ff; }
+.j-p { color: #6b7488; }
+
 @media (max-width: 560px) {
   .dock .stats span.wide {
     display: none;
@@ -863,4 +1135,55 @@ input[type='range'] {
   .metrics b {
     font-size: 13px;
   }
+}
+
+/* ---------- navigation on the send / receive pages */
+.home {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: -6px;
+  padding: 4px 6px 4px 2px;
+  border-radius: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.home svg {
+  width: 20px;
+  height: 20px;
+}
+.home:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.switch-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-decoration: none;
+}
+.switch-page svg {
+  width: 16px;
+  height: 16px;
+}
+.switch-page:hover {
+  color: var(--text);
+}
+
+/* ---------- over live video / a changing code, no backdrop blur: the GPU would redo it for
+   every camera frame (a real source of heat on phones); solid translucent fills instead */
+.stage .panel,
+.stage .chip,
+.stage .side-tools .btn {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(12, 16, 23, 0.86);
+}
+.stage .done:not(.reader) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(4, 6, 10, 0.9);
 }

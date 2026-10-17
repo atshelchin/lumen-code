@@ -1,56 +1,60 @@
 // Decodes camera frames off the main thread, with the JS or the Rust/WASM engine.
-import { Scanner } from './core/scan.js';
-import { loadWasm, WasmScanner } from './core/wasm-engine.js';
+// The main thread sends only the region of interest, already downscaled on the GPU
+// (see grab() in recv-app.js); `region` maps the result back to camera pixels.
+import { Scanner } from './core/scan.js?v=37123c580f';
+import { loadWasm, WasmScanner } from './core/wasm-engine.js?v=37123c580f';
 
 const scanners = { js: new Scanner(), wasm: null };
 let canvas = null;
 let ctx = null;
-// Region of interest from this worker's last success (full-frame coordinates). Only that
-// part of the frame is read back and processed; a miss falls back to the whole frame.
-let roi = null;
 
 async function scannerFor(engine) {
   if (engine !== 'wasm') return scanners.js;
   if (!scanners.wasm) {
-    await loadWasm();
-    scanners.wasm = new WasmScanner();
+    try {
+      await loadWasm();
+      scanners.wasm = new WasmScanner();
+    } catch (err) {
+      const e = new Error(`WASM unavailable: ${err && err.message ? err.message : err}`);
+      e.wasm = true;
+      throw e;
+    }
   }
   return scanners.wasm;
 }
 
 self.onmessage = async (e) => {
-  const { id, bitmap, image, skip, engine } = e.data;
+  const { id, bitmap, image, region, dw, dh, skip, engine } = e.data;
   let img = image;
+  const tPrep = performance.now();
   try {
     const scanner = await scannerFor(engine);
+    const { x: ox, y: oy, kx, ky, fullW, fullH } = region;
     if (bitmap) {
-      if (!canvas || canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
-        canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      if (!canvas) {
+        canvas = new OffscreenCanvas(dw, dh);
         ctx = canvas.getContext('2d', { willReadFrequently: true });
       }
-      ctx.drawImage(bitmap, 0, 0);
+      if (canvas.width < dw || canvas.height < dh) {
+        canvas.width = Math.max(canvas.width, dw);
+        canvas.height = Math.max(canvas.height, dh);
+      }
+      // 1:1 when the browser resized the bitmap; otherwise (no resize support) scale here
+      ctx.imageSmoothingEnabled = bitmap.width !== dw;
+      ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0, dw, dh);
       bitmap.close();
-      img = roi ? ctx.getImageData(roi.x, roi.y, roi.w, roi.h) : ctx.getImageData(0, 0, canvas.width, canvas.height);
+      img = ctx.getImageData(0, 0, dw, dh);
     }
-    const ox = bitmap && roi ? roi.x : 0;
-    const oy = bitmap && roi ? roi.y : 0;
-    const fullW = bitmap ? canvas.width : img.width;
-    const fullH = bitmap ? canvas.height : img.height;
     const t0 = performance.now();
+    const prepMs = t0 - tPrep; // frame copy + read-back: part of the real cost, not of the engine
     const res = scanner.scan(img, { skip });
     const ms = performance.now() - t0;
     if (res.ok && res.stats) {
-      res.stats.corners = res.stats.corners.map(([x, y]) => [x + ox, y + oy]);
-      const xs = res.stats.corners.map((c) => c[0]);
-      const ys = res.stats.corners.map((c) => c[1]);
-      const mx = (Math.max(...xs) - Math.min(...xs)) * 0.18 + 24;
-      const my = (Math.max(...ys) - Math.min(...ys)) * 0.18 + 24;
-      const x0 = Math.max(0, Math.floor(Math.min(...xs) - mx));
-      const y0 = Math.max(0, Math.floor(Math.min(...ys) - my));
-      const x1 = Math.min(fullW, Math.ceil(Math.max(...xs) + mx));
-      const y1 = Math.min(fullH, Math.ceil(Math.max(...ys) + my));
-      roi = x1 - x0 > 64 && y1 - y0 > 64 && (x1 - x0) * (y1 - y0) < fullW * fullH * 0.85 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
-    } else roi = null;
+      // back to camera-frame coordinates
+      res.stats.corners = res.stats.corners.map(([x, y]) => [x / kx + ox, y / ky + oy]);
+      res.stats.cellPx /= (kx + ky) / 2;
+      res.stats.scale = (kx + ky) / 2;
+    }
     const packets = [];
     const okIdx = [];
     if (res.ok)
@@ -66,9 +70,12 @@ self.onmessage = async (e) => {
         ok: res.ok,
         reason: res.reason,
         ms,
+        prepMs,
+        px: img.width * img.height,
         w: fullW,
         h: fullH,
         header: res.header || null,
+        headerReused: !!res.headerReused,
         frameKey: res.frameKey || null,
         skipped: !!res.skipped,
         okIdx,
@@ -78,6 +85,7 @@ self.onmessage = async (e) => {
       packets.map((p) => p.buffer),
     );
   } catch (err) {
-    self.postMessage({ id, ok: false, reason: 'error', error: String(err && err.stack ? err.stack : err), packets: [] });
+    if (bitmap) bitmap.close?.();
+    self.postMessage({ id, ok: false, reason: 'error', wasmError: !!(err && err.wasm), error: String(err && err.stack ? err.stack : err), packets: [] });
   }
 };

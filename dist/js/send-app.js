@@ -1,18 +1,16 @@
-import { applyI18n, toggleLang, t } from './i18n.js';
-import { Sender, preparePayload } from './core/transfer.js';
-import { Renderer } from './core/render.js';
-import { MIN_DIM, MAX_DIM, MODES } from './core/layout.js';
-import { loadWasm, WasmSender } from './core/wasm-engine.js';
+import { applyI18n, t } from './i18n.js?v=37123c580f';
+import { Sender, preparePayload } from './core/transfer.js?v=37123c580f';
+import { Renderer } from './core/render.js?v=37123c580f';
+import { MIN_DIM, MAX_DIM, MODES } from './core/layout.js?v=37123c580f';
+import { loadWasm, WasmSender } from './core/wasm-engine.js?v=37123c580f';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
-$('lang').onclick = () => {
-  toggleLang();
-  updateStats();
-};
 
 const QUIET = 2;
-const MAX_ASPECT = 1.78; // ~ camera frame aspect
+// The code fills the screen in its own shape; beyond this aspect ratio (ultra-wide monitors)
+// a camera would see the code too thin, so the rest stays empty.
+const MAX_ASPECT = 2.4;
 
 const prefs = load();
 {
@@ -46,35 +44,40 @@ function mmPerCssPx() {
 
 const DENSITY = { low: 0.72, auto: 1, high: 1.3, max: 1.65 };
 
+// The code box fills the available screen (any orientation): the more cells, the more data per
+// frame. The receiver turns its phone to match a landscape code.
 function computeGeometry() {
   const dpr = window.devicePixelRatio || 1;
   const pad = 6;
   const cssW = Math.max(100, window.innerWidth - 2 * pad);
   const cssH = Math.max(100, window.innerHeight - 2 * pad);
-  const devW = Math.floor(cssW * dpr);
-  const devH = Math.floor(cssH * dpr);
-  const shortMm = Math.min(cssW, cssH) * mmPerCssPx();
-  // base: ~0.75 mm per cell, clamped to what a 1080p camera can resolve
+  const boxW = Math.min(cssW, cssH * MAX_ASPECT);
+  const boxH = Math.min(cssH, cssW * MAX_ASPECT);
+  const devW = Math.floor(boxW * dpr);
+  const devH = Math.floor(boxH * dpr);
+  const shortMm = Math.min(boxW, boxH) * mmPerCssPx();
+  // base: ~0.75 mm per cell, clamped to what a 1080p camera can resolve across its short side
   const base = Math.max(52, Math.min(150, Math.round(shortMm / 0.75)));
   const target = Math.round(base * DENSITY[prefs.density]);
   const shortDev = Math.min(devW, devH);
-  let s = Math.max(3, Math.floor(shortDev / (target + 2 * QUIET)));
-  let X = Math.floor(devW / s) - 2 * QUIET;
-  let Y = Math.floor(devH / s) - 2 * QUIET;
-  if (X > Y * MAX_ASPECT) X = Math.floor(Y * MAX_ASPECT);
-  if (Y > X * MAX_ASPECT) Y = Math.floor(X * MAX_ASPECT);
-  // stay inside format limits
-  while ((X > MAX_DIM || Y > MAX_DIM) && s < 64) {
-    s++;
-    X = Math.min(X, Math.floor(devW / s) - 2 * QUIET);
-    Y = Math.min(Y, Math.floor(devH / s) - 2 * QUIET);
-  }
-  while ((X < MIN_DIM || Y < MIN_DIM) && s > 2) {
-    s--;
+  let s = Math.max(3, Math.round(shortDev / (target + 2 * QUIET)));
+  const fit = () => {
     X = Math.floor(devW / s) - 2 * QUIET;
     Y = Math.floor(devH / s) - 2 * QUIET;
     if (X > Y * MAX_ASPECT) X = Math.floor(Y * MAX_ASPECT);
     if (Y > X * MAX_ASPECT) Y = Math.floor(X * MAX_ASPECT);
+  };
+  let X;
+  let Y;
+  fit();
+  // stay inside format limits
+  while ((X > MAX_DIM || Y > MAX_DIM) && s < 64) {
+    s++;
+    fit();
+  }
+  while ((X < MIN_DIM || Y < MIN_DIM) && s > 2) {
+    s--;
+    fit();
   }
   X = Math.max(MIN_DIM, Math.min(MAX_DIM, X));
   Y = Math.max(MIN_DIM, Math.min(MAX_DIM, Y));

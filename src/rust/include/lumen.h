@@ -20,7 +20,8 @@ void lm_free(uint8_t *ptr, size_t size);
 /* ---- scanner: camera image (RGBA) -> packets ----
  * skip: optional u32 list [count, then per frame: seq, X, Y, mode, n, nsym, nIdx, idx...]
  * Result record (see rust/src/ffi.rs, lm_scan): ok, skipped, reason, candidates (u32),
- * header mode, X, Y, n, nsym, seq (u32), cellPx (f64), corners[8] (f64), markers (f64),
+ * header mode, X, Y, n, nsym, seq (u32; 0xFFFFFFFF = unknown: no header copy was readable and the
+ * scanner reused the last good header, so the frame cannot be identified), cellPx (f64), corners[8] (f64), markers (f64),
  * cornerFound, cwOk, cwTotal, cwCount, corrected (u32), nPackets, packetLen (u32),
  * then nPackets x (u32 codeword index, packetLen bytes). */
 WScanner *lm_scanner_new(void);
@@ -33,6 +34,10 @@ uint32_t lm_scanner_out_len(WScanner *h);
 WSender *lm_sender_new(const uint8_t *payload, uint32_t len, const uint8_t *name, uint32_t name_len,
                        uint32_t flags, uint32_t file_size, uint32_t crc32, uint32_t mode, uint32_t ecc,
                        uint32_t x, uint32_t y, uint32_t tid, uint32_t seq);
+/* the same, from the file itself: computes CRC-32 and DEFLATE-compresses when useful (compress = 1) */
+WSender *lm_sender_new_file(const uint8_t *file, uint32_t len, const uint8_t *name, uint32_t name_len,
+                            uint32_t compress, uint32_t mode, uint32_t ecc, uint32_t x, uint32_t y,
+                            uint32_t tid, uint32_t seq);
 void lm_sender_free(WSender *h);
 /* u32[10]: n, nsym, T, perFrame, K, X, Y, mode, ecc, blocks */
 const uint32_t *lm_sender_info(WSender *h);

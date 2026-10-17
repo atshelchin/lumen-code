@@ -8,7 +8,7 @@
 //! 6. k-means colour classification with local gain correction; RS with erasure retry
 
 use crate::frame::{decode_codewords, Codeword};
-use crate::layout::{cells_per_codeword, codewords_per_frame, unpack_header, Header, Layout, HEADER_BITS, INK, MODES, PAPER};
+use crate::layout::{cells_per_codeword, codewords_per_frame, header_mask, unpack_header, Header, Layout, HEADER_BITS, INK, MODES, PAPER};
 use std::collections::{HashMap, HashSet};
 
 pub type H3 = [f64; 9];
@@ -188,11 +188,20 @@ pub struct ScanResult {
     pub frame_key: Option<FrameKey>,
     pub codewords: Vec<Codeword>,
     pub stats: Option<ScanStats>,
+    /// Every header copy was unreadable and the last good header was used instead
+    /// (`header.seq` is then `SEQ_UNKNOWN` and there is no frame key).
+    pub header_reused: bool,
 }
+
+/// `Header::seq` of a reused header: the frame number is unknown.
+pub const SEQ_UNKNOWN: u32 = u32::MAX;
+
+/// Header-less geometries tried with the last good header (bounds the extra work per frame).
+const REUSE_CANDIDATES: usize = 4;
 
 impl ScanResult {
     fn fail(reason: &'static str, candidates: usize) -> Self {
-        ScanResult { ok: false, skipped: false, reason, candidates, header: None, frame_key: None, codewords: vec![], stats: None }
+        ScanResult { ok: false, skipped: false, reason, candidates, header: None, frame_key: None, codewords: vec![], stats: None, header_reused: false }
     }
 }
 
@@ -236,6 +245,10 @@ pub struct Scanner {
     thr: Vec<u8>,
     bmin: Vec<u8>,
     bmax: Vec<u8>,
+    // Last header read correctly. X, Y, mode, n and nsym do not change within a transfer and
+    // seq is not needed to decode data, so it stands in when every copy of a header is unreadable.
+    last_header: Option<Header>,
+    reuse_misses: u32,
 }
 
 struct Ctx<'a> {
@@ -324,7 +337,18 @@ impl Scanner {
             }
         }
         let ctx = Ctx { w, h, bs, bw, luma: &self.luma[..w * h], thr: &self.thr[..nb], rgba };
-        ctx.run(skip)
+        let (res, tried_reuse) = ctx.run(skip, self.last_header);
+        if res.ok && !res.header_reused {
+            self.last_header = res.header;
+            self.reuse_misses = 0;
+        } else if tried_reuse {
+            let useful = res.ok && res.stats.as_ref().is_some_and(|st| st.cw_ok > 0);
+            self.reuse_misses = if useful { 0 } else { self.reuse_misses + 1 };
+            if self.reuse_misses >= 3 {
+                self.last_header = None;
+            }
+        }
+        res
     }
 }
 
@@ -839,23 +863,28 @@ impl<'a> Ctx<'a> {
         Some(Refined { x, y, mu: m, mv: m, white, ink })
     }
 
-    fn read_header(&self, f: &Refined, u: V2, v: V2, which: usize) -> Option<Header> {
+    /// Reads one header copy: Ok(header) when its CRC is correct, otherwise Err(soft bits of the
+    /// best-aligned hypothesis, normalised and unmasked) for combining with other copies.
+    #[allow(clippy::result_large_err)] // soft bits by value: no allocation per header attempt
+    fn read_header(&self, f: &Refined, u: V2, v: V2, which: usize) -> Result<Header, [f64; HEADER_BITS]> {
         let thr = (f.white + f.ink) / 2.0;
         let mut offs = [(0f64, 0f64); HEADER_BITS];
         for r in 0..7 {
             for c in 0..10 {
-                let (r, c2) = (r as f64, c as f64);
-                offs[(r as usize) * 10 + c] = match which {
-                    0 => (c2 + 5.0, r - 3.0),
-                    1 => (r - 3.0, c2 + 5.0),
-                    2 => (c2 - 14.0, r - 3.0),
-                    _ => (r - 3.0, c2 - 14.0),
+                let (rf, cf) = (r as f64, c as f64);
+                offs[r * 10 + c] = match which {
+                    0 => (cf + 5.0, rf - 3.0),
+                    1 => (rf - 3.0, cf + 5.0),
+                    2 => (cf - 14.0, rf - 3.0),
+                    _ => (rf - 3.0, cf - 14.0),
                 };
             }
         }
         let horiz = which == 0 || which == 2;
         let mut vals = [0f64; HEADER_BITS];
         let mut raw = [0u8; HEADER_BITS];
+        let mut best = [0f64; HEADER_BITS];
+        let mut best_q = -1.0;
         for hyp in 0..17 {
             let ds = if hyp == 0 { 0.0 } else { (((hyp + 1) / 2) as f64) * 0.0125 * if hyp % 2 == 1 { 1.0 } else { -1.0 } };
             let su = if horiz { 1.0 + ds } else { 1.0 };
@@ -871,7 +900,7 @@ impl<'a> Ctx<'a> {
                 acc += self.luma_at(px + 0.2 * vx, py + 0.2 * vy) + self.luma_at(px - 0.2 * vx, py - 0.2 * vy);
                 vals[b] = acc / 6.0;
             }
-            let mut t = thr;
+            let (mut t, mut m0, mut m1) = (thr, thr, thr);
             for _ in 0..4 {
                 let (mut s0, mut n0, mut s1, mut n1) = (0.0, 0, 0.0, 0);
                 for &val in vals.iter() {
@@ -886,7 +915,9 @@ impl<'a> Ctx<'a> {
                 if n0 == 0 || n1 == 0 {
                     break;
                 }
-                t = (s0 / n0 as f64 + s1 / n1 as f64) / 2.0;
+                m0 = s0 / n0 as f64;
+                m1 = s1 / n1 as f64;
+                t = (m0 + m1) / 2.0;
             }
             let ts: &[f64] = if t == thr { &[thr] } else { &[t, thr] };
             for &tt in ts {
@@ -894,14 +925,54 @@ impl<'a> Ctx<'a> {
                     raw[b] = (vals[b] > tt) as u8;
                 }
                 if let Some(hd) = unpack_header(&raw, which) {
-                    return Some(hd);
+                    return Ok(hd);
+                }
+            }
+            let half = (m1 - m0).max(1.0) / 2.0;
+            let q: f64 = vals.iter().map(|&x| ((x - t).abs() / half).min(1.0)).sum();
+            if q > best_q {
+                best_q = q;
+                for b in 0..HEADER_BITS {
+                    let s2 = ((vals[b] - t) / half).clamp(-1.0, 1.0);
+                    best[b] = if header_mask(which, b) == 1 { -s2 } else { s2 };
                 }
             }
         }
-        None
+        Err(best)
     }
 
-    fn try_corners(&self, cands: &[Cand], set: &CornerSet, mirrored: bool) -> Option<(Header, [Option<Refined>; 4])> {
+    /// Soft majority of header copies; copies that disagree with the rest are left out.
+    fn combine_headers(softs: &[[f64; HEADER_BITS]]) -> Option<Header> {
+        if softs.len() < 2 {
+            return None;
+        }
+        let mut use_idx: Vec<usize> = (0..softs.len()).collect();
+        if softs.len() >= 3 {
+            use_idx.retain(|&i| {
+                let agree = (0..HEADER_BITS)
+                    .filter(|&b| {
+                        let others: f64 = (0..softs.len()).filter(|&j| j != i).map(|j| softs[j][b]).sum();
+                        (softs[i][b] > 0.0) == (others > 0.0)
+                    })
+                    .count();
+                agree as f64 >= 0.75 * HEADER_BITS as f64
+            });
+            if use_idx.len() < 2 {
+                return None;
+            }
+        }
+        let mut raw = [0u8; HEADER_BITS];
+        for b in 0..HEADER_BITS {
+            let s: f64 = use_idx.iter().map(|&i| softs[i][b]).sum();
+            raw[b] = ((s > 0.0) as u8) ^ header_mask(0, b);
+        }
+        unpack_header(&raw, 0)
+    }
+
+    /// Refines a corner set and reads its header. `Some((None, r))`: the geometry is usable but
+    /// no header copy could be read (kept for header reuse).
+    #[allow(clippy::type_complexity)]
+    fn try_corners(&self, cands: &[Cand], set: &CornerSet, mirrored: bool) -> Option<(Option<Header>, [Option<Refined>; 4])> {
         let mut k = set.c;
         if mirrored {
             k.swap(TR, BL);
@@ -924,17 +995,29 @@ impl<'a> Ctx<'a> {
         }
         ax = axes(&rp(&r));
         let mut hdr = None;
+        let mut softs: Vec<[f64; HEADER_BITS]> = Vec::new();
         for (key, which) in [(TL, 0), (TL, 1), (TR, 2), (BL, 3)] {
             if let Some(f) = &r[key] {
                 if let (Some(u), Some(v)) = ax[key] {
-                    hdr = self.read_header(f, u, v, which);
-                    if hdr.is_some() {
-                        break;
+                    match self.read_header(f, u, v, which) {
+                        Ok(h) => {
+                            hdr = Some(h);
+                            break;
+                        }
+                        Err(soft) => softs.push(soft),
                     }
                 }
             }
         }
-        let hdr = hdr?;
+        let Some(hdr) = hdr.or_else(|| Self::combine_headers(&softs)) else { return Some((None, r)) };
+        if !Self::fits(&hdr, &r) {
+            return None;
+        }
+        Some((Some(hdr), r))
+    }
+
+    /// Sanity check: header dimensions against the measured corner spacing.
+    fn fits(hdr: &Header, r: &[Option<Refined>; 4]) -> bool {
         let dist = |a: &Refined, b: &Refined| (a.x - b.x).hypot(a.y - b.y);
         let xest = match (&r[TL], &r[TR], &r[BL], &r[BR]) {
             (Some(a), Some(b), _, _) => dist(a, b) / ((a.mu + b.mu) / 2.0) + 7.0,
@@ -946,30 +1029,53 @@ impl<'a> Ctx<'a> {
             (_, Some(a), _, Some(b)) => dist(a, b) / a.mv + 7.0,
             _ => hdr.y as f64,
         };
-        if (hdr.x as f64 - xest).abs() > 0.2 * xest + 3.0 || (hdr.y as f64 - yest).abs() > 0.2 * yest + 3.0 {
-            return None;
-        }
-        Some((hdr, r))
+        (hdr.x as f64 - xest).abs() <= 0.2 * xest + 3.0 && (hdr.y as f64 - yest).abs() <= 0.2 * yest + 3.0
     }
 
-    fn run(&self, skip: Option<&SkipMap>) -> ScanResult {
+    /// Returns the result and whether the last good header (`reuse`) was tried.
+    fn run(&self, skip: Option<&SkipMap>, reuse: Option<Header>) -> (ScanResult, bool) {
         let cands = self.find_candidates();
         if cands.len() < 3 {
-            return ScanResult::fail("finders", cands.len());
+            return (ScanResult::fail("finders", cands.len()), false);
         }
         let sets = self.select_sets(&cands);
+        let mut headerless = Vec::new();
         for set in &sets {
             for mir in [false, true] {
-                if let Some((hdr, r)) = self.try_corners(&cands, set, mir) {
-                    return self.decode(hdr, r, skip);
+                match self.try_corners(&cands, set, mir) {
+                    Some((Some(hdr), r)) => {
+                        let res = self.decode(hdr, r, skip, false);
+                        if res.ok || res.reason != "lattice" {
+                            return (res, false);
+                        }
+                    }
+                    Some((None, r)) => headerless.push(r),
+                    None => {}
                 }
             }
         }
-        ScanResult::fail(if sets.is_empty() { "geometry" } else { "header" }, cands.len())
+        // Only after the normal search failed: decode the located grid with the last good header.
+        // A wrong reuse is caught by the size check, the marker lattice and the packet CRCs.
+        if let Some(last) = reuse {
+            if !headerless.is_empty() {
+                let hdr = Header { seq: SEQ_UNKNOWN, ..last };
+                for r in headerless.into_iter().take(REUSE_CANDIDATES) {
+                    if !Self::fits(&hdr, &r) {
+                        continue;
+                    }
+                    let res = self.decode(hdr, r, None, true);
+                    if res.ok {
+                        return (res, true);
+                    }
+                }
+                return (ScanResult::fail("header", cands.len()), true);
+            }
+        }
+        (ScanResult::fail(if sets.is_empty() { "geometry" } else { "header" }, cands.len()), false)
     }
 
     #[allow(clippy::needless_range_loop)]
-    fn decode(&self, hdr: Header, r: [Option<Refined>; 4], skip: Option<&SkipMap>) -> ScanResult {
+    fn decode(&self, hdr: Header, r: [Option<Refined>; 4], skip: Option<&SkipMap>, reused: bool) -> ScanResult {
         let (xg, yg) = (hdr.x as usize, hdr.y as usize);
         let (mode, n, nsym) = (hdr.mode as usize, hdr.n as usize, hdr.nsym as usize);
         let Some(layout) = Layout::new(xg, yg) else { return ScanResult::fail("layout", 0) };
@@ -995,11 +1101,12 @@ impl<'a> Ctx<'a> {
         let lu = du0[0].hypot(du0[1]);
         let lv = dv0[0].hypot(dv0[1]);
 
-        let frame_key = FrameKey { seq: hdr.seq, x: hdr.x, y: hdr.y, mode: hdr.mode, n: hdr.n, nsym: hdr.nsym };
+        // a reused header has no seq: such a frame cannot be told apart from others (no skipping)
+        let frame_key = if reused { None } else { Some(FrameKey { seq: hdr.seq, x: hdr.x, y: hdr.y, mode: hdr.mode, n: hdr.n, nsym: hdr.nsym }) };
         let count = codewords_per_frame(&layout, mode, n);
         let mut done = vec![false; count];
         let mut done_n = 0;
-        if let Some(list) = skip.and_then(|s| s.get(&frame_key)) {
+        if let Some(list) = frame_key.as_ref().and_then(|k| skip.and_then(|s| s.get(k))) {
             for &i in list {
                 if i < count && !done[i] {
                     done[i] = true;
@@ -1018,8 +1125,9 @@ impl<'a> Ctx<'a> {
                 reason: "",
                 candidates: 0,
                 header: Some(hdr),
-                frame_key: Some(frame_key),
+                frame_key,
                 codewords: vec![],
+                header_reused: reused,
                 stats: Some(ScanStats { cell_px, corners, cw_count: count, ..Default::default() }),
             };
         }
@@ -1215,6 +1323,10 @@ impl<'a> Ctx<'a> {
                 pp[k * 2 + 1] = pred[1];
                 state[k] = 2;
             }
+        }
+        // a false corner predicts the lattice in the wrong place: reject the geometry
+        if nl >= 8 && (found as f64) < 0.6 * (nl as f64 - 4.0) {
+            return ScanResult::fail("lattice", 0);
         }
         for &k in &missing {
             let (x, y) = apply_h(&hcur, gx_of(k), gy_of(k));
@@ -1439,8 +1551,9 @@ impl<'a> Ctx<'a> {
             reason: "",
             candidates: 0,
             header: Some(hdr),
-            frame_key: Some(frame_key),
+            frame_key,
             codewords: cws,
+            header_reused: reused,
             stats: Some(ScanStats {
                 cell_px,
                 corners,

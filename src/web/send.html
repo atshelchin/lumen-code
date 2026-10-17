@@ -11,9 +11,8 @@
   <body>
     <div class="stage" id="stage">
       <div class="topbar" id="topbar">
-        <a class="brand chip" href="./"><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
+        <a class="home" href="./" data-i18n-title="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6" /></svg><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
         <span class="spacer"></span>
-        <button class="lang" id="lang">中 / EN</button>
       </div>
 
       <div class="drop" id="drop">
@@ -41,6 +40,7 @@
           </div>
           <div class="hint" data-i18n="dropHint"></div>
           <input type="file" id="file" hidden />
+          <a class="switch-page" href="recv.html"><span data-i18n="goRecv"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
         </div>
       </div>
 
@@ -90,5 +90,7 @@
     </div>
 
     <script type="module" src="js/send-app.js"></script>
+    <!-- traffic analytics; kept last so it never delays the app -->
+    <script src="https://tj.appsdata.org/api/script.js" data-site-id="c474d69b2974" defer></script>
   </body>
 </html>

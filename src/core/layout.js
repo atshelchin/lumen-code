@@ -61,7 +61,7 @@ const HEADER_W = 10;
 const HEADER_H = 7;
 // Each copy has its own mask: a transposed (mirrored) read of one copy lands on another
 // copy's cells, and must fail rather than decode with swapped axes.
-const HEADER_MASKS = [0, 1, 2, 3].map((c) => {
+export const HEADER_MASKS = [0, 1, 2, 3].map((c) => {
   const m = new Uint8Array(HEADER_BITS);
   for (let i = 0; i < HEADER_BITS; i++) m[i] = mix32(0x4c554d45 + i + c * 977) & 1;
   return m;

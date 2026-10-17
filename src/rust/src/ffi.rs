@@ -10,7 +10,7 @@
 use crate::frame::Descriptor;
 use crate::layout::Header;
 use crate::scan::{FrameKey, Image, Scanner, SkipMap};
-use crate::transfer::{Finish, Prepared, Receiver, Sender};
+use crate::transfer::{prepare, Finish, Prepared, Receiver, Sender};
 use std::alloc::{alloc, dealloc, Layout as AllocLayout};
 
 #[no_mangle]
@@ -162,6 +162,31 @@ pub extern "C" fn lm_sender_new(
     }
 }
 
+/// Like `lm_sender_new`, but starts from the file itself: computes the CRC-32 and compresses
+/// with DEFLATE when that helps (`compress` = 1), so a native host needs no zlib.
+#[no_mangle]
+pub extern "C" fn lm_sender_new_file(
+    file: *const u8,
+    len: u32,
+    name: *const u8,
+    name_len: u32,
+    compress: u32,
+    mode: u32,
+    ecc: u32,
+    x: u32,
+    y: u32,
+    tid: u32,
+    seq: u32,
+) -> *mut WSender {
+    let file = unsafe { slice(file, len as usize) };
+    let name = String::from_utf8_lossy(unsafe { slice(name, name_len as usize) }).into_owned();
+    let prepared = prepare(file, &name, compress != 0);
+    match Sender::new(&prepared, mode as usize, ecc as usize, x as usize, y as usize, tid as u16, seq) {
+        Some(tx) => Box::into_raw(Box::new(WSender { tx, cells: Vec::new(), info: [0; 10] })),
+        None => std::ptr::null_mut(),
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn lm_sender_free(h: *mut WSender) {
     if !h.is_null() {
@@ -270,4 +295,27 @@ pub extern "C" fn lm_receiver_file(h: *mut WReceiver) -> *const u8 {
 #[no_mangle]
 pub extern "C" fn lm_receiver_file_len(h: *mut WReceiver) -> u32 {
     unsafe { (*h).file.len() as u32 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sender_from_file_matches_prepared_payload() {
+        let file: Vec<u8> = (0..5000u32).map(|i| b"lumen code "[(i % 11) as usize]).collect();
+        let name = b"note.txt";
+        let p = prepare(&file, "note.txt", true);
+        let d = &p.descriptor;
+        let a = lm_sender_new(p.payload.as_ptr(), p.payload.len() as u32, name.as_ptr(), 8, d.flags as u32, d.file_size, d.crc, 1, 1, 90, 150, 0x1234, 7);
+        let b = lm_sender_new_file(file.as_ptr(), file.len() as u32, name.as_ptr(), 8, 1, 1, 1, 90, 150, 0x1234, 7);
+        assert!(!a.is_null() && !b.is_null());
+        for _ in 0..3 {
+            let fa = unsafe { std::slice::from_raw_parts(lm_sender_next_frame(a), 90 * 150) }.to_vec();
+            let fb = unsafe { std::slice::from_raw_parts(lm_sender_next_frame(b), 90 * 150) }.to_vec();
+            assert_eq!(fa, fb);
+        }
+        lm_sender_free(a);
+        lm_sender_free(b);
+    }
 }

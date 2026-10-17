@@ -36,6 +36,11 @@ class Buf {
     }
     return this.ptr;
   }
+  free() {
+    if (this.ptr) X.lm_free(this.ptr, this.cap);
+    this.ptr = 0;
+    this.cap = 0;
+  }
 }
 
 export class WasmScanner {
@@ -95,15 +100,26 @@ export class WasmScanner {
       o += k;
     }
     if (!ok) return { ok, reason, candidates };
-    const header = { mode, X: Xg, Y: Yg, n: nn, nsym, seq };
+    // seq > 255: every header copy was unreadable and the last good header was reused
+    const headerReused = seq > 255;
+    const header = { mode, X: Xg, Y: Yg, n: nn, nsym, seq: headerReused ? -1 : seq };
     return {
       ok,
       skipped,
+      headerReused,
       header,
-      frameKey: `${seq}:${Xg}:${Yg}:${mode}:${nn}:${nsym}`,
+      frameKey: headerReused ? null : `${seq}:${Xg}:${Yg}:${mode}:${nn}:${nsym}`,
       codewords,
       stats: { cellPx, corners, markers, cornerFound: !!cornerFound, cwOk, cwTotal, cwCount, corrected },
     };
+  }
+
+  // releases the scanner and its input buffers (a 1080p frame buffer is ~10 MB of WASM memory)
+  free() {
+    if (this.h) X.lm_scanner_free(this.h);
+    this.h = 0;
+    this.img.free();
+    this.skip.free();
   }
 }
 

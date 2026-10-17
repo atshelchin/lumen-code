@@ -10,7 +10,7 @@
 //  │ finder │                                    │ corner  │   corner: 7×7, light ring, 2-wide dark ring, light dot
 //  └────────┴────────────────────────────────────┴─────────┘
 
-import { crc16bits, mix32 } from './util.js';
+import { crc16bits, mix32 } from './util.js?v=37123c580f';
 
 export const VERSION = 1;
 export const MIN_DIM = 40;
@@ -61,7 +61,7 @@ const HEADER_W = 10;
 const HEADER_H = 7;
 // Each copy has its own mask: a transposed (mirrored) read of one copy lands on another
 // copy's cells, and must fail rather than decode with swapped axes.
-const HEADER_MASKS = [0, 1, 2, 3].map((c) => {
+export const HEADER_MASKS = [0, 1, 2, 3].map((c) => {
   const m = new Uint8Array(HEADER_BITS);
   for (let i = 0; i < HEADER_BITS; i++) m[i] = mix32(0x4c554d45 + i + c * 977) & 1;
   return m;

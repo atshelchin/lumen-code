@@ -1,11 +1,8 @@
-import { applyI18n, toggleLang, t } from './i18n.js';
+import { applyI18n, t } from './i18n.js?v=37123c580f';
+import { isJson, formatJson, linkify } from './text-view.js?v=37123c580f';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
-$('lang').onclick = () => {
-  toggleLang();
-  updateHud();
-};
 
 const video = $('video');
 const overlay = $('overlay');
@@ -20,7 +17,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=37123c580f', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -29,20 +26,31 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=37123c580f', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly
 let engine = (() => {
   try {
-    return localStorage.getItem('lumen.engine') === 'wasm' ? 'wasm' : 'js';
+    return localStorage.getItem('lumen.engine') === 'js' ? 'js' : 'wasm'; // WASM: faster, cooler
   } catch (e) {
-    return 'js';
+    return 'wasm';
   }
 })();
 if (params.get('engine')) engine = params.get('engine') === 'wasm' ? 'wasm' : 'js';
 sink.postMessage({ reset: true, engine });
 let scanMs = []; // recent per-frame scan times of the current engine
+let engineNoteUntil = 0;
+let engineNote = '';
+function wasmFailed(why) {
+  if (engine !== 'wasm') return;
+  engine = 'js';
+  syncEngine();
+  sink.postMessage({ engine }); // keeps the packets received so far
+  engineNote = t('wasmFailed') + (why ? ` (${String(why).split('\n')[0].slice(0, 80)})` : '');
+  engineNoteUntil = performance.now() + 8000;
+  updateHud();
+}
 function syncEngine() {
   for (const b of $('segEngine').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === engine));
 }
@@ -57,13 +65,9 @@ $('segEngine').addEventListener('click', (e) => {
   }
   syncEngine();
   scanMs = [];
-  // a new engine starts a fresh reception
-  sink.postMessage({ reset: true, engine });
-  finished = false;
-  progress = null;
-  activeTid = null;
-  progHist = [];
-  frameDone.clear();
+  session.msSum = session.msN = 0; // engine time in the summary = the engine that finished
+  // both engines read the same packets: the reception continues where it is
+  sink.postMessage({ engine });
   updateHud();
 });
 syncEngine();
@@ -90,6 +94,13 @@ const frameDone = new Map();
 let camFrames = []; // timestamps of camera frames
 let scanTimes = []; // timestamps of finished scans
 let checksumWarnUntil = 0;
+// totals over the whole transfer, shown on the result panel
+let session = null;
+function resetSession() {
+  session = { scans: 0, frames: 0, covOk: 0, covTot: 0, msSum: 0, msN: 0, prepSum: 0, pxSum: 0, cellSum: 0, cellN: 0, header: null, received: 0, T: 0 };
+  if (params.has('debug')) self.lumenSession = session; // for measurements
+}
+resetSession();
 
 // ---------- camera
 async function openCamera() {
@@ -103,7 +114,7 @@ async function openCamera() {
   const video0 = {
     width: { ideal: dims[0] },
     height: { ideal: dims[1] },
-    frameRate: { ideal: 30 },
+    frameRate: { ideal: 30, max: 30 }, // some phones would capture at 60 fps: twice the work, no gain
   };
   if (deviceIdx >= 0 && deviceIds[deviceIdx]) video0.deviceId = { exact: deviceIds[deviceIdx] };
   else video0.facingMode = { ideal: 'environment' };
@@ -143,20 +154,54 @@ function setupTrackControls() {
   if (caps.focusMode && caps.focusMode.includes('continuous')) {
     track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
   }
-  const box = $('zoomBox');
   if (caps.zoom && caps.zoom.max > caps.zoom.min) {
-    const z = $('zoom');
-    z.min = caps.zoom.min;
-    z.max = Math.min(caps.zoom.max, caps.zoom.min * 8);
-    z.step = caps.zoom.step || 0.1;
-    z.value = track.getSettings().zoom || caps.zoom.min;
-    $('zoomVal').textContent = `${Number(z.value).toFixed(1)}×`;
-    z.oninput = () => {
-      $('zoomVal').textContent = `${Number(z.value).toFixed(1)}×`;
-      track.applyConstraints({ advanced: [{ zoom: Number(z.value) }] }).catch(() => {});
-    };
-    box.classList.remove('hidden');
-  } else box.classList.add('hidden');
+    zoomRange = { min: caps.zoom.min, max: Math.min(caps.zoom.max, caps.zoom.min * 8) };
+    // a restarted camera (after "receive another") keeps the level the user chose
+    setZoom(zoomLevel ? zoomLevel : track.getSettings().zoom || caps.zoom.min);
+  } else zoomRange = null;
+  $('zoomChip').classList.toggle('hidden', !zoomRange);
+}
+
+// ---------- zoom: pinch on the camera image; ctrl + wheel (trackpad pinch) on desktop
+let zoomRange = null;
+let zoomLevel = 0;
+let zoomPending = false;
+function setZoom(z) {
+  if (!zoomRange || !track) return;
+  zoomLevel = Math.min(zoomRange.max, Math.max(zoomRange.min, z));
+  $('zoomVal').textContent = `${zoomLevel.toFixed(1)}×`;
+  $('zoomChip').classList.toggle('active', zoomLevel > zoomRange.min + 0.05);
+  if (zoomPending) return; // one constraint update per animation frame
+  zoomPending = true;
+  requestAnimationFrame(() => {
+    zoomPending = false;
+    if (track) track.applyConstraints({ advanced: [{ zoom: zoomLevel }] }).catch(() => {});
+  });
+}
+{
+  const stage = $('stage');
+  const onImage = (e) => !e.target.closest('.topbar, .recv-bottom, .side-tools, .zoom-chip, .start, .done');
+  let pinch = null;
+  const spread = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  stage.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2 && zoomRange && onImage(e)) pinch = { d: spread(e.touches), z: zoomLevel };
+  }, { passive: true });
+  stage.addEventListener('touchmove', (e) => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    setZoom(pinch.z * (spread(e.touches) / pinch.d));
+  }, { passive: false });
+  stage.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) pinch = null;
+  });
+  // iOS Safari: keep the page itself from zooming
+  for (const ev of ['gesturestart', 'gesturechange']) stage.addEventListener(ev, (e) => onImage(e) && e.preventDefault());
+  stage.addEventListener('wheel', (e) => {
+    if (!zoomRange || !onImage(e)) return;
+    e.preventDefault();
+    setZoom(zoomLevel * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)));
+  }, { passive: false });
+  $('zoomChip').onclick = () => zoomRange && setZoom(zoomRange.min);
 }
 
 $('switchCam').onclick = () => {
@@ -194,6 +239,7 @@ function beginScanning(still) {
   $('start').classList.add('hidden');
   $('hud').classList.remove('hidden');
   stillImage = still || null;
+  crop = null;
   running = true;
   if (!firstPacketAt) firstPacketAt = 0;
   wake();
@@ -211,15 +257,35 @@ function sourceSize() {
   return [video.videoWidth, video.videoHeight];
 }
 
-// Scan pacing: about 2.2x the sender's distinct frame rate is enough to catch every frame;
-// scanning every camera frame mostly re-reads frames already decoded and heats the phone.
+// Frame-locked scanning. Each sender frame needs one good capture; more scans of the same
+// frame only cost battery. After a frame is fully decoded, wait ~3/4 of a sender frame
+// period; after a repeat, ~1/3; after a partial decode, rescan at once.
 let lastDispatch = 0;
 let senderFpsEst = 0;
-function scanInterval(now) {
-  if (finished) return 1000 / 3;
-  if (now - lastFoundAt > 2000) return 1000 / 5; // searching
-  const rate = senderFpsEst > 0 ? Math.min(30, Math.max(6, senderFpsEst * 2.2)) : 15;
-  return 1000 / rate;
+let nextScanAt = 0;
+let lastDecisionAt = 0; // capture time of the newest result used for scheduling
+const captureAt = new Map(); // scan id -> capture time
+function senderPeriod() {
+  return 1000 / (senderFpsEst > 0 ? senderFpsEst : 12);
+}
+function scanDue(now) {
+  if (finished) return now - lastDispatch >= 1000 / 3;
+  // searching: 5 scans/s, and 2/s once nothing has been in view for 10 s (phone put down)
+  if (now - lastFoundAt > 10000) return now - lastDispatch >= 1000 / 2;
+  if (now - lastFoundAt > 2000) return now - lastDispatch >= 1000 / 5;
+  if (now - lastDispatch < Math.min(1000 / 30, senderPeriod() / 3)) return false;
+  return now >= nextScanAt;
+}
+function schedule(d, capturedAt) {
+  if (capturedAt < lastDecisionAt) return; // an older capture finished late
+  lastDecisionAt = capturedAt;
+  const P = senderPeriod();
+  if (!d.ok) nextScanAt = 0;
+  else if (d.skipped) nextScanAt = capturedAt + 0.33 * P;
+  else {
+    const e = d.frameKey && frameDone.get(d.frameKey);
+    nextScanAt = e && e.total && e.ok.size >= e.total ? capturedAt + 0.75 * P : 0;
+  }
 }
 
 function pump() {
@@ -227,7 +293,7 @@ function pump() {
   const now = performance.now();
   camFrames.push(now);
   while (camFrames.length && now - camFrames[0] > 2000) camFrames.shift();
-  if (video.readyState >= 2 && video.videoWidth && now - lastDispatch >= scanInterval(now) - 4) {
+  if (video.readyState >= 2 && video.videoWidth && scanDue(now)) {
     const free = workers.find((w) => !w.busy);
     if (free) {
       lastDispatch = now;
@@ -248,26 +314,62 @@ function skipMap() {
   return out;
 }
 
+// Region of interest and processing scale, from the newest result. Only this part of the
+// camera frame is copied out of the GPU, already downscaled so that a cell is about
+// TARGET_CELL pixels: the copy and read-back cost more than the scan itself at full size.
+const TARGET_CELL = 6;
+let crop = null; // { x, y, w, h, k } in camera pixels
+let cropAt = 0;
+function updateCrop(d, capturedAt) {
+  if (capturedAt < cropAt || stillImage) return;
+  cropAt = capturedAt;
+  if (!d.ok || !d.stats || !d.w) {
+    crop = null; // lost: whole frame, full resolution
+    return;
+  }
+  const xs = d.stats.corners.map((c) => c[0]);
+  const ys = d.stats.corners.map((c) => c[1]);
+  const mx = (Math.max(...xs) - Math.min(...xs)) * 0.18 + 24;
+  const my = (Math.max(...ys) - Math.min(...ys)) * 0.18 + 24;
+  const x0 = Math.max(0, Math.floor(Math.min(...xs) - mx));
+  const y0 = Math.max(0, Math.floor(Math.min(...ys) - my));
+  const x1 = Math.min(d.w, Math.ceil(Math.max(...xs) + mx));
+  const y1 = Math.min(d.h, Math.ceil(Math.max(...ys) + my));
+  const k = Math.min(1, Math.max(0.35, TARGET_CELL / d.stats.cellPx));
+  if (x1 - x0 < 64 || y1 - y0 < 64) crop = null;
+  else crop = { x: x0, y: y0, w: x1 - x0, h: y1 - y0, k, fw: d.w, fh: d.h };
+}
+
 async function grab(w) {
   w.busy = true;
   const id = ++frameId;
+  captureAt.set(id, performance.now());
   const skip = skipMap();
   const src = stillImage || video;
   const [sw, sh] = sourceSize();
+  // a crop measured on another frame size (the phone was turned) no longer applies
+  const r = crop && crop.fw === sw && crop.fh === sh ? crop : { x: 0, y: 0, w: sw, h: sh, k: 1 };
+  const dw = Math.max(32, Math.round(r.w * r.k));
+  const dh = Math.max(32, Math.round(r.h * r.k));
+  const region = { x: r.x, y: r.y, kx: dw / r.w, ky: dh / r.h, fullW: sw, fullH: sh };
   try {
     if (useBitmap) {
-      const bmp = await createImageBitmap(src);
-      w.postMessage({ id, bitmap: bmp, skip, engine }, [bmp]);
+      // crop + resize happen on the GPU; the worker receives only the small bitmap
+      const opts = dw < r.w ? { resizeWidth: dw, resizeHeight: dh, resizeQuality: 'medium' } : undefined;
+      const bmp = await createImageBitmap(src, r.x, r.y, r.w, r.h, opts);
+      w.postMessage({ id, bitmap: bmp, region, dw, dh, skip, engine }, [bmp]);
     } else {
-      if (!fallbackCanvas || fallbackCanvas.width !== sw || fallbackCanvas.height !== sh) {
+      if (!fallbackCanvas) {
         fallbackCanvas = document.createElement('canvas');
-        fallbackCanvas.width = sw;
-        fallbackCanvas.height = sh;
         fallbackCtx = fallbackCanvas.getContext('2d', { willReadFrequently: true });
       }
-      fallbackCtx.drawImage(src, 0, 0, sw, sh);
-      const im = fallbackCtx.getImageData(0, 0, sw, sh);
-      w.postMessage({ id, image: { width: sw, height: sh, data: im.data }, skip, engine }, [im.data.buffer]);
+      if (fallbackCanvas.width < dw || fallbackCanvas.height < dh) {
+        fallbackCanvas.width = Math.max(fallbackCanvas.width, dw);
+        fallbackCanvas.height = Math.max(fallbackCanvas.height, dh);
+      }
+      fallbackCtx.drawImage(src, r.x, r.y, r.w, r.h, 0, 0, dw, dh);
+      const im = fallbackCtx.getImageData(0, 0, dw, dh);
+      w.postMessage({ id, image: { width: dw, height: dh, data: im.data }, region, skip, engine }, [im.data.buffer]);
     }
   } catch (err) {
     w.busy = false;
@@ -278,17 +380,28 @@ async function grab(w) {
 // ---------- results
 function onResult(w, d) {
   w.busy = false;
+  const capturedAt = captureAt.get(d.id) ?? performance.now();
+  captureAt.delete(d.id);
   if (d.reason === 'error') {
     console.warn(d.error);
-    if (useBitmap && ++workerErrors >= 2) useBitmap = false; // no OffscreenCanvas 2D in workers
+    if (d.wasmError) wasmFailed(d.error);
+    else if (useBitmap && ++workerErrors >= 2) useBitmap = false; // no OffscreenCanvas 2D in workers
+    nextScanAt = 0;
     return;
   }
   const now = performance.now();
   lastResult = d;
+  if (d.prepMs !== undefined) {
+    session.prepSum += d.prepMs;
+    session.pxSum += d.px || 0;
+  }
   if (d.engine === engine && d.ms) {
     scanMs.push(d.ms);
     if (scanMs.length > 30) scanMs.shift();
+    session.msSum += d.ms;
+    session.msN++;
   }
+  session.scans++;
   scanTimes.push(now);
   while (scanTimes.length && now - scanTimes[0] > 2000) scanTimes.shift();
   if (d.frameKey) {
@@ -296,10 +409,22 @@ function onResult(w, d) {
     if (!e) {
       e = { t: now, first: now, ok: new Set(), seq: d.header.seq, total: d.stats ? d.stats.cwCount : 0 };
       frameDone.set(d.frameKey, e);
+      session.frames++;
+      session.covTot += e.total;
     }
     e.t = now;
-    for (const i of d.okIdx || []) e.ok.add(i);
+    for (const i of d.okIdx || []) {
+      if (!e.ok.has(i)) session.covOk++;
+      e.ok.add(i);
+    }
+    session.header = d.header;
   }
+  if (d.ok && d.stats && !d.skipped) {
+    session.cellSum += d.stats.cellPx;
+    session.cellN++;
+  }
+  schedule(d, capturedAt);
+  updateCrop(d, capturedAt);
   const rec = { t: now, ok: d.ok, cwOk: 0, cwTotal: 0, cell: 0, skipped: !!d.skipped };
   if (d.ok) {
     lastFoundAt = now;
@@ -326,12 +451,15 @@ function onSink(m) {
       firstPacketAt = now;
     }
     progress = m.prog;
+    session.received = m.prog.received;
+    session.T = m.prog.T || session.T;
     progHist.push([now, m.prog.received]);
     while (progHist.length > 2 && now - progHist[0][0] > 3000) progHist.shift();
     updateHud();
   } else if (m.type === 'done') {
     showDone(m.name, m.bytes);
   } else if (m.type === 'error') {
+    if (m.wasmError) return wasmFailed(m.error);
     checksumWarnUntil = performance.now() + 3000;
     console.warn('sink', m.error);
   }
@@ -355,7 +483,7 @@ function drawOverlay(d) {
   const oy = (H - ih * scale) / 2;
   const pts = d.stats.corners.map(([x, y]) => [ox + x * scale, oy + y * scale]);
   const e = d.frameKey && frameDone.get(d.frameKey);
-  const rate = e && e.total ? e.ok.size / e.total : d.skipped ? 1 : 0;
+  const rate = e && e.total ? e.ok.size / e.total : d.skipped ? 1 : d.stats.cwCount ? (d.okIdx || []).length / d.stats.cwCount : 0;
   const color = rate > 0.8 ? '#2bdc74' : rate > 0.3 ? '#ffd60a' : '#ff5468';
   octx.lineWidth = 3;
   octx.strokeStyle = color;
@@ -441,25 +569,30 @@ function updateHud() {
   const senderFps = dt > 0.5 ? span / dt : 0;
   if (senderFps > 0) senderFpsEst = senderFps;
   const distinctFps = dt > 0.5 ? (recent.length - 1) / dt : 0;
-  const missed = span > 0 ? Math.max(0, 1 - (recent.length - 1) / span) : 0;
+  // share of the sender's frames that were captured; with a fountain code a missed frame
+  // costs only its own data, nothing has to be resent
+  const captured = span > 0 ? Math.min(1, (recent.length - 1) / span) : 0;
   const avgMs = scanMs.length ? scanMs.reduce((a, b) => a + b, 0) / scanMs.length : 0;
+  // fraction of time the decode workers are busy
+  const load = (avgMs * scanFps) / 1000 / NW;
   $('diag').textContent =
     `${engine.toUpperCase()} ${avgMs ? avgMs.toFixed(1) + ' ms' : '–'} · ${t('camFps')} ${camFps.toFixed(0)} · ${t('scanFps')} ${scanFps.toFixed(0)}/s · ${t('frameFps')} ${distinctFps.toFixed(1)}/s` +
-    (senderFps ? ` · ${t('missed')} ${Math.round(missed * 100)}%` : '');
+    (senderFps ? ` · ${t('senderFps')} ${senderFps.toFixed(0)}/s · ${t('captured')} ${Math.round(captured * 100)}%` : '');
 
   const tip = $('tip');
   let msg = '';
   let good = false;
-  if (now < checksumWarnUntil) msg = t('checksum');
+  if (now < engineNoteUntil) msg = engineNote;
+  else if (now < checksumWarnUntil) msg = t('checksum');
   else if (!found) msg = t('tipSearch');
   else if (cellN && cell < 3.4) {
     const h = lastResult && lastResult.header;
     const portrait = video.videoHeight > video.videoWidth;
     msg = h && h.X > h.Y * 1.2 && portrait ? t('tipLandscape') : t('tipCloser');
   } else if (cwTot && okRate < 0.5) msg = cell < 4.5 ? t('tipSteady') : t('tipColor');
-  else if (senderFps && missed > 0.3 && dt > 1.5) msg = t('tipFpsDown').replace('{n}', Math.max(4, Math.round(distinctFps * 1.1)));
-  else if (senderFps && missed < 0.05 && okRate > 0.85 && dt > 2 && camFps > 2.6 * senderFps && scanFps > 2 * senderFps) {
-    msg = t('tipFpsUp').replace('{n}', Math.round(Math.min(camFps / 2.2, senderFps * 1.5)));
+  else if (engine === 'js' && senderFps && captured < 0.8 && load > 0.8) msg = t('tipWasm');
+  else if (senderFps && captured > 0.95 && okRate > 0.9 && dt > 2 && load < 0.5 && camFps > 2.2 * senderFps) {
+    msg = t('tipFpsUp').replace('{n}', Math.round(Math.min(camFps / 2, senderFps * 1.5)));
     good = true;
   } else {
     msg = t('tipGood');
@@ -513,11 +646,103 @@ async function copyText(text) {
   }
 }
 
-// Display limit only: Copy and Save always use the complete text.
+// Display limits only: Copy and Save always use the complete text.
 const TEXT_DISPLAY_LIMIT = 1_000_000;
+const HIGHLIGHT_LIMIT = 300_000; // larger JSON is formatted without colours to keep the DOM small
+const LINKIFY_LIMIT = 200_000;
 let truncated = false;
 
-// Long previews scroll inside the panel; phones show no scrollbar, so say so and fade the edge.
+// Reader view (received text or image fills the screen). Choices persist per browser.
+const reader = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('lumen.reader')) || {};
+  } catch (e) {
+    return {};
+  }
+})();
+function saveReader() {
+  try {
+    localStorage.setItem('lumen.reader', JSON.stringify(reader));
+  } catch (e) {
+    /* ignore */
+  }
+}
+let shown = null; // { text, json, plain, lines }
+
+function renderText() {
+  const pv = $('preview');
+  const c = shown;
+  const pretty = c.json && reader.view !== 'raw';
+  const pre = document.createElement('pre');
+  truncated = false;
+  if (pretty) {
+    const colour = c.text.length <= HIGHLIGHT_LIMIT;
+    c.lines = c.lines || formatJson(c.text, { html: colour });
+    if (colour) {
+      pre.className = 'json';
+      pre.style.setProperty('--gut', `${String(c.lines.length).length + 2}ch`);
+      // indentation becomes padding, so a wrapped line continues under its own start (hanging indent)
+      pre.innerHTML = c.lines
+        .map((l) => {
+          const sp = l.search(/\S|$/);
+          return `<span class="l" style="--d:${sp / 2}">${l.slice(sp)}</span>`;
+        })
+        .join('');
+    } else {
+      const all = c.lines.join('\n');
+      truncated = all.length > TEXT_DISPLAY_LIMIT;
+      pre.textContent = truncated ? all.slice(0, TEXT_DISPLAY_LIMIT) : all;
+    }
+  } else {
+    truncated = c.text.length > TEXT_DISPLAY_LIMIT;
+    const body = truncated ? c.text.slice(0, TEXT_DISPLAY_LIMIT) : c.text;
+    if (c.plain && body.length <= LINKIFY_LIMIT) linkify(pre, body);
+    else pre.textContent = body;
+  }
+  pv.className = 'preview';
+  pv.classList.toggle('text', c.plain);
+  pv.classList.toggle('nowrap', !c.plain && reader.wrap === false);
+  pv.style.setProperty('--rfs-d', reader.fs || 0);
+  pv.replaceChildren(pre);
+  pv.scrollTop = 0;
+  pv.scrollLeft = 0;
+  for (const b of $('segView').querySelectorAll('button')) b.setAttribute('aria-pressed', String((b.dataset.v === 'pretty') === pretty));
+  $('wrapBtn').classList.toggle('hidden', c.plain);
+  $('wrapBtn').setAttribute('aria-pressed', String(reader.wrap !== false));
+  requestAnimationFrame(updateMoreHint);
+}
+
+function applyStatsToggle() {
+  const on = reader.stats ?? innerWidth >= 720; // open by default on wide screens, folded on phones
+  $('done').classList.toggle('show-stats', on);
+  $('statsBtn').setAttribute('aria-expanded', String(on));
+}
+$('statsBtn').onclick = () => {
+  reader.stats = !$('done').classList.contains('show-stats');
+  saveReader();
+  applyStatsToggle();
+};
+$('segView').addEventListener('click', (e) => {
+  const v = e.target.closest('button')?.dataset.v;
+  if (!v || !shown) return;
+  reader.view = v;
+  saveReader();
+  renderText();
+});
+$('wrapBtn').onclick = () => {
+  reader.wrap = reader.wrap === false;
+  saveReader();
+  if (shown) renderText();
+};
+for (const [id, d] of [['fontDown', -1], ['fontUp', 1]]) {
+  $(id).onclick = () => {
+    reader.fs = Math.max(-4, Math.min(8, (reader.fs || 0) + d));
+    saveReader();
+    $('preview').style.setProperty('--rfs-d', reader.fs);
+  };
+}
+
+// Long previews scroll; phones show no scrollbar, so fade the edge (and say so in the small card).
 function updateMoreHint() {
   const pv = $('preview');
   const hint = $('moreHint');
@@ -525,7 +750,7 @@ function updateMoreHint() {
   const atEnd = pv.scrollTop + pv.clientHeight >= pv.scrollHeight - 8;
   pv.classList.toggle('fade', overflow && !atEnd);
   const msgs = [];
-  if (overflow) msgs.push(t('scrollHint'));
+  if (overflow && !$('done').classList.contains('reader')) msgs.push(t('scrollHint'));
   if (truncated) msgs.push(t('truncatedHint').replace('{n}', TEXT_DISPLAY_LIMIT.toLocaleString()));
   hint.textContent = msgs.join(' · ');
   hint.classList.toggle('hidden', !msgs.length);
@@ -533,20 +758,68 @@ function updateMoreHint() {
 $('preview').addEventListener('scroll', updateMoreHint, { passive: true });
 window.addEventListener('resize', () => !$('done').classList.contains('hidden') && updateMoreHint());
 
+// The same numbers as the live dashboard, summed over the whole transfer.
+function renderDoneStats(size, secs) {
+  const s = session;
+  const h = s.header;
+  const wire = s.received * (s.T || 0); // fountain symbols collected (payload after compression)
+  const items = [
+    [t('dTime'), secs >= 0.05 ? `${secs.toFixed(1)} s` : '–'],
+    [t('dSpeed'), secs >= 0.5 ? `${fmtBytes(size / secs)}/s` : '–'],
+    [t('dWire'), wire ? `${fmtBytes(wire / Math.max(secs, 0.001))}/s` : '–'],
+    [t('dFrames'), `${s.frames} / ${s.scans}`],
+    [t('okM'), s.covTot ? `${Math.round((100 * s.covOk) / s.covTot)}%` : '–'],
+    [t('dEngine'), `${engine.toUpperCase()} ${s.msN ? (s.msSum / s.msN).toFixed(1) + ' ms' : ''}`],
+  ];
+  const box = $('doneStats');
+  box.innerHTML = '';
+  for (const [k, v] of items) {
+    const d = document.createElement('div');
+    d.textContent = k;
+    const b = document.createElement('b');
+    b.textContent = v;
+    d.appendChild(b);
+    box.appendChild(d);
+  }
+  if (h) {
+    const c = document.createElement('div');
+    c.className = 'code';
+    const colours = [2, 4, 8][h.mode] || '?';
+    c.textContent = `${t('dCode')} ${h.X}×${h.Y} · ${colours} ${t('dColours')} · ECC ${Math.round((100 * h.nsym) / h.n)}% · ${t('cellM')} ${s.cellN ? (s.cellSum / s.cellN).toFixed(1) + 'px' : '–'}`;
+    box.appendChild(c);
+  }
+}
+
+let cameraWasOn = false;
 function showDone(name, bytes) {
   finished = true;
   truncated = false;
   running = false;
+  // the camera is not needed while the result is on screen: turn it off (power, heat)
+  cameraWasOn = !!stream;
+  if (stream) {
+    stopStream();
+    video.srcObject = null;
+  }
+  if (wakeLock) wakeLock.release().catch(() => {});
   const ext = (name.split('.').pop() || '').toLowerCase();
   const blob = new Blob([bytes], { type: MIME[ext] || 'application/octet-stream' });
   if (lastUrl) URL.revokeObjectURL(lastUrl);
   lastUrl = URL.createObjectURL(blob);
   const text = asText(name, bytes);
   const message = text !== null && name === TEXT_NAME;
+  const json = text !== null && isJson(text);
+  const image = (MIME[ext] || '').startsWith('image/');
   const secs = firstPacketAt ? (performance.now() - firstPacketAt) / 1000 : 0;
+  renderDoneStats(bytes.length, secs);
   const timing = secs >= 0.5 ? ` · ${secs.toFixed(1)}s · ${fmtBytes(bytes.length / secs)}/s` : '';
-  $('doneName').textContent = message ? t('textReceived') : name;
-  $('doneSub').textContent = (message ? `${[...text].length} ${t('chars')} · ${fmtBytes(bytes.length)}` : fmtBytes(bytes.length)) + timing;
+  shown = text !== null ? { text, json, plain: message && !json, lines: null } : null;
+  if (json) shown.lines = formatJson(text, { html: text.length <= HIGHLIGHT_LIMIT });
+  let what = fmtBytes(bytes.length);
+  if (json) what = `JSON · ${shown.lines.length.toLocaleString()} ${t('lines')} · ${what}`;
+  else if (message) what = `${[...text].length.toLocaleString()} ${t('chars')} · ${what}`;
+  $('doneName').textContent = message ? t(json ? 'jsonReceived' : 'textReceived') : name;
+  $('doneSub').textContent = what + timing;
 
   const save = $('saveBtn');
   save.href = lastUrl;
@@ -560,7 +833,9 @@ function showDone(name, bytes) {
   copy.classList.toggle('hidden', text === null);
   copy.textContent = t('copy');
   copy.onclick = async () => {
-    if (await copyText(text)) {
+    // copies what is on screen: formatted JSON in the Formatted view; Save keeps the original bytes
+    const out = json && reader.view !== 'raw' ? formatJson(text).join('\n') : text;
+    if (await copyText(out)) {
       copy.textContent = t('copied');
       setTimeout(() => (copy.textContent = t('copy')), 1500);
     }
@@ -571,24 +846,27 @@ function showDone(name, bytes) {
   link.classList.toggle('hidden', !isLink);
   if (isLink) link.href = url;
 
+  // text and images open full screen; other files get the small card
+  const done = $('done');
+  done.classList.toggle('reader', image || text !== null);
+  $('readerBar').classList.toggle('hidden', !shown || shown.plain);
+  $('headTools').classList.toggle('hidden', !shown);
+  $('segView').classList.toggle('hidden', !json);
+  applyStatsToggle();
   const pv = $('preview');
-  pv.innerHTML = '';
+  truncated = false;
+  pv.replaceChildren();
   pv.className = 'preview hidden';
-  if ((MIME[ext] || '').startsWith('image/')) {
+  if (text !== null) {
+    renderText();
+  } else if (image) {
     const img = document.createElement('img');
     img.src = lastUrl;
+    img.alt = name;
     pv.appendChild(img);
-    pv.classList.remove('hidden');
-  } else if (text !== null) {
-    const pre = document.createElement('pre');
-    truncated = text.length > TEXT_DISPLAY_LIMIT;
-    pre.textContent = truncated ? text.slice(0, TEXT_DISPLAY_LIMIT) : text;
-    pv.appendChild(pre);
-    pv.classList.remove('hidden');
-    if (message) pv.classList.add('text');
+    pv.className = 'preview image';
   }
-  $('done').querySelector('.panel').classList.toggle('wide', text !== null);
-  $('done').classList.remove('hidden');
+  done.classList.remove('hidden');
   requestAnimationFrame(updateMoreHint);
   $('rxPct').textContent = '100%';
   $('rxBar').style.width = '100%';
@@ -597,6 +875,8 @@ function showDone(name, bytes) {
 
 $('againBtn').onclick = () => {
   $('done').classList.add('hidden');
+  $('preview').replaceChildren();
+  shown = null;
   sink.postMessage({ reset: true, engine });
   finished = false;
   progress = null;
@@ -604,12 +884,16 @@ $('againBtn').onclick = () => {
   progHist = [];
   scanHist = [];
   frameDone.clear();
+  resetSession();
   firstPacketAt = 0;
   $('rxName').textContent = t('waiting');
   $('rxPct').textContent = '0%';
   $('rxBar').style.width = '0';
   $('mSpeed').textContent = $('mEta').textContent = '–';
-  if (stream || video.src) {
+  if (cameraWasOn) {
+    cameraWasOn = false;
+    openCamera(); // same camera as before; starts scanning again
+  } else if (video.src) {
     running = true;
     pump();
   } else {

@@ -8,7 +8,7 @@
 //   /js/core/*   -> src/core/*     (JS protocol implementation)
 //   /wasm/*      -> dist/wasm/*    (built by src/tools/build-wasm.sh)
 //   /test/*      -> test/*         (browser tests)
-//   /PROTOCOL*   -> repository root
+//   /docs/*      -> docs/*        (protocol and guides)
 //   everything else -> src/web/*
 import http from 'node:http';
 import https from 'node:https';
@@ -44,9 +44,9 @@ function resolveSource(p) {
     ['/js/core/', 'src/core/'],
     ['/wasm/', 'dist/wasm/'],
     ['/test/', 'test/'],
+    ['/docs/', 'docs/'],
   ];
   for (const [prefix, dir] of rules) if (p.startsWith(prefix)) return path.join(repo, dir, p.slice(prefix.length));
-  if (/^\/PROTOCOL[\w.-]*\.md$/.test(p)) return path.join(repo, p);
   return path.join(repo, 'src/web', p);
 }
 

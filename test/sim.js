@@ -34,7 +34,7 @@ export function runSim(X, Y, mode, s, cam, ecc = 1, save = null) {
   return { ok: res.ok, reason: res.reason, candidates: res.candidates, good, total: m, stats: res.stats, tScan, tSim };
 }
 
-if (process.argv[1].endsWith('sim.js')) {
+if ((process.argv[1] || '').endsWith('sim.js')) {
   const [X, Y, mode, s] = process.argv.slice(2, 6).map(Number);
   const cam = { camW: 1280, camH: 720, fill: 0.85, blur: 0.8, noise: 3 };
   let ecc = 1;

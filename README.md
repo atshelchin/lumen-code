@@ -2,7 +2,7 @@
 
 High-throughput file transfer from a screen to a camera. The sender plays a file as an animated grid of coloured cells; the receiver films it and rebuilds the file. No network, no pairing, no return channel.
 
-[中文说明](README.zh-CN.md) · [Protocol (English, STE)](PROTOCOL.md) · [协议（中文）](PROTOCOL.zh-CN.md) · [Test vectors](test/vectors/test-vectors.json) · [Rust crate](src/rust/README.md)
+[中文说明](README.zh-CN.md) · [Developer guides](docs/guide/README.md) · [Protocol (English, STE)](docs/PROTOCOL.md) · [协议（中文）](docs/PROTOCOL.zh-CN.md) · [Test vectors](test/vectors/test-vectors.json) · [Rust crate](src/rust/README.md)
 
 ## Why another animated code?
 
@@ -11,14 +11,14 @@ Animated QR codes are easy to make but slow: one QR version 25 frame holds about
 | | Animated QR (v25, typical) | Lumen Code v1 |
 |---|---|---|
 | Bits per cell | 1 | 2 (C4, default) or 3 (C8) |
-| Shape | square | follows the screen (aspect up to 1.78) |
+| Shape | square | fills the screen (adaptive width and height, aspect up to 2.4) |
 | Cell size | fixed by version | chosen from the physical screen size |
 | Data per frame, phone screen | ~1.2 KB | ~2.2 KB (C4) / ~3.4 KB (C8) |
-| Data per frame, 13" laptop | ~1.2 KB | ~7.2 KB (C4) / ~11 KB (C8) |
+| Data per frame, 13" laptop | ~1.2 KB | ~6.9 KB (C4) / ~10.3 KB (C8) |
 | Lost frames | usually repeated cyclically | fountain code: every frame is new data |
 | One corner hidden by glare | frame lost | decodes from the other three corners |
 
-At the default 12 frames per second, a laptop screen sends roughly 85–130 KB/s of raw capacity. What a receiver actually gets depends on its camera; the receiver page shows the live numbers.
+At the default 12 frames per second, a laptop screen sends roughly 80–125 KB/s of raw capacity. What a receiver actually gets depends on its camera; the receiver page shows the live numbers. Where the speed comes from, item by item, is in [Performance](docs/guide/04-performance.md).
 
 ## Try it
 
@@ -31,8 +31,9 @@ npm run build          # writes dist/, a static site you can deploy as is (npm r
 Open `send.html` on the sending screen, choose a file, and open `recv.html` on the receiving phone. Both pages work on phones and desktops. Nothing is installed and nothing leaves the devices.
 
 - **Sender:** send a file or type/paste text (File | Text tabs). Density (low / auto / high / max), 4 or 8 colours, ECC level, frame rate, engine. Tap the code to hide or show the controls.
-- **Receiver:** received text is shown directly with Copy (and Open link for URLs); files can be saved or opened. Progress, speed, cell size in camera pixels, success rate, and a diagnostics line (engine time, camera fps, scans/s, new frames/s, missed frames) with hints such as "lower the sender FPS".
-- **Engine switch:** both pages can run the JavaScript implementation or the Rust implementation compiled to WebAssembly (`JS | WASM`). Both produce bit-identical frames.
+- **Receiver:** text and images open in a full-screen reader (JSON is formatted and syntax-highlighted, links are clickable, adjustable text size); files can be saved or opened. While scanning: progress, speed, cell size in camera pixels, success rate, and a diagnostics line (engine time, camera fps, scans/s, new frames/s, sender fps, capture rate) with hints. After completion the transfer statistics stay available and the camera turns off. Pinch on the image to zoom (when the camera supports it). Every number is explained in [Reading the dashboard](docs/guide/05-dashboard.md).
+- **Engine switch:** both pages can run the JavaScript implementation or the Rust implementation compiled to WebAssembly (`JS | WASM`). Both produce bit-identical frames. The receiver uses WASM by default, and switching during a scan keeps the progress.
+- **The code fills the screen:** width and height adapt to the display, in either orientation; on the receiver, turn the phone to match a landscape code.
 
 ## How it works (short)
 
@@ -42,16 +43,17 @@ Open `send.html` on the sending screen, choose a file, and open `recv.html` on t
 4. Codewords are laid along a Hilbert curve into the grid, so each codeword is a compact patch (a torn camera frame loses only a few codewords).
 5. Three finders, one corner pattern, a lattice of alignment markers and four header copies let the receiver locate the grid under perspective, lens distortion, blur and moiré.
 
-The full, normative description is in [PROTOCOL.md](PROTOCOL.md).
+The [developer guides](docs/guide/README.md) explain this with figures and numbers; the full, normative description is in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## Repository
 
 ```
-PROTOCOL.md, PROTOCOL.zh-CN.md   protocol specification (English STE / Chinese)
+docs/PROTOCOL.md, *.zh-CN.md     protocol specification (English STE / Chinese)
+docs/guide/                      developer guides (how it works, scanner, integration, performance, dashboard)
 src/core/                        JavaScript reference implementation (protocol library, ES modules)
 src/web/                         demo pages and app code (sender, receiver, workers)
 src/rust/                        Rust reference implementation (zero dependencies, C ABI, WASM)
-src/tools/                       build script, WASM build, zero-dependency dev server
+src/tools/                       build script, WASM build, zero-dependency dev server, figure generator
 dist/                            built static site, including wasm/lumen.wasm (npm run build)
 test/                            Node tests, camera simulator, robustness suites
 test/vectors/test-vectors.json   conformance vectors (generated by test/vectors.js)
@@ -65,7 +67,7 @@ npm run test:robustness  # perspective, rotation, mirroring, blur, bloom, moiré
 cd src/rust && cargo test   # test vectors, Rust round trip, decoding of JS-simulated camera frames
 ```
 
-The camera simulator (`test/camera.js`) models perspective, barrel distortion, optical blur, colour crosstalk, white balance, vignetting, bloom, moiré, motion blur, 4:2:0 chroma subsampling and noise. A randomised "hand-held, badly aimed" batch decodes about 27 of 30 frames and 84–86 % of all codewords in 4-colour mode. The remaining failures are frames with about 3 camera pixels per cell plus heavy blur.
+The camera simulator (`test/camera.js`) models perspective, barrel distortion, optical blur, colour crosstalk, white balance, vignetting, bloom, moiré, motion blur, 4:2:0 chroma subsampling and noise. A randomised "hand-held, badly aimed" batch decodes about 27–28 of 30 frames and 86–89 % of all codewords in 4-colour mode. The remaining failures are frames with about 3 camera pixels per cell plus heavy blur.
 
 ## Performance (Apple M2, 1080p camera frame)
 
@@ -75,10 +77,11 @@ The camera simulator (`test/camera.js`) models perspective, barrel distortion, o
 | Rust → WebAssembly | 9–10 ms | 21 ms |
 | Rust native | 7–9 ms | 16 ms |
 
-The receiver also skips frames it has already decoded (header only, about 8 ms in JS) and paces scanning to about twice the sender's frame rate, which keeps phones cool.
+The receiver also skips frames it has already decoded (header only, about 8 ms in JS), locks its scan rate to the sender's frame rate (about 1.6 scans per sender frame instead of every camera frame), and has the GPU crop and scale only the region around the code to about 6 pixels per cell before a worker sees it. Panels over the video use no background blur, and the camera turns off when a transfer completes. Together this cuts the work several times over, which keeps phones cool.
 
 ## Status
 
 - Protocol v1 is a draft for public review. The frame format, packet format and fountain code are covered by test vectors and two independent implementations.
 - Validation so far: simulation, Chrome with a fake camera stream, and early tests on real phones. Real-device tuning continues; please report camera models and conditions that do not work well.
 - License: [MIT](LICENSE).
+- The demo pages load a traffic-analytics script (`tj.appsdata.org`) at the end of each HTML file. Remove those lines if you host your own copy.

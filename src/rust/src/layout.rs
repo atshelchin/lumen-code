@@ -192,7 +192,7 @@ pub fn codewords_per_frame(layout: &Layout, mode: usize, n: usize) -> usize {
     layout.data_cells() / cells_per_codeword(n, MODES[mode].bpc)
 }
 
-fn header_mask(copy: usize, i: usize) -> u8 {
+pub fn header_mask(copy: usize, i: usize) -> u8 {
     (mix32(0x4c55_4d45u32.wrapping_add(i as u32).wrapping_add(copy as u32 * 977)) & 1) as u8
 }
 

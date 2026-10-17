@@ -7,7 +7,7 @@
 // 5. per-quad homographies; each cell sampled and normalised by local white/ink references
 // 6. colour classification (k-means seeded by the palette), confidences -> RS (with erasures)
 
-import { makeLayout, unpackHeader, MODES, INK, PAPER, HEADER_BITS, codewordsPerFrame, cellsPerCodeword } from './layout.js';
+import { makeLayout, unpackHeader, MODES, INK, PAPER, HEADER_BITS, HEADER_MASKS, codewordsPerFrame, cellsPerCodeword } from './layout.js';
 import { decodeCodewords } from './frame.js';
 
 // ---------- linear algebra
@@ -134,6 +134,10 @@ export class Scanner {
   constructor() {
     this.w = 0;
     this.h = 0;
+    // Last header read correctly. X, Y, mode, n and nsym do not change within a transfer and
+    // seq is not needed to decode data, so it stands in when every copy of a header is unreadable.
+    this.lastHeader = null;
+    this.reuseMisses = 0;
   }
 
   // Buffers only grow: region-of-interest crops change the image size every frame.
@@ -596,6 +600,9 @@ export class Scanner {
   }
 
   // ---------- header
+  // Reads one header copy. Returns { hdr } when its CRC is correct; otherwise { soft }: the
+  // bit values of the best-aligned scale hypothesis, normalised and unmasked, so that the
+  // caller can combine several copies (a bit wrong in one copy is usually right in others).
   _readHeader(F, u, v, which) {
     const thr = (F.white + F.ink) / 2;
     const raw = new Uint8Array(HEADER_BITS);
@@ -609,6 +616,9 @@ export class Scanner {
         else offs.push([r - 3, c - 14]);
       }
     const horiz = which === 0 || which === 2;
+    const mask = HEADER_MASKS[which];
+    let best = null;
+    let bestQ = -1;
     for (const ds of HEADER_HYPS) {
       const su = horiz ? 1 + ds : 1;
       const sv = horiz ? 1 : 1 + ds;
@@ -627,6 +637,8 @@ export class Scanner {
       }
       // two-means threshold (bits are whitened, so roughly balanced); blur lowers contrast
       let t = thr;
+      let m0 = thr;
+      let m1 = thr;
       for (let it = 0; it < 4; it++) {
         let s0 = 0, n0 = 0, s1 = 0, n1 = 0;
         for (let b = 0; b < HEADER_BITS; b++) {
@@ -639,15 +651,55 @@ export class Scanner {
           }
         }
         if (!n0 || !n1) break;
-        t = (s0 / n0 + s1 / n1) / 2;
+        m0 = s0 / n0;
+        m1 = s1 / n1;
+        t = (m0 + m1) / 2;
       }
       for (const tt of t === thr ? [thr] : [t, thr]) {
         for (let b = 0; b < HEADER_BITS; b++) raw[b] = vals[b] > tt ? 1 : 0;
         const hdr = unpackHeader(raw, which);
-        if (hdr) return hdr;
+        if (hdr) return { hdr };
+      }
+      // alignment quality: well-aligned samples sit far from the threshold
+      const spread = Math.max(1, m1 - m0);
+      let q = 0;
+      for (let b = 0; b < HEADER_BITS; b++) q += Math.min(1, Math.abs(vals[b] - t) / (spread / 2));
+      if (q > bestQ) {
+        bestQ = q;
+        best = new Float32Array(HEADER_BITS);
+        for (let b = 0; b < HEADER_BITS; b++) {
+          const sv2 = Math.max(-1, Math.min(1, (vals[b] - t) / (spread / 2)));
+          best[b] = mask[b] ? -sv2 : sv2;
+        }
       }
     }
-    return null;
+    return { soft: best };
+  }
+
+  // Soft majority of several header copies (in unmasked bit space). A copy that disagrees
+  // with the others on more than a quarter of the bits was misread and is left out.
+  _combineHeaders(softs) {
+    if (softs.length < 2) return null;
+    let use = softs;
+    if (softs.length >= 3) {
+      use = softs.filter((sv, i) => {
+        let agree = 0;
+        for (let b = 0; b < HEADER_BITS; b++) {
+          let others = 0;
+          softs.forEach((o, j) => j !== i && (others += o[b]));
+          if (sv[b] > 0 === others > 0) agree++;
+        }
+        return agree >= 0.75 * HEADER_BITS;
+      });
+      if (use.length < 2) return null;
+    }
+    const raw = new Uint8Array(HEADER_BITS);
+    for (let b = 0; b < HEADER_BITS; b++) {
+      let s = 0;
+      for (const sv of use) s += sv[b];
+      raw[b] = (s > 0 ? 1 : 0) ^ HEADER_MASKS[0][b];
+    }
+    return unpackHeader(raw, 0);
   }
 
   _refineCorner(Cc, u, v) {
@@ -707,18 +759,28 @@ export class Scanner {
     if (have.length < 3) return null;
     ax = axes(R);
     let hdr = null;
+    const softs = [];
     for (const [key, which] of [['TL', 0], ['TL', 1], ['TR', 2], ['BL', 3]]) {
       if (!R[key]) continue;
-      hdr = this._readHeader(R[key], ax[key][0], ax[key][1], which);
-      if (hdr) break;
+      const r = this._readHeader(R[key], ax[key][0], ax[key][1], which);
+      if (r.hdr) {
+        hdr = r.hdr;
+        break;
+      }
+      if (r.soft) softs.push(r.soft);
     }
-    if (!hdr) return null;
-    // sanity: header dimensions vs. measured corner spacing
+    if (!hdr) hdr = this._combineHeaders(softs);
+    if (!hdr) return { hdr: null, R }; // geometry without a header: kept for header reuse
+    if (!this._fits(hdr, R)) return null;
+    return { hdr, R };
+  }
+
+  // sanity: header dimensions vs. measured corner spacing
+  _fits(hdr, R) {
     const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
     const Xest = R.TL && R.TR ? dist(R.TL, R.TR) / ((R.TL.mu + R.TR.mu) / 2) + 7 : R.BL && R.BR ? dist(R.BL, R.BR) / R.BL.mu + 7 : hdr.X;
     const Yest = R.TL && R.BL ? dist(R.TL, R.BL) / ((R.TL.mv + R.BL.mv) / 2) + 7 : R.TR && R.BR ? dist(R.TR, R.BR) / R.TR.mv + 7 : hdr.Y;
-    if (Math.abs(hdr.X - Xest) > 0.2 * Xest + 3 || Math.abs(hdr.Y - Yest) > 0.2 * Yest + 3) return null;
-    return { hdr, R };
+    return Math.abs(hdr.X - Xest) <= 0.2 * Xest + 3 && Math.abs(hdr.Y - Yest) <= 0.2 * Yest + 3;
   }
 
   // ---------- lattice
@@ -780,17 +842,44 @@ export class Scanner {
     const cands = this.findFinders();
     if (cands.length < 3) return { ok: false, reason: 'finders', candidates: cands.length };
     const sets = this.selectSets(cands);
+    const headerless = [];
     for (const set of sets) {
       for (const mir of [false, true]) {
         const g = this._tryCorners(set, mir);
-        if (g) return this._decode(g);
+        if (!g) continue;
+        if (!g.hdr) {
+          headerless.push(g);
+          continue;
+        }
+        const res = this._decode(g);
+        if (res.ok) {
+          const { mode, X, Y, n, nsym } = g.hdr;
+          this.lastHeader = { mode, X, Y, n, nsym };
+          this.reuseMisses = 0;
+        }
+        if (res.ok || res.reason !== 'lattice') return res;
       }
+    }
+    // Only after the normal search failed: decode the located grid with the last good header.
+    // A wrong reuse is caught by the size check, the marker lattice and the packet CRCs.
+    if (this.lastHeader && headerless.length) {
+      const hdr = { ...this.lastHeader, seq: -1 };
+      for (const g of headerless.slice(0, 4)) {
+        if (!this._fits(hdr, g.R)) continue;
+        const res = this._decode({ hdr, R: g.R, reused: true });
+        if (!res.ok) continue;
+        res.headerReused = true;
+        this.reuseMisses = res.stats.cwOk > 0 ? 0 : this.reuseMisses + 1;
+        if (this.reuseMisses >= 3) this.lastHeader = null;
+        return res;
+      }
+      if (++this.reuseMisses >= 3) this.lastHeader = null;
     }
     return { ok: false, reason: sets.length ? 'header' : 'geometry', candidates: cands.length };
   }
 
   _decode(g) {
-    const { hdr, R } = g;
+    const { hdr, R, reused } = g;
     const { X, Y, mode, n, nsym } = hdr;
     const layout = makeLayout(X, Y);
     const { lx, ly } = layout;
@@ -846,9 +935,10 @@ export class Scanner {
     const lu = Math.hypot(du0[0], du0[1]);
     const lv = Math.hypot(dv0[0], dv0[1]);
 
-    const frameKey = `${hdr.seq}:${X}:${Y}:${mode}:${n}:${nsym}`;
+    // a reused header has no seq: such a frame cannot be told apart from others (no skipping)
+    const frameKey = reused ? null : `${hdr.seq}:${X}:${Y}:${mode}:${n}:${nsym}`;
     const count = codewordsPerFrame(layout, mode, n);
-    const doneIdx = new Set((this.opts && this.opts.skip && this.opts.skip[frameKey]) || []);
+    const doneIdx = new Set((frameKey && this.opts && this.opts.skip && this.opts.skip[frameKey]) || []);
     if (doneIdx.size >= count) {
       const ref = avail.includes('TL') ? ['TL', 3.5, 3.5] : avail.includes('TR') ? ['TR', X - 3.5, 3.5] : ['BL', 3.5, Y - 3.5];
       const F = R[ref[0]];
@@ -1026,6 +1116,10 @@ export class Scanner {
         state[k] = 2;
       }
     }
+    // A wrong corner (a false finder) predicts the lattice in the wrong place and almost no
+    // markers are found. Reject such a geometry so the caller tries the next corner set.
+    const markerRatio = foundCount / Math.max(1, NL - 4);
+    if (NL - 4 >= 4 && markerRatio < 0.6) return { ok: false, reason: 'lattice', markers: markerRatio };
     // corners that were never located take their position from the final fit
     for (const k of missingFinder) {
       applyH(Hcur, gxOf(k), gyOf(k), t2);

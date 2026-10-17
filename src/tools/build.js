@@ -4,10 +4,11 @@
 //
 // dist/
 //   index.html send.html recv.html  css/  js/ (app)  js/core/ (protocol library)
-//   wasm/lumen.wasm  PROTOCOL.md  PROTOCOL.zh-CN.md  LICENSE
+//   wasm/lumen.wasm  docs/ (protocol + guides)  LICENSE
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -30,7 +31,8 @@ for (const e of fs.readdirSync(dist)) if (e !== 'wasm') fs.rmSync(path.join(dist
 
 copyDir(path.join(repo, 'src/web'), dist);
 copyDir(path.join(repo, 'src/core'), path.join(dist, 'js/core'));
-for (const f of ['PROTOCOL.md', 'PROTOCOL.zh-CN.md', 'LICENSE']) fs.copyFileSync(path.join(repo, f), path.join(dist, f));
+copyDir(path.join(repo, 'docs'), path.join(dist, 'docs'));
+fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(dist, 'LICENSE'));
 
 if (process.argv.includes('--wasm')) {
   execFileSync('sh', [path.join(repo, 'src/tools/build-wasm.sh')], { stdio: 'inherit' });
@@ -38,6 +40,33 @@ if (process.argv.includes('--wasm')) {
 if (!fs.existsSync(path.join(dist, 'wasm/lumen.wasm'))) {
   console.warn('warning: dist/wasm/lumen.wasm is missing; run `npm run build:wasm` (the WASM engine will be unavailable)');
 }
+
+// Cache busting. Static hosts and browsers cache JS modules; after a deploy, a new page could run
+// with old cached modules. Every relative .js/.css/.wasm reference gets ?v=<hash of the build>,
+// so a new build is always fetched in full and an unchanged build keeps its cache.
+const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+const site = walk(dist).filter((f) => !f.includes(`${path.sep}docs${path.sep}`)).sort();
+const hash = createHash('sha256');
+for (const f of site) hash.update(path.relative(dist, f)).update(fs.readFileSync(f));
+const stamp = hash.digest('hex').slice(0, 10);
+const REL = String.raw`\.{0,2}\/?[\w./-]+?\.(?:js|css|wasm)`;
+const rules = [
+  new RegExp(String.raw`(\bfrom\s*)(['"])(\.{1,2}\/[\w./-]+?\.js)\2`, 'g'), // static imports
+  new RegExp(String.raw`(\bimport\(\s*)(['"])(\.{1,2}\/[\w./-]+?\.js)\2`, 'g'), // dynamic imports
+  new RegExp(String.raw`(\bnew URL\(\s*)(['"])(\.{1,2}\/[\w./-]+?\.(?:js|wasm))\2`, 'g'), // workers, wasm
+  new RegExp(String.raw`(\b(?:href|src)=)(")(${REL})"`, 'g'), // html attributes
+];
+let stamped = 0;
+for (const f of site.filter((x) => /\.(?:js|html)$/.test(x))) {
+  const before = fs.readFileSync(f, 'utf8');
+  let after = before;
+  for (const re of rules) after = after.replace(re, (m, pre, q, url) => (/^(?:https?:|data:|\/\/)/.test(url) ? m : `${pre}${q}${url}?v=${stamp}${q}`));
+  if (after !== before) {
+    fs.writeFileSync(f, after);
+    stamped++;
+  }
+}
+console.log(`cache stamp ?v=${stamp} in ${stamped} files`);
 
 let files = 0;
 let bytes = 0;

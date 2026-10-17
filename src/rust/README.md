@@ -1,6 +1,6 @@
 # lumen-code (Rust)
 
-Rust reference implementation of [Lumen Code v1](../../PROTOCOL.md): high-throughput screen-to-camera data transfer. Zero dependencies, `std` only.
+Rust reference implementation of [Lumen Code v1](../../docs/PROTOCOL.md): high-throughput screen-to-camera data transfer. Zero dependencies, `std` only.
 
 - `transfer::Sender` — file → endless stream of frames (cell grids)
 - `render::Renderer` — frame → RGBA pixels (or a 1-pixel-per-cell image plus a static mask)
@@ -44,7 +44,7 @@ if let Some(Finish::File { name, bytes }) = rx.try_finish() { /* done */ }
 | iOS | `cargo build --release --features ffi --target aarch64-apple-ios` | `liblumen.a` |
 | Desktop | `cargo build --release --features ffi` | `liblumen.{so,dylib,dll}` / `.a` |
 
-Native hosts call the C ABI in [`include/lumen.h`](include/lumen.h) (JNI on Android, a bridging header on iOS). The JavaScript glue for the web is [`../core/wasm-engine.js`](../core/wasm-engine.js); it shows how to call every function.
+Native hosts call the C ABI in [`include/lumen.h`](include/lumen.h) (JNI on Android, a bridging header on iOS). `lm_sender_new_file` starts from the file itself (CRC-32 and DEFLATE are done inside), so a native host needs no zlib. A step-by-step walk-through is in the [integration guide](../../docs/guide/03-integration.md). The JavaScript glue for the web is [`../core/wasm-engine.js`](../core/wasm-engine.js); it shows how to call every function.
 
 ## Tests
 

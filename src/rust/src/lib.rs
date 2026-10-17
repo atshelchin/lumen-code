@@ -8,7 +8,7 @@
 //! * [`scan::Scanner`] turns a camera image into packets;
 //!   [`transfer::Receiver`] turns packets back into the file.
 //!
-//! The wire format is specified in `PROTOCOL.md`; `test/vectors/test-vectors.json` holds
+//! The wire format is specified in `docs/PROTOCOL.md`; `test/vectors/test-vectors.json` holds
 //! conformance vectors.
 
 // Index loops mirror the specification's pseudocode; keep the MSRV-friendly forms.
