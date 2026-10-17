@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07090d" />
+    <title>Lumen Code · Receive</title>
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0d14'/%3E%3Crect x='6' y='6' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='6' width='6' height='6' rx='1.5' fill='%23ff3d9a'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23f2f4f8'/%3E%3Crect x='20' y='13' width='6' height='6' rx='1.5' fill='%23ffd60a'/%3E%3Crect x='13' y='20' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='20' width='6' height='6' rx='1.5' fill='%232bdc74'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div class="stage">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="overlay"></canvas>
+
+      <div class="topbar">
+        <a class="brand chip" href="./"><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
+        <span class="chip" id="statusChip"><span class="dot" id="statusDot"></span><b id="statusText" data-i18n="waiting"></b></span>
+        <span class="spacer"></span>
+        <div class="seg" id="segEngine" title="Engine"><button data-v="js">JS</button><button data-v="wasm">WASM</button></div>
+        <button class="lang" id="lang">中 / EN</button>
+      </div>
+
+      <div class="side-tools hidden" id="sideTools">
+        <button class="btn icon" id="switchCam" data-i18n-title="openCam">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.5-2h5L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5Z" /><path d="M9 12.5a3 3 0 0 1 5.2-2M15 12a3 3 0 0 1-5.2 2" /><path d="M14.5 8.8 14.2 10.6 16 10.4M9.5 15.2l.3-1.8-1.8.2" /></svg>
+        </button>
+      </div>
+
+      <div class="zoom panel hidden" id="zoomBox"><span data-i18n="zoom"></span><input type="range" id="zoom" /><b class="num" id="zoomVal"></b></div>
+
+      <div class="recv-bottom panel hidden" id="hud">
+        <div class="recv-title">
+          <span class="name" id="rxName" data-i18n="waiting"></span>
+          <span class="pct" id="rxPct">0%</span>
+        </div>
+        <div class="progress"><div id="rxBar"></div></div>
+        <div class="metrics">
+          <div><span data-i18n="speedM"></span><b id="mSpeed">–</b></div>
+          <div><span data-i18n="etaM"></span><b id="mEta">–</b></div>
+          <div><span data-i18n="cellM"></span><b id="mCell">–</b></div>
+          <div><span data-i18n="okM"></span><b id="mOk">–</b></div>
+        </div>
+        <div class="tip" id="tip"></div>
+        <div class="diag num" id="diag"></div>
+      </div>
+
+      <div class="start" id="start">
+        <div class="inner">
+          <div class="drop-art">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" /><circle cx="12" cy="12" r="3.2" /></svg>
+          </div>
+          <h1 data-i18n="recvStartTitle"></h1>
+          <p data-i18n="recvStartDesc"></p>
+          <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap">
+            <button class="btn primary" id="startBtn" data-i18n="openCam"></button>
+            <button class="btn" id="fileBtn" data-i18n="fromImage"></button>
+          </div>
+          <input type="file" id="mediaFile" accept="image/*,video/*" hidden />
+          <div class="err" id="startErr"></div>
+        </div>
+      </div>
+
+      <div class="done hidden" id="done">
+        <div class="panel">
+          <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></div>
+          <h2 id="doneName"></h2>
+          <div class="sub" id="doneSub"></div>
+          <div class="preview hidden" id="preview"></div>
+          <div class="more-hint hidden" id="moreHint"></div>
+          <div class="row">
+            <button class="btn primary hidden" id="copyBtn" data-i18n="copy"></button>
+            <a class="btn hidden" id="linkBtn" target="_blank" rel="noopener noreferrer" data-i18n="openLink"></a>
+            <a class="btn primary" id="saveBtn" data-i18n="save"></a>
+            <a class="btn" id="openBtn" target="_blank" rel="noopener" data-i18n="open"></a>
+            <button class="btn" id="againBtn" data-i18n="again"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="js/recv-app.js"></script>
+  </body>
+</html>

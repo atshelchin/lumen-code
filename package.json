@@ -1,0 +1,18 @@
+{
+  "name": "lumen-code",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Lumen Code: high-throughput screen-to-camera file transfer. Zero dependencies.",
+  "scripts": {
+    "test": "node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js",
+    "test:robustness": "node test/sweep.js && node test/realworld.js && node test/batch.js 30 1",
+    "vectors": "node test/vectors.js",
+    "build": "node src/tools/build.js",
+    "build:wasm": "sh src/tools/build-wasm.sh",
+    "serve": "node src/tools/serve.js",
+    "serve:https": "node src/tools/serve.js --https",
+    "serve:dist": "node src/tools/serve.js --dist"
+  }
+}

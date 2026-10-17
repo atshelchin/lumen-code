@@ -1,0 +1,229 @@
+//! Packets, the file descriptor, and codewords <-> cells (PROTOCOL §7–§8).
+
+use crate::layout::{cells_per_codeword, pack_header, Header, Layout, K_FIXED, K_MARKER, MODES};
+use crate::rs;
+use crate::util::{crc16, mix32};
+
+pub const IDX_INK: u8 = 8;
+pub const IDX_PAPER: u8 = 9;
+
+pub const PKT_HDR: usize = 5;
+pub const PKT_OVERHEAD: usize = PKT_HDR + 2;
+pub const MAX_SBN: u32 = 127;
+pub const DESC_FIXED: usize = 15;
+pub const FLAG_DEFLATE: u8 = 1;
+
+pub fn packet_data_size(n: usize, nsym: usize) -> usize {
+    n - nsym - PKT_OVERHEAD
+}
+
+pub fn write_packet_header(buf: &mut [u8], tid: u16, sbn: u32, esi: u32, meta: bool) {
+    buf[0] = (tid >> 8) as u8;
+    buf[1] = tid as u8;
+    buf[2] = if meta { 0x80 } else { 0 } | (sbn as u8 & 0x7f);
+    buf[3] = (esi >> 8) as u8;
+    buf[4] = esi as u8;
+}
+
+pub fn seal_packet(msg: &mut [u8]) {
+    let n = msg.len();
+    let c = crc16(&msg[..n - 2]);
+    msg[n - 2] = (c >> 8) as u8;
+    msg[n - 1] = c as u8;
+}
+
+pub fn packet_intact(msg: &[u8]) -> bool {
+    let n = msg.len();
+    n >= PKT_OVERHEAD && crc16(&msg[..n - 2]) == ((msg[n - 2] as u16) << 8 | msg[n - 1] as u16)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PacketId {
+    pub tid: u16,
+    pub meta: bool,
+    pub sbn: u32,
+    pub esi: u32,
+}
+
+pub fn read_packet(buf: &[u8]) -> (PacketId, &[u8]) {
+    let id = PacketId {
+        tid: (buf[0] as u16) << 8 | buf[1] as u16,
+        meta: buf[2] & 0x80 != 0,
+        sbn: (buf[2] & 0x7f) as u32,
+        esi: (buf[3] as u32) << 8 | buf[4] as u32,
+    };
+    (id, &buf[PKT_HDR..buf.len() - 2])
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Descriptor {
+    pub flags: u8,
+    pub payload_length: u32,
+    pub file_size: u32,
+    pub crc: u32,
+    pub name: String,
+}
+
+fn utf8_truncate(bytes: &[u8], max: usize) -> &[u8] {
+    if bytes.len() <= max {
+        return bytes;
+    }
+    let mut end = max;
+    while end > 0 && (bytes[end] & 0xc0) == 0x80 {
+        end -= 1;
+    }
+    &bytes[..end]
+}
+
+pub fn encode_descriptor(d: &Descriptor, t: usize) -> Vec<u8> {
+    let mut out = vec![0u8; t];
+    let name = utf8_truncate(d.name.as_bytes(), 255.min(t.saturating_sub(DESC_FIXED)));
+    out[0] = 1;
+    out[1] = d.flags;
+    out[2..6].copy_from_slice(&d.payload_length.to_be_bytes());
+    out[6..10].copy_from_slice(&d.file_size.to_be_bytes());
+    out[10..14].copy_from_slice(&d.crc.to_be_bytes());
+    out[14] = name.len() as u8;
+    out[DESC_FIXED..DESC_FIXED + name.len()].copy_from_slice(name);
+    out
+}
+
+pub fn decode_descriptor(data: &[u8]) -> Option<Descriptor> {
+    if data.len() < DESC_FIXED || data[0] != 1 {
+        return None;
+    }
+    let u32at = |o: usize| u32::from_be_bytes([data[o], data[o + 1], data[o + 2], data[o + 3]]);
+    let nl = (data[14] as usize).min(data.len() - DESC_FIXED);
+    let name = String::from_utf8_lossy(&data[DESC_FIXED..DESC_FIXED + nl]).into_owned();
+    // TLV records after the name are reserved for extensions; unknown types are skipped.
+    Some(Descriptor {
+        flags: data[1],
+        payload_length: u32at(2),
+        file_size: u32at(6),
+        crc: u32at(10),
+        name: if name.is_empty() { "file".into() } else { name },
+    })
+}
+
+/// Cell values of one frame: data cells hold palette indices, all others IDX_INK / IDX_PAPER.
+/// `messages` are RS messages of k = n - nsym bytes; parity is added here.
+pub fn encode_frame_cells(layout: &Layout, mode: usize, n: usize, nsym: usize, seq: u32, messages: &[Vec<u8>]) -> Vec<u8> {
+    let bpc = MODES[mode].bpc;
+    let mask = (1u32 << bpc) - 1;
+    let mut cells = vec![0u8; layout.x * layout.y];
+    for i in 0..cells.len() {
+        let k = layout.kind[i];
+        if k == K_FIXED || k == K_MARKER {
+            cells[i] = if layout.fixed[i] != 0 { IDX_PAPER } else { IDX_INK };
+        }
+    }
+    let h = Header { mode: mode as u32, x: layout.x as u32, y: layout.y as u32, n: n as u32, nsym: nsym as u32, seq };
+    for (copy, cellsof) in layout.headers.iter().enumerate() {
+        let bits = pack_header(&h, copy);
+        for (b, &ci) in cellsof.iter().enumerate() {
+            cells[ci as usize] = if bits[b] != 0 { IDX_PAPER } else { IDX_INK };
+        }
+    }
+    let cpc = cells_per_codeword(n, bpc);
+    let mut slot = 0usize;
+    for msg in messages {
+        let cw = rs::encode(msg, nsym);
+        let (mut acc, mut acc_bits, mut byte) = (0u32, 0u32, 0usize);
+        for _ in 0..cpc {
+            while acc_bits < bpc {
+                acc = (acc << 8) | if byte < n { cw[byte] as u32 } else { 0 };
+                byte += 1;
+                acc_bits += 8;
+            }
+            let sym = (acc >> (acc_bits - bpc)) & mask;
+            acc_bits -= bpc;
+            acc &= (1u32 << acc_bits) - 1;
+            cells[layout.data_order[slot] as usize] = (sym ^ (layout.whiten[slot] as u32 & mask)) as u8;
+            slot += 1;
+        }
+    }
+    // filler
+    let mut r = mix32(seq.wrapping_add(0x0123_4567));
+    while slot < layout.data_order.len() {
+        r = mix32(r.wrapping_add(slot as u32));
+        cells[layout.data_order[slot] as usize] = (r & mask) as u8;
+        slot += 1;
+    }
+    cells
+}
+
+pub struct Codeword {
+    pub index: usize,
+    pub ok: bool,
+    pub skipped: bool,
+    pub corrected: usize,
+    /// the k-byte packet when ok
+    pub bytes: Option<Vec<u8>>,
+}
+
+/// symbols: raw symbol per data slot (before un-whitening); conf: confidence per slot.
+pub fn decode_codewords(
+    layout: &Layout,
+    mode: usize,
+    n: usize,
+    nsym: usize,
+    symbols: &[u8],
+    conf: &[f32],
+    count: usize,
+    skip: &[bool],
+) -> Vec<Codeword> {
+    let bpc = MODES[mode].bpc as usize;
+    let mask = (1u8 << bpc) - 1;
+    let cpc = cells_per_codeword(n, bpc as u32);
+    let mut out = Vec::with_capacity(count);
+    let mut cw = vec![0u8; n];
+    let mut byte_conf = vec![0f32; n];
+    for j in 0..count {
+        if skip.get(j).copied().unwrap_or(false) {
+            out.push(Codeword { index: j, ok: false, skipped: true, corrected: 0, bytes: None });
+            continue;
+        }
+        cw.fill(0);
+        byte_conf.fill(f32::MAX);
+        let mut bit_pos = 0usize;
+        for c in 0..cpc {
+            let slot = j * cpc + c;
+            let sym = (symbols[slot] ^ layout.whiten[slot]) & mask;
+            let cf = conf[slot];
+            for b in (0..bpc).rev() {
+                let byte = bit_pos >> 3;
+                if byte < n {
+                    if (sym >> b) & 1 != 0 {
+                        cw[byte] |= 0x80 >> (bit_pos & 7);
+                    }
+                    if cf < byte_conf[byte] {
+                        byte_conf[byte] = cf;
+                    }
+                }
+                bit_pos += 1;
+            }
+        }
+        let mut work = cw.clone();
+        let mut res = rs::decode(&mut work, nsym, &[]);
+        if res.is_none() {
+            // retry with the least confident bytes as erasures; keep >= nsym/2 redundancy
+            let mut idx: Vec<usize> = (0..n).collect();
+            idx.sort_by(|&a, &b| byte_conf[a].partial_cmp(&byte_conf[b]).unwrap_or(std::cmp::Ordering::Equal));
+            for f in [nsym >> 2, nsym >> 1] {
+                if f == 0 {
+                    continue;
+                }
+                let mut w2 = cw.clone();
+                if let Some(r2) = rs::decode(&mut w2, nsym, &idx[..f]) {
+                    res = Some(r2);
+                    work = w2;
+                    break;
+                }
+            }
+        }
+        let k = n - nsym;
+        let ok = res.is_some() && packet_intact(&work[..k]);
+        out.push(Codeword { index: j, ok, skipped: false, corrected: res.unwrap_or(0), bytes: if ok { Some(work[..k].to_vec()) } else { None } });
+    }
+    out
+}

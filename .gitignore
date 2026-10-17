@@ -1,0 +1,5 @@
+.cert/
+test/out/
+node_modules/
+.DS_Store
+src/rust/target/

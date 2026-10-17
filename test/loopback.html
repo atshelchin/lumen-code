@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Lumen Code loopback test</title>
+    <style>
+      body { background: #07090d; color: #e9edf4; font: 13px ui-monospace, Menlo, monospace; margin: 16px; }
+      canvas { max-width: 48vw; border: 1px solid #333; margin-right: 8px; vertical-align: top; }
+      pre { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <div><canvas id="src"></canvas><canvas id="cam"></canvas></div>
+    <pre id="log"></pre>
+    <script type="module">
+      import { Sender, preparePayload } from '/js/core/transfer.js';
+      import { Renderer } from '/js/core/render.js';
+
+      const q = new URLSearchParams(location.search);
+      const size = Number(q.get('size') || 60000);
+      const X = Number(q.get('x') || 100), Y = Number(q.get('y') || 180), mode = Number(q.get('mode') || 2), s = Number(q.get('s') || 6);
+      const camW = Number(q.get('cw') || 1280), camH = Number(q.get('ch') || 720);
+      const blur = Number(q.get('blur') || 0.8), rot = Number(q.get('rot') || 0.07), fill = Number(q.get('fill') || 0.9);
+      const log = (m) => (document.getElementById('log').textContent += m + '\n');
+
+      const file = new Uint8Array(size);
+      crypto.getRandomValues(file.subarray(0, Math.min(size, 65536)));
+      for (let i = 65536; i < size; i++) file[i] = file[i % 65536] ^ (i * 7);
+      if (q.get('text')) { const words = 'lumen fountain frame colour camera packet '.split(' '); for (let i = 0, k = 0; i < size; k++) for (const ch of new TextEncoder().encode(words[k % 6] + ' ')) if (i < size) file[i++] = ch; }
+
+      const prepared = await preparePayload(file, 'loop.bin');
+      const sender = new Sender(prepared, { mode, X, Y });
+      log(`file ${size}B payload ${prepared.payload.length}B K=${sender.K} perFrame=${sender.bytesPerFrame()}B grid ${X}x${Y}`);
+
+      const srcC = document.getElementById('src');
+      const camC = document.getElementById('cam');
+      const sctx = srcC.getContext('2d');
+      camC.width = camW; camC.height = camH;
+      const cctx = camC.getContext('2d', { willReadFrequently: true });
+
+      const w = new Worker('/js/scan-worker.js', { type: 'module' });
+      const sink = new Worker('/js/sink-worker.js', { type: 'module' });
+      let done = null, frames = 0, cwOk = 0, cwTot = 0, scanMs = 0;
+      const t0 = performance.now();
+      sink.onmessage = (e) => {
+        if (e.data.type === 'done') done = e.data;
+        if (e.data.type === 'error') log('sink error ' + e.data.error);
+      };
+      const scanOnce = (img) => new Promise((res) => { w.onmessage = (e) => res(e.data); w.postMessage({ id: frames, image: img }, [img.data.buffer]); });
+      const scanBitmap = (bmp) => new Promise((res) => { w.onmessage = (e) => res(e.data); w.postMessage({ id: frames, bitmap: bmp }, [bmp]); });
+
+      for (let f = 0; f < 200 && !done; f++) {
+        const { cells, layout } = sender.nextFrame();
+        const r = new Renderer(layout, mode, s);
+        srcC.width = r.width; srcC.height = r.height;
+        const id = sctx.createImageData(r.width, r.height);
+        r.draw(cells, new Uint32Array(id.data.buffer));
+        sctx.putImageData(id, 0, 0);
+        // "camera": dim background, rotate/scale, blur
+        cctx.setTransform(1, 0, 0, 1, 0, 0);
+        cctx.filter = 'none';
+        cctx.fillStyle = '#1e1e1e';
+        cctx.fillRect(0, 0, camW, camH);
+        const sc = (camH * fill) / Math.max(r.height, r.width * camH / camW);
+        cctx.filter = `blur(${blur}px)`;
+        cctx.translate(camW / 2, camH / 2);
+        cctx.rotate(rot);
+        cctx.transform(1, 0.04, -0.03, 1, 0, 0);
+        cctx.scale(sc, sc);
+        cctx.imageSmoothingEnabled = true;
+        cctx.drawImage(srcC, -r.width / 2, -r.height / 2);
+        frames++;
+        let res;
+        if (q.get('bitmap')) res = await scanBitmap(await createImageBitmap(camC));
+        else res = await scanOnce(cctx.getImageData(0, 0, camW, camH));
+        scanMs += res.ms || 0;
+        if (res.reason === 'error') { log('worker error ' + res.error); break; }
+        if (res.ok) { cwOk += res.stats.cwOk; cwTot += res.stats.cwTotal; }
+        if (f < 3 || !res.ok) log(`frame ${f}: ${res.ok ? `ok ${res.stats.cwOk}/${res.stats.cwTotal} cell=${res.stats.cellPx.toFixed(2)}px` : 'fail ' + res.reason} ${res.ms ? res.ms.toFixed(0) + 'ms' : ''}`);
+        if (res.packets.length) sink.postMessage({ packets: res.packets }, res.packets.map((p) => p.buffer));
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      await new Promise((r) => setTimeout(r, 300));
+      const same = done && done.bytes.length === file.length && done.bytes.every((v, i) => v === file[i]);
+      const summary = { pass: !!same, frames, cw: `${cwOk}/${cwTot}`, avgScanMs: +(scanMs / frames).toFixed(1), secs: +((performance.now() - t0) / 1000).toFixed(2) };
+      log('RESULT ' + JSON.stringify(summary));
+      window.__result = summary;
+    </script>
+  </body>
+</html>

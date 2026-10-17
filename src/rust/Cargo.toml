@@ -1,0 +1,27 @@
+[package]
+name = "lumen-code"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.73"
+license = "MIT"
+description = "Lumen Code v1: high-throughput screen-to-camera data transfer (animated colour codes + fountain coding). Zero dependencies."
+readme = "README.md"
+keywords = ["barcode", "fountain-code", "air-gap", "qr", "wasm"]
+categories = ["encoding", "multimedia::images"]
+
+[lib]
+name = "lumen"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
+[dependencies]
+
+[features]
+# C ABI for native hosts (always on for wasm32)
+ffi = []
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

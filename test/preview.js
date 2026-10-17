@@ -1,0 +1,20 @@
+import { makeLayout, chooseCodeword, codewordsPerFrame } from '../src/core/layout.js';
+import { encodeFrameCells, packetDataSize } from '../src/core/frame.js';
+import { Renderer } from '../src/core/render.js';
+import { writePNG } from './png.js';
+import { Rng } from '../src/core/util.js';
+
+const [X, Y, mode, s] = process.argv.slice(2).map(Number);
+const layout = makeLayout(X, Y);
+const { n, nsym } = chooseCodeword(layout, mode, 1);
+const m = codewordsPerFrame(layout, mode, n);
+const rng = new Rng(5);
+const msgs = [];
+for (let i = 0; i < m; i++) msgs.push(new Uint8Array(n - nsym).map(() => rng.next() & 255));
+const cells = encodeFrameCells(layout, { mode, n, nsym }, 7, msgs);
+const r = new Renderer(layout, mode, s);
+const rgba = new Uint8Array(r.width * r.height * 4);
+r.draw(cells, new Uint32Array(rgba.buffer));
+const out = `test/out/preview_${X}x${Y}_m${mode}_s${s}.png`;
+writePNG(out, r.width, r.height, rgba);
+console.log(out, { dataCells: layout.dataCells, n, nsym, m, T: packetDataSize(n, nsym), payloadPerFrame: m * packetDataSize(n, nsym), px: [r.width, r.height] });
