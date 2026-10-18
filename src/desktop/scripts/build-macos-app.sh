@@ -40,7 +40,7 @@ esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tools="$(cd "$root/../tools" && pwd)"
-version="$(sed -n '/^\[package\]/,/^\[/ s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$root/Cargo.toml" | head -1)"
+version="$(awk -F'"' '/^\[package\]/ {p = 1; next} /^\[/ {p = 0} p && /^version[[:space:]]*=/ {print $2; exit}' "$root/Cargo.toml")"
 [[ -n "$version" ]] || die "no version in Cargo.toml"
 signed=0; [[ -n "${LUMEN_SIGN_IDENTITY:-}" ]] && signed=1
 if (( notarize )); then

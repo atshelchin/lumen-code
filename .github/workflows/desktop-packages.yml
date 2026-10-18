@@ -47,7 +47,7 @@ jobs:
         run: cargo build --release --locked
       - name: Package
         run: |
-          version=$(sed -n '/^\[package\]/,/^\[/ s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' src/desktop/Cargo.toml | head -1)
+          version=$(awk -F'"' '/^\[package\]/ {p = 1; next} /^\[/ {p = 0} p && /^version[[:space:]]*=/ {print $2; exit}' src/desktop/Cargo.toml)
           name="LumenCode-$version-linux-${{ matrix.arch }}"
           mkdir -p "$name"
           cp src/desktop/target/release/lumen "$name/"

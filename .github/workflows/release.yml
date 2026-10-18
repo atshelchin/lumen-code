@@ -50,7 +50,7 @@ jobs:
             echo "::error::'$branch' does not name a version: release branches are release/vX.Y.Z, digits only."
             exit 1
           fi
-          declared=$(sed -n '/^\[package\]/,/^\[/ s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' src/desktop/Cargo.toml | head -1)
+          declared=$(awk -F'"' '/^\[package\]/ {p = 1; next} /^\[/ {p = 0} p && /^version[[:space:]]*=/ {print $2; exit}' src/desktop/Cargo.toml)
           if [ "$declared" != "$version" ]; then
             echo "::error::src/desktop/Cargo.toml says $declared, the branch says $version. Bump the version (and Cargo.lock: cargo update -p lumen-desktop) on the branch."
             exit 1

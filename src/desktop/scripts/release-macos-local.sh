@@ -11,7 +11,7 @@
 # ID and notarized, plus SHA256SUMS-macos.
 #
 # Before compiling it checks, and says in words when it cannot go on, that:
-#   * the checkout IS the tag, with no local changes under src/;
+#   * the checkout IS the tag, with no local changes under src/ (except these scripts);
 #   * the keychain holds a "Developer ID Application" identity of the team (the most
 #     recently issued is taken; --identity SHA1 picks one);
 #   * the notary credentials work (--notary-profile NAME; tried by default: lumen-notary,
@@ -52,9 +52,10 @@ tag_commit="$(git -C "$repo_root" rev-parse -q --verify "refs/tags/$tag^{commit}
 [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$tag_commit" ]] ||
   die "HEAD is not $tag. The macOS images must come from the same commit as the other
        packages:  git checkout $tag"
-[[ -z "$(git -C "$repo_root" status --porcelain -- src)" ]] ||
+# (these scripts may be newer than the tag: they build the packages but are not in them)
+[[ -z "$(git -C "$repo_root" status --porcelain -- src ':!src/desktop/scripts')" ]] ||
   die "src/ has local changes; a release is built from the tag, exactly"
-version="$(sed -n '/^\[package\]/,/^\[/ s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$root/Cargo.toml" | head -1)"
+version="$(awk -F'"' '/^\[package\]/ {p = 1; next} /^\[/ {p = 0} p && /^version[[:space:]]*=/ {print $2; exit}' "$root/Cargo.toml")"
 [[ "v$version" == "$tag" ]] || die "src/desktop/Cargo.toml says $version but the tag is $tag"
 
 # ---------------------------------------------------------- the identity --
@@ -66,17 +67,22 @@ if [[ -n "$identity" ]]; then
 else
   # the most recently issued certificate: renewed ones (and ones issued after the team
   # was renamed) sit beside the older ones, all valid at once
+  # (from a file, not a pipe: an awk that stops reading early kills the writer with
+  # SIGPIPE, and pipefail turns "found it" into a failure)
+  certs="$(mktemp)"
+  security find-certificate -a -Z -p > "$certs"
   best=0
   while read -r sha; do
-    start="$(security find-certificate -a -Z -p | awk -v h="$sha" '/^SHA-1 hash:/ {on = ($3 == h); next} on {print} on && /END CERTIFICATE/ {exit}' |
+    start="$(awk -v h="$sha" '/^SHA-1 hash:/ {on = ($3 == h); next} on {print} on && /END CERTIFICATE/ {exit}' "$certs" |
       openssl x509 -noout -startdate 2>/dev/null | sed 's/^notBefore=//')"
     [[ -n "$start" ]] || continue
     epoch="$(date -j -f "%b %e %T %Y %Z" "$start" +%s 2>/dev/null || echo 0)"
     if (( epoch > best )); then best="$epoch"; identity="$sha"; fi
   done <<<"$valid"
+  rm -f "$certs"
   [[ -n "$identity" ]] || die "could not read the issue date of any Developer ID certificate"
 fi
-signer="$(security find-identity -v -p codesigning | awk -v h="$identity" '$2 == h' | sed -E 's/^[^"]*"([^"]*)".*/\1/' | head -1)"
+signer="$(security find-identity -v -p codesigning | awk -v h="$identity" '$2 == h {sub(/^[^"]*"/, ""); sub(/".*/, ""); if (!n++) print}')"
 note "signing as: $signer ($identity)"
 
 # ------------------------------------------------------------ the notary --
