@@ -43,7 +43,9 @@ The same transfer as native apps, on one Rust core shared by all three ([`src/ap
 |---|---|---|---|
 | iOS 17+ | SwiftUI | `src/ios/scripts/run.sh` | [src/ios](src/ios/README.md) |
 | Android 10+ | Jetpack Compose | `cd src/android && ./gradlew :app:installDebug` | [src/android](src/android/README.md) |
-| macOS (Windows and Linux untested) | GPUI | `cd src/desktop && cargo run --release` | [src/desktop](src/desktop/README.md) |
+| macOS, Windows, Linux | GPUI | `cd src/desktop && cargo run --release` | [src/desktop](src/desktop/README.md) |
+
+Desktop builds are on the [Releases](https://github.com/atshelchin/lumen-code/releases) page: a signed and notarized macOS image, Windows and Linux archives. The webcam receiver is macOS only for now.
 
 ## How it works (short)
 

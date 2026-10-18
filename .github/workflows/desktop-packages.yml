@@ -1,0 +1,116 @@
+# Desktop packages: Windows and Linux archives, and a build check for macOS.
+#
+# release.yml calls this for the commit at the head of release/vX.Y.Z; run it by hand
+# (Actions > Desktop packages > Run workflow) on any branch to check that the desktop app
+# still builds everywhere before merging packaging changes.
+#
+# macOS is built here only as a check: it is ad-hoc signed, and Gatekeeper reports an
+# ad-hoc app downloaded through a browser as damaged, so nothing from this job is ever
+# published. The signed, notarized images are made on the maintainer's Mac and attached
+# by hand (src/desktop/scripts/release-macos-local.sh): no signing key is stored on GitHub.
+name: Desktop packages
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build dependencies (gpui on Wayland and X11)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang libclang-dev cmake pkg-config \
+            libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev \
+            libfontconfig-dev libasound2-dev libssl-dev libzstd-dev libdbus-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/desktop
+      - name: Build
+        working-directory: src/desktop
+        run: cargo build --release --locked
+      - name: Package
+        run: |
+          version=$(sed -n '/^\[package\]/,/^\[/ s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' src/desktop/Cargo.toml | head -1)
+          name="LumenCode-$version-linux-${{ matrix.arch }}"
+          mkdir -p "$name"
+          cp src/desktop/target/release/lumen "$name/"
+          strip "$name/lumen"
+          cp src/desktop/packaging/linux/com.shelchin.LumenCode.desktop "$name/"
+          python3 src/tools/icon.py 256 "$name/com.shelchin.LumenCode.png"
+          cp LICENSE "$name/"
+          cp src/desktop/packaging/linux/README.txt "$name/"
+          tar -czf "$name.tar.gz" "$name"
+          ls -l "$name.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: '*.tar.gz'
+          if-no-files-found: error
+
+  windows:
+    name: Windows (x86_64)
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/desktop
+      - name: Build
+        working-directory: src/desktop
+        run: cargo build --release --locked
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path src/desktop/Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $name = "LumenCode-$version-windows-x86_64"
+          New-Item -ItemType Directory -Path $name | Out-Null
+          Copy-Item src/desktop/target/release/lumen.exe "$name/Lumen Code.exe"
+          Copy-Item LICENSE "$name/LICENSE.txt"
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+          Get-Item "$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: '*.zip'
+          if-no-files-found: error
+
+  macos:
+    name: macOS (build check, not published)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/desktop
+      - name: Build the universal app and image (ad-hoc signature)
+        working-directory: src/desktop
+        run: ./scripts/build-macos-app.sh --arch universal
+      - name: Say what this is
+        run: |
+          {
+            echo "### macOS: built and verified, not published"
+            echo
+            echo "The image is ad-hoc signed; the released ones are signed and notarized on the"
+            echo "maintainer's Mac: \`src/desktop/scripts/release-macos-local.sh v<version> --upload\`."
+          } >> "$GITHUB_STEP_SUMMARY"

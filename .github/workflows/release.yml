@@ -1,0 +1,142 @@
+# The release. Pushing `release/vX.Y.Z` is the release:
+#
+#     git switch -c release/v0.1.1 main     # bump version in src/desktop/Cargo.toml, commit
+#     git push origin release/v0.1.1        # <- this
+#
+# What runs:
+#   gate     the branch names a version, src/desktop/Cargo.toml declares it, and that
+#            version was not already released from a different commit
+#   build    the desktop packages, by calling desktop-packages.yml (the one definition of
+#            how a package is made): Windows and Linux archives, a macOS build check
+#   publish  one tag at the branch's head commit and one GitHub Release with the Windows
+#            and Linux archives, SHA256SUMS and build provenance for every file
+#
+# Then, by hand, on the maintainer's Mac (no signing key is stored on GitHub):
+#     git fetch --tags && git checkout vX.Y.Z
+#     src/desktop/scripts/release-macos-local.sh vX.Y.Z --upload
+name: Release
+
+on:
+  push:
+    branches: ['release/v*']
+
+# one release of a version at a time; a second push waits, then meets the gate
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: May this commit be released as this version?
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: The branch names a version, and the desktop app declares it
+        id: version
+        run: |
+          branch="${GITHUB_REF#refs/heads/}"
+          version="${branch#release/v}"
+          # digits only: CFBundleShortVersionString must be numeric; "not final" is the
+          # pre-release flag below
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$branch' does not name a version: release branches are release/vX.Y.Z, digits only."
+            exit 1
+          fi
+          declared=$(sed -n '/^\[package\]/,/^\[/ s/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' src/desktop/Cargo.toml | head -1)
+          if [ "$declared" != "$version" ]; then
+            echo "::error::src/desktop/Cargo.toml says $declared, the branch says $version. Bump the version (and Cargo.lock: cargo update -p lumen-desktop) on the branch."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Not already released from another commit
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if existing=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}"); then
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "::error::$TAG was released from ${existing:0:7}; this is ${GITHUB_SHA:0:7}. Release a new version instead."
+              exit 1
+            fi
+            echo "$TAG already points here: a re-run, the packages will be replaced."
+          fi
+
+  build:
+    needs: gate
+    uses: ./.github/workflows/desktop-packages.yml
+
+  publish:
+    name: Tag and publish
+    needs: [gate, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.gate.outputs.version }}
+      TAG: ${{ needs.gate.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'linux-*'
+          path: packages
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'windows-*'
+          path: packages
+          merge-multiple: true
+      - name: Checksums
+        working-directory: packages
+        run: |
+          sha256sum ./* | sed 's|\./||' > "$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" SHA256SUMS
+          cat SHA256SUMS
+      # anyone can check where a file came from: gh attestation verify <file> --repo <this repo>
+      - name: Provenance for every file
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'packages/*'
+      - name: Notes
+        run: |
+          {
+            echo "Built from \`${GITHUB_SHA:0:7}\`, the head of \`${GITHUB_REF#refs/heads/}\`."
+            echo
+            sed "s/<version>/$VERSION/g" src/desktop/packaging/release-notes.md
+          } > "$RUNNER_TEMP/notes.md"
+      - name: Publish
+        run: |
+          pre=(); [[ "$VERSION" == 0.* ]] && pre=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" packages/* --clobber
+          else
+            # --target creates the tag at exactly this commit
+            gh release create "$TAG" packages/* \
+              --target "$GITHUB_SHA" \
+              --title "Lumen Code $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              --generate-notes \
+              "${pre[@]}"
+          fi
+          {
+            echo "### Released $VERSION from ${GITHUB_SHA:0:7}"
+            echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+            echo
+            echo "**macOS is attached by hand** on the maintainer's Mac:"
+            echo
+            echo '```'
+            echo "git fetch --tags && git checkout $TAG"
+            echo "src/desktop/scripts/release-macos-local.sh $TAG --upload"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

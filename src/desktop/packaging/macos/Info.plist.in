@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for the macOS bundle. @VERSION@ is substituted by scripts/build-macos-app.sh
+  from the version in Cargo.toml.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>                  <string>Lumen Code</string>
+    <key>CFBundleDisplayName</key>           <string>Lumen Code</string>
+    <!-- not the iOS app's id: an iPhone app can run on Apple silicon Macs too -->
+    <key>CFBundleIdentifier</key>            <string>com.shelchin.lumencode.desktop</string>
+    <key>CFBundleExecutable</key>            <string>lumen</string>
+    <key>CFBundleIconFile</key>              <string>AppIcon</string>
+    <key>CFBundlePackageType</key>           <string>APPL</string>
+    <key>CFBundleShortVersionString</key>    <string>@VERSION@</string>
+    <key>CFBundleVersion</key>               <string>@VERSION@</string>
+    <key>CFBundleInfoDictionaryVersion</key> <string>6.0</string>
+    <key>CFBundleDevelopmentRegion</key>     <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh-Hans</string>
+    </array>
+    <key>LSApplicationCategoryType</key>     <string>public.app-category.utilities</string>
+    <key>LSMinimumSystemVersion</key>        <string>12.0</string>
+    <!-- gpui renders through Metal at the display's backing scale -->
+    <key>NSHighResolutionCapable</key>       <true/>
+    <!-- without it macOS refuses the receiver's camera outright -->
+    <key>NSCameraUsageDescription</key>      <string>Lumen Code uses the camera to read the animated code shown on another screen. Nothing is recorded or sent anywhere.</string>
+    <key>NSHumanReadableCopyright</key>      <string>MIT licence</string>
+</dict>
+</plist>
