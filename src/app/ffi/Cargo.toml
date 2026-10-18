@@ -1,0 +1,16 @@
+[package]
+name = "lumen-ffi"
+description = "uniffi bindings of lumen-app for the Swift (iOS) and Kotlin (Android) shells."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "lumen_ffi"
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+lumen-app = { workspace = true }
+uniffi = { workspace = true }
+serde_json = { workspace = true }

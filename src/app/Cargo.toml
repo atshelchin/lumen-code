@@ -1,0 +1,29 @@
+# Native apps: the shared Crux core and its uniffi bindings (iOS, Android).
+# The desktop shell (../desktop) is a separate workspace: GPUI's dependency tree
+# stays out of the mobile builds. The protocol crate (../rust) stays zero-dependency.
+[workspace]
+resolver = "2"
+members = ["core", "ffi", "bindgen"]
+# `bindgen` carries uniffi's code generator; keep it out of plain `cargo build`
+# so the generator never ends up inside a shipped library.
+default-members = ["core", "ffi"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+lumen-code = { path = "../rust" }
+lumen-app = { path = "core" }
+crux_core = "0.19"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uniffi = "0.32.0"
+
+[profile.release]
+# The scanner is the hot path on phones: optimise for speed, not size.
+opt-level = 3
+lto = true
+codegen-units = 1

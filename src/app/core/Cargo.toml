@@ -1,0 +1,13 @@
+[package]
+name = "lumen-app"
+description = "Lumen Code app core: Crux state machine (decisions) plus the real-time runtime (sender, scan pipeline, decoder) shared by the iOS, Android and desktop shells."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lumen-code = { workspace = true }
+crux_core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
