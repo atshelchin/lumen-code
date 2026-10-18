@@ -1,0 +1,42 @@
+[package]
+name = "lumen-desktop"
+description = "Lumen Code for macOS, Windows and Linux: the GPUI shell over the shared Rust core (src/app/core)."
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "lumen"
+path = "src/main.rs"
+
+[dependencies]
+# GPUI (Zed's UI framework), as vela-wallet uses it: the Zed repository at the revision pinned
+# in Cargo.lock. Every Zed crate must name the same git source string, or cargo builds a second gpui.
+gpui = { git = "https://github.com/zed-industries/zed" }
+# wayland + x11 are required on Linux (Zed pins gpui_linux default-features = false)
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "wayland", "x11"] }
+lumen-app = { path = "../app/core" }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+image = "0.25"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# the webcam (AVFoundation)
+nokhwa = { version = "0.10", default-features = false, features = ["input-avfoundation"] }
+
+# unoptimised gpui and taffy draw a few frames a second; the debug build stays usable with these
+[profile.dev.package.taffy]
+opt-level = 3
+[profile.dev.package.gpui]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.lumen-code]
+opt-level = 3
+[profile.dev.package.lumen-app]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
