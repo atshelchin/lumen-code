@@ -167,6 +167,34 @@ pub struct Image<'a> {
     pub rgba: &'a [u8],
 }
 
+/// A Y'CbCr 4:2:0 image as cameras deliver it (full-range BT.601): the luma plane is the
+/// scanner's own luma, and colour is converted only where cells are sampled.
+pub struct YuvImage<'a> {
+    pub width: usize,
+    pub height: usize,
+    /// Luma, `width` bytes per row.
+    pub y: &'a [u8],
+    /// Cb, Cr interleaved at half resolution in both directions: `(width + 1) / 2` pairs per row,
+    /// `(height + 1) / 2` rows.
+    pub cbcr: &'a [u8],
+}
+
+/// Where the code was a moment ago (tracking): the four corners in this image's pixels and the
+/// module size. Finders are then searched only in windows around those corners; the full
+/// search runs only if that finds too little.
+#[derive(Clone, Copy, Debug)]
+pub struct Hint {
+    pub corners: [[f64; 2]; 4],
+    pub module: f64,
+}
+
+/// Where colours come from.
+#[derive(Clone, Copy)]
+enum Pixels<'a> {
+    Rgba(&'a [u8]),
+    Yuv { cbcr: &'a [u8], cw: usize, ch: usize },
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ScanStats {
     pub cell_px: f64,
@@ -249,6 +277,9 @@ pub struct Scanner {
     // seq is not needed to decode data, so it stands in when every copy of a header is unreadable.
     last_header: Option<Header>,
     reuse_misses: u32,
+    // The grid layout of the last decoded frame: a transfer keeps its size, and building a
+    // layout (Hilbert order, header positions) costs as much as a tenth of a scan.
+    layout: std::cell::RefCell<Option<std::sync::Arc<Layout>>>,
 }
 
 struct Ctx<'a> {
@@ -258,7 +289,11 @@ struct Ctx<'a> {
     bw: usize,
     luma: &'a [u8],
     thr: &'a [u8],
-    rgba: &'a [u8],
+    px: Pixels<'a>,
+    layout_cache: &'a std::cell::RefCell<Option<std::sync::Arc<Layout>>>,
+    hint: Option<Hint>,
+    /// Whether `thr` covers the whole image (else only the hint windows).
+    thr_full: bool,
 }
 
 const TL: usize = 0;
@@ -272,14 +307,41 @@ impl Scanner {
     }
 
     pub fn scan(&mut self, img: &Image, skip: Option<&SkipMap>) -> ScanResult {
+        self.scan_hinted(img, skip, None)
+    }
+
+    /// [`Scanner::scan`] with a tracking hint (see [`Hint`]).
+    pub fn scan_hinted(&mut self, img: &Image, skip: Option<&SkipMap>, hint: Option<Hint>) -> ScanResult {
         let (w, h) = (img.width, img.height);
         if w < 16 || h < 16 || img.rgba.len() < w * h * 4 {
             return ScanResult::fail("image", 0);
         }
-        // prep: luma + block thresholds (buffers only grow)
+        // luma (buffers only grow)
         if self.luma.len() < w * h {
             self.luma.resize(w * h, 0);
         }
+        let rgba = img.rgba;
+        for (l, p) in self.luma[..w * h].iter_mut().zip(rgba[..w * h * 4].chunks_exact(4)) {
+            *l = ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8;
+        }
+        let luma = std::mem::take(&mut self.luma);
+        let res = self.scan_luma(w, h, &luma[..w * h], Pixels::Rgba(rgba), skip, hint);
+        self.luma = luma;
+        res
+    }
+
+    /// Scans a Y'CbCr image without converting it: the camera's luma is used as is.
+    pub fn scan_yuv(&mut self, img: &YuvImage, skip: Option<&SkipMap>, hint: Option<Hint>) -> ScanResult {
+        let (w, h) = (img.width, img.height);
+        let (cw, ch) = (w.div_ceil(2), h.div_ceil(2));
+        if w < 16 || h < 16 || img.y.len() < w * h || img.cbcr.len() < cw * ch * 2 {
+            return ScanResult::fail("image", 0);
+        }
+        self.scan_luma(w, h, &img.y[..w * h], Pixels::Yuv { cbcr: img.cbcr, cw, ch }, skip, hint)
+    }
+
+    fn scan_luma(&mut self, w: usize, h: usize, luma: &[u8], px: Pixels, skip: Option<&SkipMap>, hint: Option<Hint>) -> ScanResult {
+        // block thresholds (buffers only grow)
         let bs = if w.min(h) >= 1400 { 5 } else { 4 };
         let bsz = 1usize << bs;
         let bw = w.div_ceil(bsz);
@@ -290,54 +352,33 @@ impl Scanner {
             self.bmin.resize(nb, 0);
             self.bmax.resize(nb, 0);
         }
-        let rgba = img.rgba;
-        for (i, l) in self.luma[..w * h].iter_mut().enumerate() {
-            let j = i * 4;
-            *l = ((rgba[j] as u32 * 77 + rgba[j + 1] as u32 * 150 + rgba[j + 2] as u32 * 29) >> 8) as u8;
+        // With a tracking hint the finders are looked for only in windows around the expected
+        // corners (find_candidates): thresholds there are enough, unless that search fails.
+        let regions: Option<Vec<[usize; 4]>> = hint.map(|hn| {
+            let r = hint_radius(&hn);
+            // the window, plus room for the cross-checks that start near its edge, plus the
+            // two blocks a threshold looks at around its own
+            let m = r * 1.5;
+            hn.corners
+                .iter()
+                .map(|&[x, y]| {
+                    let bx0 = ((x - m).max(0.0) as usize >> bs).saturating_sub(2);
+                    let by0 = ((y - m).max(0.0) as usize >> bs).saturating_sub(2);
+                    let bx1 = ((((x + m).max(0.0) as usize).min(w - 1) >> bs) + 3).min(bw);
+                    let by1 = ((((y + m).max(0.0) as usize).min(h - 1) >> bs) + 3).min(bh);
+                    [bx0, by0, bx1, by1]
+                })
+                .collect()
+        });
+        self.thresholds(luma, w, h, bs, bw, bh, regions.as_deref());
+        let mut ctx = Ctx { w, h, bs, bw, luma, thr: &self.thr[..nb], px, layout_cache: &self.layout, hint, thr_full: regions.is_none() };
+        let (mut res, mut tried_reuse) = ctx.run(skip, self.last_header);
+        if res.reason == RETHRESHOLD {
+            // the windows missed: the whole image after all
+            self.thresholds(luma, w, h, bs, bw, bh, None);
+            ctx = Ctx { w, h, bs, bw, luma, thr: &self.thr[..nb], px, layout_cache: &self.layout, hint, thr_full: true };
+            (res, tried_reuse) = ctx.run(skip, self.last_header);
         }
-        let luma = &self.luma;
-        for by in 0..bh {
-            for bx in 0..bw {
-                let (mut mn, mut mx) = (255u8, 0u8);
-                let y1 = h.min((by + 1) * bsz);
-                let x1 = w.min((bx + 1) * bsz);
-                let mut y = by * bsz;
-                while y < y1 {
-                    let row = y * w;
-                    let mut x = bx * bsz;
-                    while x < x1 {
-                        let v = luma[row + x];
-                        mn = mn.min(v);
-                        mx = mx.max(v);
-                        x += 2;
-                    }
-                    y += 2;
-                }
-                self.bmax[by * bw + bx] = mx;
-                self.bmin[by * bw + bx] = mn;
-            }
-        }
-        let (mut gmin, mut gmax) = (255u8, 0u8);
-        for k in 0..nb {
-            gmin = gmin.min(self.bmin[k]);
-            gmax = gmax.max(self.bmax[k]);
-        }
-        let min_range = 40f64.max(0.3 * (gmax as f64 - gmin as f64));
-        for by in 0..bh {
-            for bx in 0..bw {
-                let (mut mn, mut mx) = (255u8, 0u8);
-                for yy in by.saturating_sub(2)..(by + 3).min(bh) {
-                    for xx in bx.saturating_sub(2)..(bx + 3).min(bw) {
-                        let k = yy * bw + xx;
-                        mn = mn.min(self.bmin[k]);
-                        mx = mx.max(self.bmax[k]);
-                    }
-                }
-                self.thr[by * bw + bx] = if ((mx - mn) as f64) < min_range { 255 } else { ((mn as u16 + mx as u16) >> 1) as u8 };
-            }
-        }
-        let ctx = Ctx { w, h, bs, bw, luma: &self.luma[..w * h], thr: &self.thr[..nb], rgba };
-        let (res, tried_reuse) = ctx.run(skip, self.last_header);
         if res.ok && !res.header_reused {
             self.last_header = res.header;
             self.reuse_misses = 0;
@@ -350,6 +391,76 @@ impl Scanner {
         }
         res
     }
+}
+
+impl Scanner {
+    /// Block thresholds (the midpoint of the luma range around each 2^bs-pixel block), for the
+    /// whole image or only for the blocks in `regions` ([bx0, by0, bx1, by1), others stay 255:
+    /// never bright).
+    #[allow(clippy::too_many_arguments)]
+    fn thresholds(&mut self, luma: &[u8], w: usize, h: usize, bs: usize, bw: usize, bh: usize, regions: Option<&[[usize; 4]]>) {
+        let bsz = 1usize << bs;
+        let all = [[0, 0, bw, bh]];
+        let regions = regions.unwrap_or(&all);
+        let partial = regions.len() != 1 || regions[0] != all[0];
+        if partial {
+            self.thr[..bw * bh].iter_mut().for_each(|t| *t = 255);
+        }
+        // min / max per block (every other pixel of every other row), over each region
+        // widened by the two blocks a threshold looks at
+        let (mut gmin, mut gmax) = (255u8, 0u8);
+        for &[x0, y0, x1, y1] in regions {
+            for by in y0.saturating_sub(2)..(y1 + 2).min(bh) {
+                for bx in x0.saturating_sub(2)..(x1 + 2).min(bw) {
+                    let (mut mn, mut mx) = (255u8, 0u8);
+                    let yend = h.min((by + 1) * bsz);
+                    let xend = w.min((bx + 1) * bsz);
+                    let mut y = by * bsz;
+                    while y < yend {
+                        let row = y * w;
+                        let mut x = bx * bsz;
+                        while x < xend {
+                            let v = luma[row + x];
+                            mn = mn.min(v);
+                            mx = mx.max(v);
+                            x += 2;
+                        }
+                        y += 2;
+                    }
+                    self.bmax[by * bw + bx] = mx;
+                    self.bmin[by * bw + bx] = mn;
+                    gmin = gmin.min(mn);
+                    gmax = gmax.max(mx);
+                }
+            }
+        }
+        let min_range = 40f64.max(0.3 * (gmax as f64 - gmin as f64));
+        for &[x0, y0, x1, y1] in regions {
+            for by in y0..y1 {
+                for bx in x0..x1 {
+                    let (mut mn, mut mx) = (255u8, 0u8);
+                    for yy in by.saturating_sub(2)..(by + 3).min(bh) {
+                        for xx in bx.saturating_sub(2)..(bx + 3).min(bw) {
+                            let k = yy * bw + xx;
+                            mn = mn.min(self.bmin[k]);
+                            mx = mx.max(self.bmax[k]);
+                        }
+                    }
+                    self.thr[by * bw + bx] = if ((mx - mn) as f64) < min_range { 255 } else { ((mn as u16 + mx as u16) >> 1) as u8 };
+                }
+            }
+        }
+    }
+}
+
+/// `ScanResult::reason` when a hinted search missed and needs thresholds for the whole image.
+const RETHRESHOLD: &str = "rethreshold";
+
+/// Half the side of the window a hinted finder search looks in: the 7-cell finder plus its
+/// separator and some slack for perspective and motion (a window cut at the finder's own size
+/// misses it often and costs a full search).
+fn hint_radius(hint: &Hint) -> f64 {
+    (hint.module * 10.0).max(32.0)
 }
 
 impl<'a> Ctx<'a> {
@@ -367,9 +478,65 @@ impl<'a> Ctx<'a> {
         let (ax, ay) = (x - ix as f64, y - iy as f64);
         let i = iy * self.w + ix;
         let l = self.luma;
-        let a = l[i] as f64 + (l[i + 1] as f64 - l[i] as f64) * ax;
-        let b = l[i + self.w] as f64 + (l[i + self.w + 1] as f64 - l[i + self.w] as f64) * ax;
+        // the clamps above keep ix + 1 < w and iy + 1 < h
+        assert!(i + self.w + 1 < l.len());
+        // SAFETY: checked just above
+        let (p00, p10, p01, p11) = unsafe { (*l.get_unchecked(i), *l.get_unchecked(i + 1), *l.get_unchecked(i + self.w), *l.get_unchecked(i + self.w + 1)) };
+        let a = p00 as f64 + (p10 as f64 - p00 as f64) * ax;
+        let b = p01 as f64 + (p11 as f64 - p01 as f64) * ax;
         a + (b - a) * ay
+    }
+
+    /// Cb, Cr (centred on 0) at a luma-pixel position, bilinear.
+    #[inline]
+    fn chroma_at(x: f64, y: f64, cbcr: &[u8], cw: usize, ch: usize) -> (f64, f64) {
+        // chroma sample (cx, cy) is centred on luma (2cx + 1, 2cy + 1)
+        let cx = ((x - 0.5) * 0.5 - 0.25).clamp(0.0, cw as f64 - 1.001);
+        let cy = ((y - 0.5) * 0.5 - 0.25).clamp(0.0, ch as f64 - 1.001);
+        let (jx, jy) = (cx as usize, cy as usize);
+        let (bx, by) = (cx - jx as f64, cy - jy as f64);
+        let k = (jy * cw + jx) * 2;
+        let k2 = k + cw * 2;
+        let (v00, v10, v01, v11) = ((1.0 - bx) * (1.0 - by), bx * (1.0 - by), (1.0 - bx) * by, bx * by);
+        let cb = cbcr[k] as f64 * v00 + cbcr[k + 2] as f64 * v10 + cbcr[k2] as f64 * v01 + cbcr[k2 + 2] as f64 * v11 - 128.0;
+        let cr = cbcr[k + 1] as f64 * v00 + cbcr[k + 3] as f64 * v10 + cbcr[k2 + 1] as f64 * v01 + cbcr[k2 + 3] as f64 * v11 - 128.0;
+        (cb, cr)
+    }
+
+    /// One data cell's colour: six samples summed, the centre twice and four around it
+    /// (`du`, `dv` away), as the reference colours are measured.
+    #[inline]
+    fn cell_rgb(&self, px: f64, py: f64, du: V2, dv: V2) -> [f64; 3] {
+        match self.px {
+            Pixels::Yuv { cbcr, cw, ch } => {
+                // The clamps aside, the mean of six RGB samples is the RGB of the mean Y'CbCr, and
+                // chroma (half resolution) hardly changes within a cell: average the luma, read
+                // the chroma once. A fifth of the work of six full samples (native path only;
+                // the RGBA path below is the one the JavaScript scanner matches).
+                let l = 2.0 * self.luma_at(px, py)
+                    + self.luma_at(px + du[0], py + du[1])
+                    + self.luma_at(px - du[0], py - du[1])
+                    + self.luma_at(px + dv[0], py + dv[1])
+                    + self.luma_at(px - dv[0], py - dv[1]);
+                let yv = l / 6.0;
+                let (cb, cr) = Self::chroma_at(px, py, cbcr, cw, ch);
+                [
+                    6.0 * (yv + 1.402 * cr).clamp(0.0, 255.0),
+                    6.0 * (yv - 0.344_136 * cb - 0.714_136 * cr).clamp(0.0, 255.0),
+                    6.0 * (yv + 1.772 * cb).clamp(0.0, 255.0),
+                ]
+            }
+            Pixels::Rgba(_) => {
+                let mut a = [0f64; 3];
+                self.rgb_at(px, py, &mut a);
+                a = [a[0] * 2.0, a[1] * 2.0, a[2] * 2.0];
+                self.rgb_at(px + du[0], py + du[1], &mut a);
+                self.rgb_at(px - du[0], py - du[1], &mut a);
+                self.rgb_at(px + dv[0], py + dv[1], &mut a);
+                self.rgb_at(px - dv[0], py - dv[1], &mut a);
+                a
+            }
+        }
     }
 
     #[inline]
@@ -382,9 +549,30 @@ impl<'a> Ctx<'a> {
         let i = (iy * self.w + ix) * 4;
         let j = i + self.w * 4;
         let (w00, w10, w01, w11) = ((1.0 - ax) * (1.0 - ay), ax * (1.0 - ay), (1.0 - ax) * ay, ax * ay);
-        let p = self.rgba;
-        for c in 0..3 {
-            out[c] += p[i + c] as f64 * w00 + p[i + 4 + c] as f64 * w10 + p[j + c] as f64 * w01 + p[j + 4 + c] as f64 * w11;
+        match self.px {
+            Pixels::Rgba(p) => {
+                for c in 0..3 {
+                    out[c] += p[i + c] as f64 * w00 + p[i + 4 + c] as f64 * w10 + p[j + c] as f64 * w01 + p[j + 4 + c] as f64 * w11;
+                }
+            }
+            Pixels::Yuv { cbcr, cw, ch } => {
+                let l = self.luma;
+                let (i, j) = (i / 4, j / 4);
+                let yv = l[i] as f64 * w00 + l[i + 1] as f64 * w10 + l[j] as f64 * w01 + l[j + 1] as f64 * w11;
+                // chroma sample (cx, cy) is centred on luma (2cx + 1, 2cy + 1)
+                let cx = (x * 0.5 - 0.25).clamp(0.0, cw as f64 - 1.001);
+                let cy = (y * 0.5 - 0.25).clamp(0.0, ch as f64 - 1.001);
+                let (jx, jy) = (cx as usize, cy as usize);
+                let (bx, by) = (cx - jx as f64, cy - jy as f64);
+                let k = (jy * cw + jx) * 2;
+                let k2 = k + cw * 2;
+                let (v00, v10, v01, v11) = ((1.0 - bx) * (1.0 - by), bx * (1.0 - by), (1.0 - bx) * by, bx * by);
+                let cb = cbcr[k] as f64 * v00 + cbcr[k + 2] as f64 * v10 + cbcr[k2] as f64 * v01 + cbcr[k2 + 2] as f64 * v11 - 128.0;
+                let cr = cbcr[k + 1] as f64 * v00 + cbcr[k + 3] as f64 * v10 + cbcr[k2 + 1] as f64 * v01 + cbcr[k2 + 3] as f64 * v11 - 128.0;
+                out[0] += (yv + 1.402 * cr).clamp(0.0, 255.0);
+                out[1] += (yv - 0.344_136 * cb - 0.714_136 * cr).clamp(0.0, 255.0);
+                out[2] += (yv + 1.772 * cb).clamp(0.0, 255.0);
+            }
         }
     }
 
@@ -483,25 +671,75 @@ impl<'a> Ctx<'a> {
         Some((f as f64 - c[4] as f64 - c[3] as f64 - c[2] as f64 / 2.0, total))
     }
 
-    fn find_candidates(&self) -> Vec<Cand> {
-        let (w, h) = (self.w, self.h);
-        let step = (h / 360).max(1);
-        let mut cands: Vec<Cand> = Vec::new();
+    /// Finder and corner candidates: everywhere, or (tracking) only near the hinted corners,
+    /// falling back to everywhere when the windows hold fewer than three.
+    /// Finder candidates; None when a hinted search missed and only the windows have thresholds.
+    fn find_candidates(&self) -> Option<Vec<Cand>> {
+        if let Some(hint) = self.hint {
+            let r = hint_radius(&hint);
+            let windows: Vec<(usize, usize, usize, usize)> = hint
+                .corners
+                .iter()
+                .map(|&[x, y]| {
+                    let x0 = (x - r).floor().max(0.0) as usize;
+                    let y0 = (y - r).floor().max(0.0) as usize;
+                    let x1 = ((x + r).ceil() as usize).min(self.w);
+                    let y1 = ((y + r).ceil() as usize).min(self.h);
+                    (x0, y0, x1, y1)
+                })
+                .filter(|&(x0, y0, x1, y1)| x1 > x0 + 8 && y1 > y0 + 8)
+                .collect();
+            let mut cands = Vec::new();
+            for &(x0, y0, x1, y1) in &windows {
+                self.find_in(x0, y0, x1, y1, 1, &mut cands);
+            }
+            if cands.len() >= 3 {
+                return Some(cands);
+            }
+            if !self.thr_full {
+                return None;
+            }
+        }
+        let mut cands = Vec::new();
+        self.find_in(0, 0, self.w, self.h, (self.h / 360).max(1), &mut cands);
+        Some(cands)
+    }
+
+    /// Row scan for 1:1:3:1:1 finders and 1:2:1:2:1 corner patterns within a window.
+    fn find_in(&self, x0: usize, y0: usize, x1: usize, y1: usize, step: usize, cands: &mut Vec<Cand>) {
+        let (w, h) = (x1 - x0, self.h);
+        let _ = h;
         let mut run_len = vec![0usize; w + 1];
         let mut run_start = vec![0usize; w + 1];
         let mut run_bright = vec![false; w + 1];
-        let mut y = step >> 1;
-        while y < h {
+        // One row binarised at a time, block by block (one threshold per block): the same
+        // test as `bright`, in a form the compiler vectorises.
+        let mut bits = vec![0u8; w];
+        let bsz = 1usize << self.bs;
+        let mut y = y0 + (step >> 1);
+        while y < y1 {
+            let row = &self.luma[y * self.w + x0..y * self.w + x1];
+            let trow = &self.thr[(y >> self.bs) * self.bw..];
+            if x0 == 0 {
+                for ((out, lum), &t) in bits.chunks_mut(bsz).zip(row.chunks(bsz)).zip(trow) {
+                    for (o, &l) in out.iter_mut().zip(lum) {
+                        *o = (l > t) as u8;
+                    }
+                }
+            } else {
+                for (i, (o, &l)) in bits.iter_mut().zip(row).enumerate() {
+                    *o = (l > trow[(x0 + i) >> self.bs]) as u8;
+                }
+            }
             let mut n = 0usize;
-            let mut prev: i8 = -1;
-            for x in 0..w {
-                let b = self.bright(x, y);
-                if b as i8 != prev {
-                    run_start[n] = x;
+            let mut prev = 2u8;
+            for (x, &b) in bits.iter().enumerate() {
+                if b != prev {
+                    run_start[n] = x0 + x;
                     run_len[n] = 1;
-                    run_bright[n] = b;
+                    run_bright[n] = b == 1;
                     n += 1;
-                    prev = b as i8;
+                    prev = b;
                 } else {
                     run_len[n - 1] += 1;
                 }
@@ -534,7 +772,7 @@ impl<'a> Ctx<'a> {
                             let cx = cx0 as f64 - 1.0 + hoff;
                             let module = (vtot + htot) as f64 / 14.0;
                             if module >= 2.0 {
-                                add_candidate(&mut cands, cx + 0.5, cy as f64 + 0.5, module, is_c);
+                                add_candidate(cands, cx + 0.5, cy as f64 + 0.5, module, is_c);
                             }
                         }
                     }
@@ -543,7 +781,6 @@ impl<'a> Ctx<'a> {
             }
             y += step;
         }
-        cands
     }
 
     fn select_sets(&self, cands: &[Cand]) -> Vec<CornerSet> {
@@ -1034,7 +1271,7 @@ impl<'a> Ctx<'a> {
 
     /// Returns the result and whether the last good header (`reuse`) was tried.
     fn run(&self, skip: Option<&SkipMap>, reuse: Option<Header>) -> (ScanResult, bool) {
-        let cands = self.find_candidates();
+        let Some(cands) = self.find_candidates() else { return (ScanResult::fail(RETHRESHOLD, 0), false) };
         if cands.len() < 3 {
             return (ScanResult::fail("finders", cands.len()), false);
         }
@@ -1078,7 +1315,17 @@ impl<'a> Ctx<'a> {
     fn decode(&self, hdr: Header, r: [Option<Refined>; 4], skip: Option<&SkipMap>, reused: bool) -> ScanResult {
         let (xg, yg) = (hdr.x as usize, hdr.y as usize);
         let (mode, n, nsym) = (hdr.mode as usize, hdr.n as usize, hdr.nsym as usize);
-        let Some(layout) = Layout::new(xg, yg) else { return ScanResult::fail("layout", 0) };
+        let cached = self.layout_cache.borrow().as_ref().filter(|l| l.x == xg && l.y == yg).cloned();
+        let layout = match cached {
+            Some(l) => l,
+            None => {
+                let Some(l) = Layout::new(xg, yg) else { return ScanResult::fail("layout", 0) };
+                let l = std::sync::Arc::new(l);
+                *self.layout_cache.borrow_mut() = Some(l.clone());
+                l
+            }
+        };
+        let layout = &*layout;
         let (lx, ly) = (&layout.lx, &layout.ly);
         let (nx, ny) = (lx.len(), ly.len());
         let avail: Vec<usize> = (0..4).filter(|&k| r[k].is_some()).collect();
@@ -1133,9 +1380,10 @@ impl<'a> Ctx<'a> {
         }
 
         let sample6 = |x: f64, y: f64, du: V2, dv: V2, spread: f64| -> [f64; 3] {
+            // the centre counts twice: sampled once and doubled (v + v == 2v exactly)
             let mut a = [0f64; 3];
             self.rgb_at(x, y, &mut a);
-            self.rgb_at(x, y, &mut a);
+            a = [a[0] + a[0], a[1] + a[1], a[2] + a[2]];
             self.rgb_at(x + spread * du[0], y + spread * du[1], &mut a);
             self.rgb_at(x - spread * du[0], y - spread * du[1], &mut a);
             self.rgb_at(x + spread * dv[0], y + spread * dv[1], &mut a);
@@ -1428,13 +1676,7 @@ impl<'a> Ctx<'a> {
             let (px, py) = apply_h(&qh[q], cx as f64 + 0.5, cy as f64 + 0.5);
             let du = [qdu[q * 4] * 0.18, qdu[q * 4 + 1] * 0.18];
             let dv = [qdu[q * 4 + 2] * 0.18, qdu[q * 4 + 3] * 0.18];
-            let mut a = [0f64; 3];
-            self.rgb_at(px, py, &mut a);
-            a = [a[0] * 2.0, a[1] * 2.0, a[2] * 2.0];
-            self.rgb_at(px + du[0], py + du[1], &mut a);
-            self.rgb_at(px - du[0], py - du[1], &mut a);
-            self.rgb_at(px + dv[0], py + dv[1], &mut a);
-            self.rgb_at(px - dv[0], py - dv[1], &mut a);
+            let a = self.cell_rgb(px, py, du, dv);
             let fx = ((cx as f64 - lx[qi] as f64) / (lx[qi + 1] - lx[qi]) as f64).clamp(0.0, 1.0);
             let fy = ((cy as f64 - ly[qj] as f64) / (ly[qj + 1] - ly[qj]) as f64).clamp(0.0, 1.0);
             let k00 = qj * nx + qi;
@@ -1475,7 +1717,10 @@ impl<'a> Ctx<'a> {
                     }
                 }
                 symbols[s] = bi as u8;
-                conf[s] = b2.sqrt() - b1.sqrt();
+                if !update {
+                    // only the final pass's confidences are used
+                    conf[s] = b2.sqrt() - b1.sqrt();
+                }
                 sums[bi * 4] += rv as f64;
                 sums[bi * 4 + 1] += gv as f64;
                 sums[bi * 4 + 2] += bv as f64;
@@ -1494,11 +1739,37 @@ impl<'a> Ctx<'a> {
         };
         const GB: usize = 4;
         let (gbw, gbh) = (xg.div_ceil(GB), yg.div_ceil(GB));
-        let gain_pass = |symbols: &[u8], cent: &[f32], work: &mut [f32]| {
-            let mut gacc = vec![0f64; gbw * gbh * 6];
-            for &s in &slots {
+        // where each slot sits among the gain blocks: its own block, and the four it blends
+        // with their weights (the same for both passes, so worked out once)
+        struct GainAt {
+            b: usize,
+            bi: [usize; 4],
+            ax: f64,
+            ay: f64,
+        }
+        let gain_at: Vec<GainAt> = slots
+            .iter()
+            .map(|&s| {
                 let c = dorder[s] as usize;
                 let b = (c / xg / GB) * gbw + (c % xg) / GB;
+                let (cx, cy) = ((c % xg) as f64, (c / xg) as f64);
+                let fx = ((cx + 0.5) / GB as f64 - 0.5).clamp(0.0, gbw as f64 - 1.0001);
+                let fy = ((cy + 0.5) / GB as f64 - 0.5).clamp(0.0, gbh as f64 - 1.0001);
+                let ix = (fx as usize).min(gbw.saturating_sub(2));
+                let iy = (fy as usize).min(gbh.saturating_sub(2));
+                let ax = if gbw > 1 { fx - ix as f64 } else { 0.0 };
+                let ay = if gbh > 1 { fy - iy as f64 } else { 0.0 };
+                let b00 = iy * gbw + ix;
+                let b10 = if gbw > 1 { b00 + 1 } else { b00 };
+                let b01 = if gbh > 1 { b00 + gbw } else { b00 };
+                let b11 = if gbw > 1 { b01 + 1 } else { b01 };
+                GainAt { b, bi: [b00, b10, b01, b11], ax, ay }
+            })
+            .collect();
+        let gain_pass = |symbols: &[u8], cent: &[f32], work: &mut [f32]| {
+            let mut gacc = vec![0f64; gbw * gbh * 6];
+            for (&s, at) in slots.iter().zip(&gain_at) {
+                let b = at.b;
                 let k = symbols[s] as usize;
                 for ch in 0..3 {
                     let cv = cent[k * 3 + ch] as f64;
@@ -1513,20 +1784,11 @@ impl<'a> Ctx<'a> {
                     gain[b * 3 + ch] = (gacc[b * 6 + ch] + lam) / (gacc[b * 6 + 3 + ch] + lam);
                 }
             }
-            for &s in &slots {
-                let c = dorder[s] as usize;
-                let (cx, cy) = ((c % xg) as f64, (c / xg) as f64);
-                let fx = ((cx + 0.5) / GB as f64 - 0.5).clamp(0.0, gbw as f64 - 1.0001);
-                let fy = ((cy + 0.5) / GB as f64 - 0.5).clamp(0.0, gbh as f64 - 1.0001);
-                let ix = (fx as usize).min(gbw.saturating_sub(2));
-                let iy = (fy as usize).min(gbh.saturating_sub(2));
-                let ax = if gbw > 1 { fx - ix as f64 } else { 0.0 };
-                let ay = if gbh > 1 { fy - iy as f64 } else { 0.0 };
-                let b00 = iy * gbw + ix;
-                let b10 = if gbw > 1 { b00 + 1 } else { b00 };
-                let b01 = if gbh > 1 { b00 + gbw } else { b00 };
-                let b11 = if gbw > 1 { b01 + 1 } else { b01 };
+            for (&s, at) in slots.iter().zip(&gain_at) {
+                let [b00, b10, b01, b11] = at.bi;
+                let (ax, ay) = (at.ax, at.ay);
                 for ch in 0..3 {
+                    // evaluated in the same order as the JavaScript scanner (bit-identical)
                     let g = gain[b00 * 3 + ch] * (1.0 - ax) * (1.0 - ay) + gain[b10 * 3 + ch] * ax * (1.0 - ay) + gain[b01 * 3 + ch] * (1.0 - ax) * ay + gain[b11 * 3 + ch] * ax * ay;
                     work[s * 3 + ch] = (norm[s * 3 + ch] as f64 / g.max(0.25)) as f32;
                 }

@@ -29,5 +29,5 @@ pub mod ffi;
 
 pub use layout::{Header, Layout, MODES};
 pub use render::Renderer;
-pub use scan::{ScanResult, Scanner};
+pub use scan::{Hint, ScanResult, Scanner, YuvImage};
 pub use transfer::{prepare, Finish, Receiver, Sender};
