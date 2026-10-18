@@ -1,5 +1,5 @@
-import { applyI18n, t } from './i18n.js?v=b8de78bdd3';
-import { isJson, formatJson, linkify } from './text-view.js?v=b8de78bdd3';
+import { applyI18n, t } from './i18n.js?v=5fd5612805';
+import { isJson, formatJson, linkify } from './text-view.js?v=5fd5612805';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
@@ -17,7 +17,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js?v=b8de78bdd3', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=5fd5612805', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -26,7 +26,7 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js?v=b8de78bdd3', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=5fd5612805', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly
@@ -111,11 +111,10 @@ async function openCamera() {
   }
   const res = params.get('res') || '1080';
   const dims = res === '4k' ? [3840, 2160] : res === '720' ? [1280, 720] : [1920, 1080];
-  const video0 = {
-    width: { ideal: dims[0] },
-    height: { ideal: dims[1] },
-    frameRate: { ideal: 30, max: 30 }, // some phones would capture at 60 fps: twice the work, no gain
-  };
+  // 30 fps to start; adaptCameraRate() asks for 60 when the sender plays fast enough
+  videoSize = { width: { ideal: dims[0] }, height: { ideal: dims[1] } };
+  camRate = 30;
+  const video0 = { ...videoSize, frameRate: { ideal: 30, max: 30 } };
   if (deviceIdx >= 0 && deviceIds[deviceIdx]) video0.deviceId = { exact: deviceIds[deviceIdx] };
   else video0.facingMode = { ideal: 'environment' };
   try {
@@ -147,6 +146,25 @@ function stopStream() {
   if (stream) for (const tr of stream.getTracks()) tr.stop();
   stream = null;
   track = null;
+}
+
+// The camera's rate follows the sender: at 30 fps every frame of a sender up to ~15 fps is
+// seen twice; a faster sender needs 60 (when the camera has it) to be seen at all reliably.
+// Scans stay locked to the sender, so a faster camera adds captures, not scans.
+let videoSize = {};
+let camRate = 30;
+let camRateAt = 0;
+function adaptCameraRate(sender, now) {
+  if (!track || !track.applyConstraints || now - camRateAt < 2000) return;
+  const max = (track.getCapabilities && track.getCapabilities().frameRate && track.getCapabilities().frameRate.max) || 30;
+  let want = camRate;
+  if (camRate <= 30 && sender >= 16 && max >= 59) want = 60;
+  else if (camRate > 30 && sender > 0 && sender < 13) want = 30;
+  if (want === camRate) return;
+  camRate = want;
+  camRateAt = now;
+  // the whole set: applyConstraints replaces the constraints, the size included
+  track.applyConstraints({ ...videoSize, frameRate: { ideal: want, max: want } }).catch(() => {});
 }
 
 function setupTrackControls() {
@@ -568,6 +586,7 @@ function updateHud() {
   const dt = recent.length > 1 ? (recent[recent.length - 1].first - recent[0].first) / 1000 : 0;
   const senderFps = dt > 0.5 ? span / dt : 0;
   if (senderFps > 0) senderFpsEst = senderFps;
+  if (senderFps > 0 && !stillImage) adaptCameraRate(senderFps, now);
   const distinctFps = dt > 0.5 ? (recent.length - 1) / dt : 0;
   // share of the sender's frames that were captured; with a fountain code a missed frame
   // costs only its own data, nothing has to be resent

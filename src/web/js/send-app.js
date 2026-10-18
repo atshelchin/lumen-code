@@ -146,19 +146,30 @@ function flip() {
   shownFrames++;
 }
 
-// Wake up only at the sender frame rate (not at every display refresh).
+// Flip on the display refresh closest to a fixed schedule, so any rate keeps its cadence
+// (45 fps on a 60 Hz screen alternates one and two refreshes instead of falling to 30).
+// Slow rates sleep until shortly before a flip; fast ones look at every refresh.
 let tickTimer = 0;
+let nextFlipAt = 0;
 function schedule() {
   clearTimeout(tickTimer);
   if (!sender || !playing) return;
-  const due = lastFlip + 1000 / prefs.fps;
-  tickTimer = setTimeout(() => requestAnimationFrame(tick), Math.max(0, due - performance.now() - 4));
+  const period = 1000 / prefs.fps;
+  const wait = nextFlipAt - performance.now() - 20;
+  if (period > 40 && wait > 0) tickTimer = setTimeout(() => requestAnimationFrame(tick), wait);
+  else requestAnimationFrame(tick);
 }
 function tick(ts) {
   if (!sender || !playing) return;
-  lastFlip = ts;
-  flip();
-  prepare();
+  const period = 1000 / prefs.fps;
+  // start, or after a pause or a stall: from now
+  if (!nextFlipAt || ts - nextFlipAt > 2 * period) nextFlipAt = ts;
+  if (ts + 4 >= nextFlipAt) {
+    lastFlip = ts;
+    flip();
+    prepare();
+    nextFlipAt = Math.max(nextFlipAt + period, ts + period / 2);
+  }
   schedule();
 }
 

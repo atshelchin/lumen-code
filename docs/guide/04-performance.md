@@ -91,7 +91,7 @@ The protocol sets "how fast it can possibly go". The compute speed of the receiv
 | Second capture of the same frame: decode only the remaining codewords | Partly decoded frames are faster the second time |
 | ROI + adaptive resolution (scaled to about 6 pixels per cell) | About 1/3 of the pixels, scanning about 2 times faster, same decode rate |
 | ROI crop and scaling done by the GPU (the crop and resize options of `createImageBitmap`) | No copy and read-back of the full 1080p frame; preparing a scan takes about 3 ms |
-| Camera off after completion; fewer scans with no code in view; camera capped at 30 FPS | Almost no power used while reading the result or with the phone put down |
+| Camera off after completion; fewer scans with no code in view; camera at 30 FPS unless the sender plays fast | Almost no power used while reading the result or with the phone put down |
 | No background blur over the video | Saves one full-screen GPU blur per camera frame |
 | Rust → WebAssembly | 1.5–2.1 times faster than JS (native Rust 1.6–2.6 times) |
 | Parallel Workers | 2 on phones, up to 3 on computers |

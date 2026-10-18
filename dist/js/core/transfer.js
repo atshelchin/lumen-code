@@ -1,6 +1,6 @@
 // Sender: file bytes -> stream of frames. Receiver: packets -> file.
 
-import { makeLayout, chooseCodeword, codewordsPerFrame, MODES, ECC_LEVELS } from './layout.js?v=b8de78bdd3';
+import { makeLayout, chooseCodeword, codewordsPerFrame, MODES, ECC_LEVELS } from './layout.js?v=5fd5612805';
 import {
   encodeFrameCells,
   packetDataSize,
@@ -12,9 +12,9 @@ import {
   PKT_HDR,
   PKT_OVERHEAD,
   MAX_SBN,
-} from './frame.js?v=b8de78bdd3';
-import { FountainEncoder, FountainDecoder } from './fountain.js?v=b8de78bdd3';
-import { crc32, mix32 } from './util.js?v=b8de78bdd3';
+} from './frame.js?v=5fd5612805';
+import { FountainEncoder, FountainDecoder } from './fountain.js?v=5fd5612805';
+import { crc32, mix32 } from './util.js?v=5fd5612805';
 
 export const FLAG_DEFLATE = 1;
 

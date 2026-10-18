@@ -109,7 +109,7 @@ Settings:
 | Density | Multiplies the base of "about 0.75 mm per cell" by 0.72 / 1 / 1.3 / 1.65 | Auto; Low when the receiver's "Cell" is < 4.5 |
 | Colours | 4 colours: 2 bits per cell; 8 colours: 3 bits per cell | 4 colours; try 8 colours when conditions are very good |
 | ECC | Low 10% / Mid 16% / High 22% of the bytes are used for RS check bytes | Mid; High when there is a lot of glare or shaking |
-| FPS | Frames shown per second (4–30) | 12; raise it when the receiver reports spare capacity |
+| FPS | Frames shown per second (4–60) | 12; raise it when the receiver reports spare capacity |
 | Engine | Generate frames with JS or with Rust/WASM | Both give bit-identical output; either one is fine |
 
 The code adapts its width and height to fill the screen (aspect ratio up to 2.4) and refills it when the screen is turned. While the control dock is shown it covers the code's two bottom corners; it hides itself after 2.6 s of playing, or with the hide button or a tap on the code.
