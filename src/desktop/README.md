@@ -2,7 +2,7 @@
 
 A [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui) shell over the [shared Rust core](../app/README.md). The core decides everything; this crate lays out its view model, forwards input, and performs the operations it asks for (files, clipboard, webcam, keeping the screen on). It drives the core's runtime directly: no FFI and no JSON.
 
-Built and tested on macOS (Apple silicon); CI builds the Windows and Linux versions. The webcam is only implemented for macOS: elsewhere the receiver reports that no camera was found, and decoding an image still works.
+Built and tested on macOS (Apple silicon); CI builds the Windows and Linux versions, which have not yet been tried on real machines. The webcam goes through [nokhwa](https://github.com/l1npengtul/nokhwa): AVFoundation on macOS, Media Foundation on Windows, Video4Linux on Linux. On Windows and Linux the app uses the system title bar, Ctrl shortcuts (Ctrl+C, Ctrl+A, Ctrl+Q, F11 for full screen) and keeps the display on while a code plays.
 
 ## Build and run
 
@@ -49,7 +49,7 @@ scripts/           build-macos-app.sh, release-macos-local.sh
 ## Notes on performance
 
 - **Sending.** The code's cells are painted inside `window.paint_layer`, which keeps GPUI from inserting every cell into its hit-test tree (that insertion was most of the cost). Frames flip from a timer, not from GPUI's next-frame callback, because GPUI slows that callback to 30 fps for windows that are not focused. The frame-rate slider takes clicks, drags and the scroll wheel; the arrow keys change the rate by 1, with Shift by 5. 60 fps uses about 10 % of one core on an M2.
-- **Receiving.** The webcam's packed 4:2:2 (YUYV) or NV12 frames go to the core without conversion; the preview is made at half size. Built-in FaceTime cameras give 1080p at 30 fps; an iPhone used as a Continuity Camera gives 1920×1440 at up to 60 fps.
+- **Receiving.** The webcam's packed 4:2:2 (YUYV) or NV12 frames go to the core without conversion; MJPEG frames (most USB webcams at 720p and up) are decoded with the `image` crate's pure-Rust decoder. The preview is made at half size. macOS takes the camera's fastest mode (built-in FaceTime cameras: 1080p at 30 fps; an iPhone as Continuity Camera: 1920×1440 at up to 60); Windows and Linux ask for 1080p, then 720p, at the fastest rate each offers, because USB webcams reach their highest rates only at small sizes.
 
 ## Tests without a mouse
 

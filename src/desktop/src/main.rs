@@ -4,6 +4,9 @@
 //! input, and performs the operations it asks for (files, clipboard, webcam, screen). It drives
 //! the core's runtime directly — no FFI, no JSON.
 
+// a GUI app on Windows: no console window beside it
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 mod app;
 mod camera;
 mod home;
@@ -50,7 +53,12 @@ fn main() {
     let application = gpui_platform::application().with_assets(Assets).with_quit_mode(QuitMode::LastWindowClosed);
     application.run(|cx: &mut App| {
         cx.on_action(|_: &Quit, cx| cx.quit());
-        cx.bind_keys([KeyBinding::new("cmd-q", Quit, None), KeyBinding::new("ctrl-cmd-f", ToggleFullScreen, None)]);
+        if cfg!(target_os = "macos") {
+            cx.bind_keys([KeyBinding::new("cmd-q", Quit, None), KeyBinding::new("ctrl-cmd-f", ToggleFullScreen, None)]);
+        } else {
+            // Windows closes with Alt-F4 by itself
+            cx.bind_keys([KeyBinding::new("ctrl-q", Quit, None), KeyBinding::new("f11", ToggleFullScreen, None)]);
+        }
         text_area::bind_keys(cx);
         cx.set_menus(vec![Menu { name: "Lumen".into(), items: vec![MenuItem::action("Quit Lumen", Quit)], disabled: false }]);
 
@@ -58,7 +66,13 @@ fn main() {
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions { title: Some("Lumen".into()), appears_transparent: true, traffic_light_position: Some(point(px(14.), px(14.))) }),
+                // macOS: content under a transparent title bar with the traffic lights; Windows and
+                // Linux: the system's title bar, with its buttons (GPUI would leave them to the app)
+                titlebar: Some(TitlebarOptions {
+                    title: Some("Lumen Code".into()),
+                    appears_transparent: cfg!(target_os = "macos"),
+                    traffic_light_position: cfg!(target_os = "macos").then(|| point(px(14.), px(14.))),
+                }),
                 window_min_size: Some(size(px(560.), px(480.))),
                 app_id: Some("com.shelchin.lumencode".into()),
                 focus: true,

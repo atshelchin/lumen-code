@@ -20,7 +20,7 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
     stage = stage.bg(c(INK));
     if let (Some(layout), Some(frame)) = (root.layout.clone(), root.frame.clone()) {
         let rt = root.rt.clone();
-        let top = if window.is_fullscreen() { 0.0 } else { 28.0 };
+        let top = title_inset(window);
         stage = stage.child(
             div()
                 .id("code")
@@ -51,8 +51,10 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
 fn top_bar(root: &Root) -> AnyElement {
     let rt = root.rt.clone();
     div()
+        .id("topbar")
+        .block_mouse_except_scroll()
         .absolute()
-        .top(px(36.))
+        .top(px(BAR_TOP))
         .left(px(14.))
         .child(
             div()
@@ -234,6 +236,9 @@ fn dock(root: &Root) -> AnyElement {
     }
     let mut panel = panel_box()
         .id("dock")
+        // clicks on the dock must not reach the code behind it, which toggles the dock (the
+        // hide button "did nothing": hidden, then shown again by the same click)
+        .block_mouse_except_scroll()
         .w(px(720.))
         .max_w_full()
         .p(px(10.))

@@ -320,7 +320,13 @@ impl Root {
                 self.answer(id, ShellOutput::Finished { ok: text.is_some(), cancelled: false });
             }
             ShellOp::OpenUrl { url } => cx.open_url(&url),
-            ShellOp::OpenSettings => cx.open_url("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"),
+            ShellOp::OpenSettings => {
+                // the system's camera privacy page (Linux desktops have no common one)
+                #[cfg(target_os = "macos")]
+                cx.open_url("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera");
+                #[cfg(target_os = "windows")]
+                cx.open_url("ms-settings:privacy-webcam");
+            }
         }
         let _ = HapticKind::Light;
     }
@@ -358,7 +364,7 @@ impl Root {
     fn report_viewport(&mut self, window: &mut Window) {
         let scale = window.scale_factor();
         let size = window.viewport_size();
-        let top = if window.is_fullscreen() { 0.0 } else { 28.0 };
+        let top = crate::theme::title_inset(window);
         let (w, h) = (f32::from(size.width), f32::from(size.height) - top);
         if (w, h, scale) != self.reported {
             self.reported = (w, h, scale);

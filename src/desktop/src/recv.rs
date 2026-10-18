@@ -35,7 +35,7 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
     }
     if r.phase != RecvPhase::Done {
         let rt = root.rt.clone();
-        let mut bar = div().absolute().top(px(36.)).left(px(14.)).flex().items_center().gap(px(10.)).child(
+        let mut bar = div().absolute().top(px(BAR_TOP)).left(px(14.)).flex().items_center().gap(px(10.)).child(
             div()
                 .id("home")
                 .flex()
@@ -65,7 +65,7 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
             if r.can_switch {
                 let rt = root.rt.clone();
                 stage = stage.child(
-                    div().absolute().right(px(14.)).top(px(36.)).child(icon_button("switch", "switch", false, move |_, _| rt.dispatch(Event::SwitchCamera))),
+                    div().absolute().right(px(14.)).top(px(BAR_TOP)).child(icon_button("switch", "switch", false, move |_, _| rt.dispatch(Event::SwitchCamera))),
                 );
             }
         }
@@ -301,7 +301,7 @@ fn done(root: &mut Root, d: &DoneView, window: &mut Window, cx: &mut Context<Roo
         .items_center()
         .gap(px(12.))
         .px(px(16.))
-        .pt(px(36.))
+        .pt(px(BAR_TOP))
         .pb(px(10.))
         .child(badge(true))
         .child(

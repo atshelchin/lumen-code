@@ -2,6 +2,7 @@
 
 use gpui::RenderImage;
 use std::path::PathBuf;
+#[cfg_attr(target_os = "windows", allow(unused_imports))] // Windows keeps the display on without a helper process
 use std::process::{Child, Command};
 
 /// The system language as a BCP 47 tag.
@@ -13,7 +14,16 @@ pub fn locale() -> String {
             return first.to_string();
         }
     }
-    std::env::var("LANG").unwrap_or_else(|_| "en".into())
+    #[cfg(target_os = "windows")]
+    if let Some(tag) = windows::user_locale() {
+        return tag;
+    }
+    // Linux: LC_ALL, then LC_MESSAGES, then LANG ("zh_CN.UTF-8")
+    ["LC_ALL", "LC_MESSAGES", "LANG"]
+        .iter()
+        .filter_map(|k| std::env::var(k).ok())
+        .find(|v| !v.is_empty() && v != "C" && v != "POSIX")
+        .unwrap_or_else(|| "en".into())
 }
 
 fn config_dir() -> Option<PathBuf> {
@@ -38,7 +48,9 @@ pub fn save_prefs(json: &str) {
 }
 
 pub fn downloads_dir() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).map(|h| h.join("Downloads")).filter(|d| d.is_dir()).unwrap_or_else(std::env::temp_dir)
+    // Windows sets USERPROFILE, not HOME
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    home.map(|h| h.join("Downloads")).filter(|d| d.is_dir()).unwrap_or_else(std::env::temp_dir)
 }
 
 /// A fresh temporary path with the file's own name (for "Open").
@@ -52,10 +64,16 @@ pub fn temp_file(name: &str) -> Option<PathBuf> {
 
 /// Keeps the display awake while a code is shown or the webcam scans.
 #[derive(Default)]
-pub struct KeepAwake(Option<Child>);
+pub struct KeepAwake(Option<Child>, bool);
 
 impl KeepAwake {
     pub fn set(&mut self, on: bool) {
+        #[cfg(target_os = "windows")]
+        if on != self.1 {
+            // a thread state: set and cleared on the UI thread, which lives as long as the app
+            windows::keep_display_on(on);
+        }
+        self.1 = on;
         if !on {
             if let Some(mut c) = self.0.take() {
                 let _ = c.kill();
@@ -95,4 +113,31 @@ pub fn render_image(mut rgba: image::RgbaImage) -> RenderImage {
         p.swap(0, 2);
     }
     RenderImage::new(vec![image::Frame::new(rgba)])
+}
+
+#[cfg(target_os = "windows")]
+mod windows {
+    // two kernel32 calls; not worth a bindings crate
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn SetThreadExecutionState(flags: u32) -> u32;
+        fn GetUserDefaultLocaleName(name: *mut u16, len: i32) -> i32;
+    }
+    const ES_CONTINUOUS: u32 = 0x8000_0000;
+    const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+    const ES_DISPLAY_REQUIRED: u32 = 0x0000_0002;
+
+    pub fn keep_display_on(on: bool) {
+        let flags = if on { ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED } else { ES_CONTINUOUS };
+        // SAFETY: a plain Win32 call without pointers
+        unsafe { SetThreadExecutionState(flags) };
+    }
+
+    /// The user's locale, as "zh-CN".
+    pub fn user_locale() -> Option<String> {
+        let mut buf = [0u16; 85]; // LOCALE_NAME_MAX_LENGTH
+        // SAFETY: the buffer and its length in UTF-16 units
+        let n = unsafe { GetUserDefaultLocaleName(buf.as_mut_ptr(), buf.len() as i32) };
+        (n > 1).then(|| String::from_utf16_lossy(&buf[..n as usize - 1]))
+    }
 }

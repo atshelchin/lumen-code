@@ -45,7 +45,7 @@ npm run build          # 生成 dist/，可直接部署的静态站点（用 npm
 | Android 10+ | Jetpack Compose | `cd src/android && ./gradlew :app:installDebug` | [src/android](src/android/README.md) |
 | macOS、Windows、Linux | GPUI | `cd src/desktop && cargo run --release` | [src/desktop](src/desktop/README.md) |
 
-桌面版安装包在 [Releases](https://github.com/atshelchin/lumen-code/releases) 页面：已签名并经公证的 macOS 镜像，以及 Windows、Linux 压缩包。目前只有 macOS 版支持用摄像头接收。
+桌面版安装包在 [Releases](https://github.com/atshelchin/lumen-code/releases) 页面：已签名并经公证的 macOS 镜像，以及 Windows、Linux 压缩包。桌面版在 macOS 上经过测试；Windows、Linux 版（含摄像头接收）是新加入的，尚未在真机上验证。
 
 各子目录的说明为英文。
 

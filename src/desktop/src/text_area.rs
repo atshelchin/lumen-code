@@ -25,6 +25,10 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-c", Copy, ctx),
         KeyBinding::new("cmd-a", SelectAll, ctx),
     ]);
+    // Windows and Linux: Ctrl (on macOS Ctrl-A and Ctrl-C mean other things in text fields)
+    if !cfg!(target_os = "macos") {
+        cx.bind_keys([KeyBinding::new("ctrl-c", Copy, ctx), KeyBinding::new("ctrl-a", SelectAll, ctx)]);
+    }
 }
 
 pub struct TextArea {

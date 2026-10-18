@@ -20,9 +20,14 @@ lumen-app = { path = "../app/core" }
 futures = { version = "0.3", default-features = false, features = ["std"] }
 image = "0.25"
 
+# the webcam: AVFoundation, Media Foundation, Video4Linux. No `decoding` feature (it builds
+# mozjpeg from C): MJPEG frames are decoded with the image crate's pure-Rust decoder.
 [target.'cfg(target_os = "macos")'.dependencies]
-# the webcam (AVFoundation)
 nokhwa = { version = "0.10", default-features = false, features = ["input-avfoundation"] }
+[target.'cfg(target_os = "windows")'.dependencies]
+nokhwa = { version = "0.10", default-features = false, features = ["input-msmf"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+nokhwa = { version = "0.10", default-features = false, features = ["input-v4l"] }
 
 # unoptimised gpui and taffy draw a few frames a second; the debug build stays usable with these
 [profile.dev.package.taffy]

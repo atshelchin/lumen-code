@@ -1,4 +1,5 @@
-//! The webcam (macOS: AVFoundation through nokhwa), feeding the core's scan pipeline.
+//! The webcam (nokhwa: AVFoundation on macOS, Media Foundation on Windows, Video4Linux on
+//! Linux), feeding the core's scan pipeline.
 //!
 //! Capture runs on its own thread at the camera's fastest mode (a desktop has no heat budget to
 //! protect; the runtime decides itself which frames to scan). Frames go to the runtime in the
@@ -33,7 +34,7 @@ impl Camera {
         Some(crate::platform::render_image(img))
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     pub fn start(index: usize, rt: Runtime) -> (Camera, oneshot::Receiver<Ready>) {
         let (tx, rx) = oneshot::channel::<Ready>();
         let stop = Arc::new(AtomicBool::new(false));
@@ -46,7 +47,7 @@ impl Camera {
         (Camera { stop, preview }, rx)
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     pub fn start(_index: usize, _rt: Runtime) -> (Camera, oneshot::Receiver<Ready>) {
         let (tx, rx) = oneshot::channel::<Ready>();
         let _ = tx.send(Err((CameraError::Unavailable, String::new())));
@@ -54,9 +55,11 @@ impl Camera {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn capture(index: usize, rt: Runtime, stop: Arc<AtomicBool>, preview: Arc<Mutex<Option<image::RgbaImage>>>, ready: oneshot::Sender<Ready>) {
     use nokhwa::pixel_format::RgbAFormat;
+    #[cfg_attr(target_os = "macos", allow(unused_imports))]
+    use nokhwa::utils::Resolution;
     use nokhwa::utils::{ApiBackend, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType};
 
     // The permission prompt must be answered before a device is opened.
@@ -84,13 +87,32 @@ fn capture(index: usize, rt: Runtime, stop: Arc<AtomicBool>, preview: Arc<Mutex<
         let _ = ready.send(Err((CameraError::Unavailable, String::new())));
         return;
     }
-    let format = RequestedFormat::new::<RgbAFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
-    let mut camera = match nokhwa::Camera::new(CameraIndex::Index((index % devices) as u32), format) {
-        Ok(c) => c,
-        Err(e) => {
-            let _ = ready.send(Err((CameraError::Failed, e.to_string())));
-            return;
+    // macOS cameras offer 1080p (or 1440p) at their fastest rate. USB webcams offer their
+    // fastest rates at small sizes (640×480 at 60), too coarse for small cells: 1080p first,
+    // then 720p, at the fastest rate each has (usually MJPEG), then whatever is fastest.
+    #[cfg(target_os = "macos")]
+    let requests = [RequestedFormatType::AbsoluteHighestFrameRate];
+    #[cfg(not(target_os = "macos"))]
+    let requests = [
+        RequestedFormatType::HighestResolution(Resolution::new(1920, 1080)),
+        RequestedFormatType::HighestResolution(Resolution::new(1280, 720)),
+        RequestedFormatType::AbsoluteHighestFrameRate,
+    ];
+    let idx = CameraIndex::Index((index % devices) as u32);
+    let mut last_err = String::new();
+    let mut opened = None;
+    for req in requests {
+        match nokhwa::Camera::new(idx.clone(), RequestedFormat::new::<RgbAFormat>(req)) {
+            Ok(c) => {
+                opened = Some(c);
+                break;
+            }
+            Err(e) => last_err = e.to_string(),
         }
+    }
+    let Some(mut camera) = opened else {
+        let _ = ready.send(Err((CameraError::Failed, last_err)));
+        return;
     };
     if let Err(e) = camera.open_stream() {
         let _ = ready.send(Err((CameraError::Failed, e.to_string())));
@@ -139,6 +161,16 @@ fn capture(index: usize, rt: Runtime, stop: Arc<AtomicBool>, preview: Arc<Mutex<
                     set_preview(&preview, preview_nv12(y, uv, w, h));
                 }
             }
+            // USB webcams at 720p and up: JPEG frames (pure-Rust decode, no C library)
+            FrameFormat::MJPEG => {
+                let Ok(img) = image::load_from_memory_with_format(raw, image::ImageFormat::Jpeg) else { continue };
+                let rgba = img.into_rgba8();
+                let (w, h) = (rgba.width() as usize, rgba.height() as usize);
+                rt.camera_frame(&FrameRef::rgba(w, h, rgba.as_raw()));
+                if want_preview {
+                    set_preview(&preview, image::imageops::resize(&rgba, (w / 2) as u32, (h / 2) as u32, image::imageops::FilterType::Nearest));
+                }
+            }
             _ => {
                 let Ok(rgba) = buffer.decode_image::<RgbAFormat>() else { continue };
                 rt.camera_frame(&FrameRef::rgba(w, h, rgba.as_raw()));
@@ -151,7 +183,7 @@ fn capture(index: usize, rt: Runtime, stop: Arc<AtomicBool>, preview: Arc<Mutex<
     let _ = camera.stop_stream();
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn set_preview(slot: &Arc<Mutex<Option<image::RgbaImage>>>, img: image::RgbaImage) {
     if let Ok(mut p) = slot.lock() {
         *p = Some(img);
@@ -170,7 +202,7 @@ fn rgb(y: i32, u: i32, v: i32) -> [u8; 4] {
 }
 
 /// Half-size RGBA preview of a YUYV frame (one pixel per 2×2 block).
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn preview_yuyv(raw: &[u8], w: usize, h: usize) -> image::RgbaImage {
     let (pw, ph) = (w / 2, h / 2);
     let mut out = vec![0u8; pw * ph * 4];
@@ -185,7 +217,7 @@ fn preview_yuyv(raw: &[u8], w: usize, h: usize) -> image::RgbaImage {
 }
 
 /// Half-size RGBA preview of an NV12 frame.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn preview_nv12(y: &[u8], uv: &[u8], w: usize, h: usize) -> image::RgbaImage {
     let (pw, ph) = (w / 2, h / 2);
     let mut out = vec![0u8; pw * ph * 4];

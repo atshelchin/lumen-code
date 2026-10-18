@@ -10,5 +10,6 @@ To add it to your applications menu:
   install -Dm644 com.shelchin.LumenCode.desktop ~/.local/share/applications/com.shelchin.LumenCode.desktop
   install -Dm644 com.shelchin.LumenCode.png ~/.local/share/icons/hicolor/256x256/apps/com.shelchin.LumenCode.png
 
-Receiving needs a camera, which the Linux build does not support yet: use the sender, or
-decode a code from an image. Source and other platforms: https://github.com/atshelchin/lumen-code
+Receiving uses a Video4Linux webcam (/dev/video*); your user needs access to it (on most
+distributions the "video" group). Source and other platforms:
+https://github.com/atshelchin/lumen-code

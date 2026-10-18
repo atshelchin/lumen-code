@@ -41,7 +41,27 @@ pub fn panel() -> Hsla {
     rgba(0x11151ef2).into()
 }
 
+/// Monospace face: Menlo ships with macOS, Consolas with Windows, DejaVu Sans Mono with most
+/// Linux desktops (GPUI falls back to a sans face when one is missing).
+#[cfg(target_os = "macos")]
 pub const MONO: &str = "Menlo";
+#[cfg(target_os = "windows")]
+pub const MONO: &str = "Consolas";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub const MONO: &str = "DejaVu Sans Mono";
+
+/// The strip macOS's transparent title bar lays over the content (its traffic lights); on
+/// Windows and Linux the system title bar sits above the content instead.
+pub fn title_inset(window: &Window) -> f32 {
+    if cfg!(target_os = "macos") && !window.is_fullscreen() {
+        28.0
+    } else {
+        0.0
+    }
+}
+
+/// Top of the bars that float over the code or the camera (home button, status).
+pub const BAR_TOP: f32 = if cfg!(target_os = "macos") { 36.0 } else { 12.0 };
 
 pub fn icon(name: &str, size: f32, color: Hsla) -> impl IntoElement {
     svg().path(SharedString::from(format!("icons/{name}.svg"))).size(px(size)).text_color(color).flex_none()
