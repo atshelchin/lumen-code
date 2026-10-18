@@ -35,6 +35,18 @@ npm run build          # 生成 dist/，可直接部署的静态站点（用 npm
 - **引擎切换**：两个页面都可以在 JavaScript 实现与编译成 WebAssembly 的 Rust 实现之间切换（`JS | WASM`），两者生成的帧逐位一致。接收端默认用 WASM，扫描中途切换不会丢失进度。
 - **码铺满屏幕**：自适应宽高，横屏竖屏都铺满；码是横的时，接收端把手机横过来即可。
 
+## 原生应用（iOS、Android、桌面）
+
+同样的传输，做成原生应用：三个平台共用一套 Rust 核心（[`src/app`](src/app/README.md)：应用逻辑、扫描流水线和协议库）。各平台外壳只负责绘制和调用系统能力，外观与交互和网页一致，并用上原生才有的能力：相机图像原地读取、相机支持时 60–240 帧采集、Android 上自行控制曝光、120 Hz 播放、震动反馈、屏幕亮度，以及手机发热时自动减少工作量。
+
+| 应用 | 外壳 | 构建并运行 | 说明 |
+|---|---|---|---|
+| iOS 17+ | SwiftUI | `src/ios/scripts/run.sh` | [src/ios](src/ios/README.md) |
+| Android 10+ | Jetpack Compose | `cd src/android && ./gradlew :app:installDebug` | [src/android](src/android/README.md) |
+| macOS（Windows、Linux 未测试） | GPUI | `cd src/desktop && cargo run --release` | [src/desktop](src/desktop/README.md) |
+
+各子目录的说明为英文。
+
 ## 原理简述
 
 1. 文件可选用 DEFLATE 压缩，再切分成源块；
@@ -53,6 +65,8 @@ docs/guide/                      开发者指南（原理、识别、接入、�
 src/core/                        JavaScript 参考实现（协议库，ES 模块）
 src/web/                         演示页面与应用代码（发送端、接收端、Worker）
 src/rust/                        Rust 参考实现（零依赖，C ABI，WASM）
+src/app/                         原生应用共用的核心（应用逻辑、扫描流水线、uniffi 绑定）
+src/ios/ src/android/ src/desktop/   原生外壳（SwiftUI、Jetpack Compose、GPUI）
 src/tools/                       构建脚本、WASM 构建、零依赖开发服务器、配图生成
 dist/                            构建出的静态站点，含 wasm/lumen.wasm（npm run build）
 test/                            Node 测试、相机模拟器、鲁棒性测试
@@ -65,6 +79,7 @@ test/vectors/test-vectors.json   一致性测试向量（由 test/vectors.js 生
 npm test                 # 核心（RS、喷泉码）、数据包/源块、经相机模型的端到端、JS<->WASM 互通
 npm run test:robustness  # 透视、旋转、镜像、模糊、光晕、摩尔纹、运动模糊、曝光
 cd src/rust && cargo test   # 测试向量、Rust 闭环、解码 JS 模拟的相机帧
+cd src/app && cargo test --release   # 原生应用核心：应用逻辑、相机流水线、卷帘快门模拟
 ```
 
 相机模拟器（`test/camera.js`）模拟透视、桶形畸变、光学模糊、颜色串扰、白平衡、暗角、光晕、摩尔纹、运动模糊、4:2:0 色度下采样和噪声。在随机的"手持、没对准"测试中，4 色模式约 30 帧解出 27–28 帧、码字成功率 86–89%；剩余失败的帧是每格只有约 3 个相机像素并且严重模糊的情况。
