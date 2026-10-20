@@ -1,0 +1,48 @@
+# Tests on every push and pull request: the conformance vectors and fuzz/property tests of both
+# implementations, their interoperability (JS <-> Rust/WASM, differential corpora), the native
+# app core, and the built site in headless Chrome with a video file as its webcam.
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src/rust
+            src/app
+      - name: WebAssembly module
+        run: npm run build:wasm
+      - name: JavaScript (vectors, fuzz, transfer, camera model, JS <-> WASM)
+        run: npm test
+      - name: Rust protocol crate (vectors, differential and fuzz tests, round trip)
+        working-directory: src/rust
+        run: cargo test --release
+      - name: Rust protocol crate, minimum Rust version
+        run: |
+          rustup toolchain install 1.73 --profile minimal
+          mkdir -p /tmp/msrv && cp -R src/rust/Cargo.toml src/rust/src src/rust/include /tmp/msrv/
+          cd /tmp/msrv && cargo +1.73 build --release --features ffi
+      - name: Native app core
+        working-directory: src/app
+        run: cargo test --release -p lumen-app
+      - name: Browser end to end (Chrome)
+        run: npm run test:browser
+        env:
+          CHROME: google-chrome

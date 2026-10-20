@@ -1,7 +1,7 @@
 // End to end in a real browser: headless Chrome plays a .y4m video as its webcam, the built
 // receiver page (dist/recv.html) opens that camera and must deliver the file in it.
 //   npm run build && node test/make-y4m.js test/out/cam.y4m 60000 1 100 170 8 1280 720
-//   node test/browser-e2e.js [engine: wasm|js] [chrome binary]
+//   node test/browser-e2e.js [engine: wasm|js] [chrome binary]   (or CHROME=<binary>)
 // Zero dependencies: the DevTools protocol over the WebSocket of Node 22.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const engine = process.argv[2] || 'wasm';
-const chrome = process.argv[3] || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chrome = process.argv[3] || process.env.CHROME || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome');
 const video = path.join(repo, 'test/out/cam.y4m');
 const want = createHash('sha256').update(readFileSync(video + '.src')).digest('hex');
 const port = 8000 + Math.floor(Math.random() * 900);

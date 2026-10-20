@@ -5,10 +5,10 @@ Rust reference implementation of [Lumen Code v1](../../docs/PROTOCOL.md): high-t
 - `transfer::Sender` — file → endless stream of frames (cell grids)
 - `render::Renderer` — frame → RGBA pixels (or a 1-pixel-per-cell image plus a static mask)
 - `scan::Scanner` — camera image (RGBA) → packets
-- `transfer::Receiver` — packets → file (fountain decoding, DEFLATE, CRC-32 check)
+- `transfer::Receiver` — packets → file: the receiver state machine of PROTOCOL §11 (fountain decoding, strict and bounded DEFLATE, file check that restarts a failed transfer, limits)
 - `ffi` — plain C ABI for WebAssembly and native hosts (`include/lumen.h`)
 
-The crate reproduces [`test/vectors/test-vectors.json`](../../test/vectors/test-vectors.json) bit for bit, and its frames are identical to those of the JavaScript implementation.
+The crate passes every group of [`test/vectors/test-vectors.json`](../../test/vectors/test-vectors.json) (encoding, decoding of valid and invalid input, packet streams through the receiver), its frames are identical to those of the JavaScript implementation, and on the shared pseudo-random corpora it makes the same decisions as the JavaScript decoders.
 
 ## Example
 
@@ -27,12 +27,17 @@ r.draw(&frame.cells, &mut pixels);
 
 // receiver
 let mut scanner = Scanner::new();
-let mut rx = Receiver::new();
+let mut rx = Receiver::new(); // reference limits; Receiver::with_limits(Limits { .. }) to change them
 let res = scanner.scan(&Image { width, height, rgba: &camera_rgba }, None);
 for cw in res.codewords.iter().filter(|c| c.ok) {
-    rx.push(cw.bytes.as_ref().unwrap());
+    rx.push(cw.bytes.as_ref().unwrap()); // returns the Action of §11.2
 }
-if let Some(Finish::File { name, bytes }) = rx.try_finish() { /* done */ }
+match rx.try_finish() {
+    Some(Finish::File { name, bytes }) => { /* done; `name` comes from the sender: not a path */ }
+    Some(Finish::ChecksumError) => { /* the file check failed; the transfer restarts by itself */ }
+    None => {}
+}
+// rx.progress(): state (Collecting, Receiving, Refused, Complete), name, size, received, needed
 ```
 
 ## Platforms
@@ -52,7 +57,9 @@ Native hosts call the C ABI in [`include/lumen.h`](include/lumen.h) (JNI on Andr
 cargo test --release
 ```
 
-- `tests/vectors.rs` — every value in the test vectors, including two complete frames
+- `tests/vectors.rs` — every group of the test vectors: encoding, decoding, Reed–Solomon, fountain decodability, packet streams through the receiver state machine
+- `tests/fuzz.rs` — differential tests against the JavaScript decoders (same corpora, same decisions) and property tests: parsers, Reed–Solomon, inflate, fountain decoder, hostile packet streams. `FUZZ=20 cargo test --release --test fuzz` runs 20 times more cases
 - `tests/roundtrip.rs` — Sender → Renderer → simulated camera → Scanner → Receiver, and decoding of camera frames simulated by the JavaScript test suite (run `node test/make-raw.js` in the repository root)
+- `examples/measure.rs` — the measurements of PROTOCOL Appendix C and the stage benchmarks: `cargo run --release --example measure -- residual | fountain | tail K n | rank K n | bench`
 
 Minimum Rust version: 1.73. License: MIT.
