@@ -1,4 +1,5 @@
 import { applyI18n, t } from './i18n.js';
+import { BUILD, buildText } from './version.js';
 import { Sender, preparePayload } from './core/transfer.js';
 import { Renderer } from './core/render.js';
 import { MIN_DIM, MAX_DIM, MODES } from './core/layout.js';
@@ -6,6 +7,9 @@ import { loadWasm, WasmSender } from './core/wasm-engine.js';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
+// the version a user quotes in a report: in the HTML of a build, filled here on the dev server
+for (const el of document.querySelectorAll('[data-build]')) if (!el.textContent) el.textContent = buildText(t('buildLabel'));
+console.info('Lumen Code', BUILD);
 
 const QUIET = 2;
 // The code fills the screen in its own shape; beyond this aspect ratio (ultra-wide monitors)

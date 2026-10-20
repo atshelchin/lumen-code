@@ -574,6 +574,21 @@ a {
   width: 30px;
   height: 30px;
 }
+/* the version, for reports */
+.build {
+  display: block;
+  margin-top: 14px;
+  color: var(--faint);
+  font: 11px var(--mono);
+  text-decoration: none;
+}
+a.build:hover {
+  color: var(--muted);
+}
+.foot .build {
+  display: inline;
+  margin: 0 0 0 4px;
+}
 .hint {
   margin-top: 18px;
   color: var(--faint);

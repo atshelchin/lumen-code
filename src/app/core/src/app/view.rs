@@ -19,6 +19,9 @@ pub struct ViewModel {
     pub screen: Screen,
     pub send: SendView,
     pub recv: RecvView,
+    /// The version of the core: commit, date (`crate::build`). A shell shows it with its own
+    /// app version, for reports.
+    pub build: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -154,7 +157,7 @@ pub struct RecvView {
 }
 
 pub fn view(m: &Model) -> ViewModel {
-    ViewModel { rev: m.rev, lang: m.lang, platform: m.platform, screen: m.screen, send: send_view(m), recv: recv_view(m) }
+    ViewModel { rev: m.rev, lang: m.lang, platform: m.platform, screen: m.screen, send: send_view(m), recv: recv_view(m), build: crate::build() }
 }
 
 fn send_view(m: &Model) -> SendView {
@@ -433,6 +436,7 @@ fn done_view(m: &Model, d: &super::DoneState) -> DoneView {
         stats.push(metric("dFrames", format!("{} / {}", s.frames, s.scans)));
         stats.push(metric("okM", if s.cov_tot > 0 { format!("{}%", (100.0 * s.cov_ok as f64 / s.cov_tot as f64).round() as u32) } else { "–".into() }));
         stats.push(metric("dEngine", format!("{} {:.1} ms", t(l, "native"), s.ms_avg)));
+        stats.push(metric("buildLabel", crate::build()));
         if let Some(h) = s.header {
             let colours = [2, 4, 8].get(h.mode as usize).copied().unwrap_or(0);
             let cell = if s.cell_avg > 0.0 { format!("{:.1}px", s.cell_avg) } else { "–".into() };

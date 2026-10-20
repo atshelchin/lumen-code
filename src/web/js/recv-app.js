@@ -1,8 +1,12 @@
 import { applyI18n, t } from './i18n.js';
 import { isJson, formatJson, linkify, safeName } from './text-view.js';
+import { BUILD, buildText } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
+// the version a user quotes in a report: in the HTML of a build, filled here on the dev server
+for (const el of document.querySelectorAll('[data-build]')) if (!el.textContent) el.textContent = buildText(t('buildLabel'));
+console.info('Lumen Code', BUILD);
 
 const video = $('video');
 const overlay = $('overlay');
@@ -796,6 +800,7 @@ function renderDoneStats(size, secs) {
     [t('dFrames'), `${s.frames} / ${s.scans}`],
     [t('okM'), s.covTot ? `${Math.round((100 * s.covOk) / s.covTot)}%` : '–'],
     [t('dEngine'), `${engine.toUpperCase()} ${s.msN ? (s.msSum / s.msN).toFixed(1) + ' ms' : ''}`],
+    [t('buildLabel'), buildText('').trim()],
   ];
   const box = $('doneStats');
   box.innerHTML = '';

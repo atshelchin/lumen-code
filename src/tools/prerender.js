@@ -70,7 +70,7 @@ function importGraph(dist, entries) {
   return [...seen];
 }
 
-function renderPage(tpl, page, lang, { dist, site }) {
+function renderPage(tpl, page, lang, { dist, site, build, repoUrl }) {
   let h = tpl;
   const t = (key) => esc(text(lang.code, key));
 
@@ -81,6 +81,12 @@ function renderPage(tpl, page, lang, { dist, site }) {
   h = h.replace(/\sdata-i18n-content="(\w+)" content="[^"]*"/g, (m, key) => ` data-i18n-content="${key}" content="${t(key)}"`);
   h = h.replace(/\shref="[^"]*"(\sdata-i18n-href="(\w+)")/g, (m, attr, key) => ` href="${t(key)}"${attr}`);
   h = h.replace(/<html lang="[^"]*">/, `<html lang="${lang.hreflang}" data-prerendered>`);
+  // the version, linked to its commit (the same text as buildText() in js/version.js)
+  if (build) {
+    const label = `${t('buildLabel')} ${build.commit}${build.dirty ? '+dev' : ''}${build.date ? ` · ${build.date}` : ''}`;
+    const tag = build.full && repoUrl ? `<a class="build" data-build href="${repoUrl}/commit/${build.full}">${label}</a>` : `<span class="build" data-build>${label}</span>`;
+    h = h.replace(/<span class="build" data-build><\/span>/g, tag);
+  }
 
   // a page in a subdirectory reaches the shared files one level up
   const up = lang.dir ? '../' : '';
@@ -138,12 +144,12 @@ function renderPage(tpl, page, lang, { dist, site }) {
   return h;
 }
 
-export function prerender(dist, { site = '' } = {}) {
+export function prerender(dist, { site = '', build = null, repoUrl = '' } = {}) {
   site = site.replace(/\/+$/, '');
   const templates = Object.fromEntries(PAGES.map((p) => [p, fs.readFileSync(path.join(dist, p), 'utf8')]));
   for (const lang of LANGS) {
     fs.mkdirSync(path.join(dist, lang.dir), { recursive: true });
-    for (const page of PAGES) fs.writeFileSync(path.join(dist, lang.dir, page), renderPage(templates[page], page, lang, { dist, site }));
+    for (const page of PAGES) fs.writeFileSync(path.join(dist, lang.dir, page), renderPage(templates[page], page, lang, { dist, site, build, repoUrl }));
   }
   const robots = ['User-agent: *', 'Allow: /'];
   if (site) {

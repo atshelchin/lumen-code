@@ -120,7 +120,15 @@ fun HomeScreen(model: AppModel) {
                     }
                 }
             }
-            Label(model.t("foot"), size = 12.sp, color = Lumen.faint, modifier = Modifier.padding(top = 32.dp, bottom = 16.dp))
+            Label(model.t("foot"), size = 12.sp, color = Lumen.faint, modifier = Modifier.padding(top = 32.dp))
+            // the version, for reports: app version and the commit of the sources
+            Text(
+                "${model.t("buildLabel")} ${com.shelchin.lumen.BuildConfig.VERSION_NAME} · ${model.view?.build ?: ""}",
+                color = Lumen.faint,
+                fontSize = 11.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
+            )
         }
     }
 }

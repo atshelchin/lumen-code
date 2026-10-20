@@ -147,6 +147,7 @@ const DICT: &[(&str, &str, &str)] = &[
     ("f4t", "一个 Rust 核心", "One Rust core"),
     ("f4p", "iOS、Android、桌面与网页共用同一套 Rust 编解码，帧逐位一致；数据不离开设备。", "iOS, Android, desktop and the web run the same Rust codec with bit-identical frames; nothing leaves the device."),
     ("foot", "Lumen Code · 开放协议 · MIT 许可", "Lumen Code · open protocol · MIT licence"),
+    ("buildLabel", "版本", "Version"),
     ("dropDescMobile", "选择一个文件，或切换到「文本」发送一段文字。", "Choose a file, or switch to Text to send a message."),
     ("dropHintMobile", "发送时屏幕保持常亮并自动调到最亮。接收端尽量正对屏幕。", "While sending, the screen stays on at full brightness. Keep the receiver square to the screen."),
     ("paste", "粘贴", "Paste"),

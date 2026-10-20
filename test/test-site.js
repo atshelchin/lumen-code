@@ -102,6 +102,16 @@ if (site) {
 }
 expect(fs.existsSync(path.join(dist, '404.html')) && fs.existsSync(path.join(dist, '_headers')), '404.html and _headers');
 
+// the version: dist/js/version.js names the commit, and every page shows it
+const build = JSON.parse(fs.readFileSync(path.join(dist, 'js/version.js'), 'utf8').match(/export const BUILD = (\{[^}]*\});/)[1]);
+expect(/^[0-9a-f]{7}$/.test(build.commit) && /^[0-9a-f]{40}$/.test(build.full) && /^\d{4}-\d{2}-\d{2}$/.test(build.date), `version.js names a commit (${build.commit} ${build.date})`);
+for (const lang of LANGS)
+  for (const page of PAGES) {
+    const h = fs.readFileSync(path.join(dist, lang.dir, page), 'utf8');
+    const want = `${DICT[lang.code].buildLabel} ${build.commit}${build.dirty ? '+dev' : ''} · ${build.date}`;
+    expect(h.includes(`/commit/${build.full}">${want}</a>`), `${lang.dir}${page}: shows ${want}`);
+  }
+
 if (failures) {
   console.log(`site: ${failures} of ${checks} checks failed`);
   process.exit(1);

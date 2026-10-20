@@ -127,6 +127,15 @@ pub fn render(root: &mut Root, window: &mut Window, _cx: &mut Context<Root>) -> 
                     .child(div().flex().gap(px(24.)).child(fact("f3t", "f3p")).child(fact("f4t", "f4p"))),
             )
             .child(div().mt(px(40.)).text_size(px(12.)).text_color(c(FAINT)).child(root.t("foot")))
+            // the version, for reports: app version and the commit of the sources
+            .child(
+                div()
+                    .mt(px(6.))
+                    .text_size(px(11.))
+                    .font_family(MONO)
+                    .text_color(c(FAINT))
+                    .child(format!("{} {} · {}", root.t("buildLabel"), env!("CARGO_PKG_VERSION"), root.view.build)),
+            )
             .child(div().h(px(1.)).bg(rgba(0x00000000))),
     )
 }

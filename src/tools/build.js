@@ -43,11 +43,36 @@ fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(dist, 'LICENSE'));
 if (process.argv.includes('--wasm')) {
   execFileSync('sh', [path.join(repo, 'src/tools/build-wasm.sh')], { stdio: 'inherit' });
 }
+// The version shown on the pages: the last commit that changed anything outside dist/ (the
+// sources this build is made from), and "dirty" when the sources have uncommitted changes. So
+// commit the sources first, then build and commit dist/: the pages then name that commit, and a
+// later rebuild of the same sources gives the same files.
+const pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
+const build = (() => {
+  const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  try {
+    const full = git('log', '-1', '--format=%H', '--', '.', ':!dist');
+    return {
+      commit: full.slice(0, 7),
+      full,
+      date: git('log', '-1', '--format=%cs', '--', '.', ':!dist'),
+      dirty: git('status', '--porcelain', '--', '.', ':!dist') !== '',
+      protocol: '1.0',
+    };
+  } catch (e) {
+    return { commit: 'unknown', full: '', date: '', dirty: false, protocol: '1.0' }; // not a git checkout
+  }
+})();
+fs.writeFileSync(
+  path.join(dist, 'js/version.js'),
+  fs.readFileSync(path.join(dist, 'js/version.js'), 'utf8').replace(/export const BUILD = \{[^}]*\};/, `export const BUILD = ${JSON.stringify(build)};`),
+);
+if (build.dirty) console.warn(`warning: the sources have uncommitted changes; the pages say ${build.commit}+dev (commit first, then build)`);
+
 // the pages, one set per language, with their text in the HTML
-const siteUrl =
-  (process.argv.find((a) => a.startsWith('--site=')) || '').slice(7) || JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')).homepage || '';
-const pre = prerender(dist, { site: siteUrl });
-console.log(`pre-rendered ${pre.pages} pages${pre.site ? ` for ${pre.site}` : ' (no site URL: no canonical, Open Graph or sitemap)'}`);
+const siteUrl = (process.argv.find((a) => a.startsWith('--site=')) || '').slice(7) || pkg.homepage || '';
+const pre = prerender(dist, { site: siteUrl, build, repoUrl: (pkg.repository && pkg.repository.url) || '' });
+console.log(`pre-rendered ${pre.pages} pages${pre.site ? ` for ${pre.site}` : ' (no site URL: no canonical, Open Graph or sitemap)'}, version ${build.commit}${build.dirty ? '+dev' : ''} ${build.date}`);
 
 if (!fs.existsSync(path.join(dist, 'wasm/lumen.wasm'))) {
   console.warn('warning: dist/wasm/lumen.wasm is missing; run `npm run build:wasm` (the WASM engine will be unavailable)');

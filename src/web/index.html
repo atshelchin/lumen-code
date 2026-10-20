@@ -86,15 +86,17 @@
         </div>
       </section>
 
-      <p class="foot"><span data-i18n="privacy"></span> <span data-i18n="foot"></span></p>
+      <p class="foot"><span data-i18n="privacy"></span> <span data-i18n="foot"></span> <span class="build" data-build></span></p>
     </main>
     <script type="module">
-      import { applyI18n, toggleLang } from './js/i18n.js';
+      import { applyI18n, toggleLang, t } from './js/i18n.js';
+      import { buildText } from './js/version.js';
       import { Sender } from './js/core/transfer.js';
       import { Renderer } from './js/core/render.js';
       import { crc32 } from './js/core/util.js';
 
       applyI18n();
+      for (const el of document.querySelectorAll('[data-build]')) if (!el.textContent) el.textContent = buildText(t('buildLabel'));
       document.getElementById('lang').onclick = toggleLang;
 
       // One real frame, drawn by the protocol library. It stays still: no flashing on this page.

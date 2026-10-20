@@ -17,5 +17,17 @@ pub mod i18n;
 pub mod runtime;
 
 pub use app::{Event, Platform, Screen, ViewModel};
+
+/// The commit these sources come from (build.rs), its date, and "+dev" when they had
+/// uncommitted changes: "1a2b3c4 · 2026-10-20". What a user quotes in a report.
+pub fn build() -> String {
+    let dev = if env!("LUMEN_DIRTY").is_empty() { "" } else { "+dev" };
+    let date = env!("LUMEN_COMMIT_DATE");
+    if date.is_empty() {
+        format!("{}{dev}", env!("LUMEN_COMMIT"))
+    } else {
+        format!("{}{dev} · {date}", env!("LUMEN_COMMIT"))
+    }
+}
 pub use engine::image::{FrameRef, PixelFormat, Plane};
 pub use runtime::{Runtime, Shell, ShellRequest, Update};

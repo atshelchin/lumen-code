@@ -40,6 +40,7 @@ struct ViewModel: Decodable, Equatable {
     var screen: Screen
     var send: SendVM
     var recv: RecvVM
+    var build: String
 }
 
 struct StatVM: Decodable, Equatable, Hashable {

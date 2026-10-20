@@ -59,6 +59,12 @@ struct HomeView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.faint)
                     .padding(.top, 32)
+                // the version, for reports: app version and the commit of the sources
+                Text("\(model.t("buildLabel")) \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") · \(model.view?.build ?? "")")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.faint)
+                    .textSelection(.enabled)
+                    .padding(.top, 6)
                     .padding(.bottom, 12)
             }
             .padding(.horizontal, 20)

@@ -45,6 +45,7 @@ data class ViewModel(
     val screen: String,
     val send: SendVM,
     val recv: RecvVM,
+    val build: String = "",
 )
 
 @Serializable
