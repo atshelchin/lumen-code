@@ -97,6 +97,15 @@ WASM scanning is 1.5–2 times faster than JS, and it clearly reduces heat on ph
 
 ## 3.4 Rust
 
+Add the crate from this repository (it has no dependencies; pin a tag or a commit with `tag = "…"` or `rev = "…"`):
+
+```toml
+[dependencies]
+lumen-code = { git = "https://github.com/atshelchin/lumen-code" }
+```
+
+The library name is `lumen`:
+
 ```rust
 use lumen::scan::{Image, Scanner};
 use lumen::transfer::{prepare, Finish, Receiver, Sender};

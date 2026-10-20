@@ -97,6 +97,15 @@ WASM 识别比 JS 快 1.5–2 倍，手机上能明显降低发热。模块用 `
 
 ## 3.4 Rust
 
+直接从本仓库引入 crate（它没有任何依赖；可用 `tag = "…"` 或 `rev = "…"` 固定版本）：
+
+```toml
+[dependencies]
+lumen-code = { git = "https://github.com/atshelchin/lumen-code" }
+```
+
+库名为 `lumen`：
+
 ```rust
 use lumen::scan::{Image, Scanner};
 use lumen::transfer::{prepare, Finish, Receiver, Sender};

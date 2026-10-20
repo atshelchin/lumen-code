@@ -50,6 +50,23 @@ The same transfer as native apps, on one Rust core shared by all three ([`src/ap
 
 Desktop builds are on the [Releases](https://github.com/atshelchin/lumen-code/releases) page: a signed and notarized macOS image, Windows and Linux archives. The desktop app is tested on macOS; the Windows and Linux builds, webcam included, are new.
 
+## Use it in your own project
+
+There is no package to install: take the code from this repository (pin a tag or a commit). These steps are written so that a coding agent can follow them too.
+
+| You build | Take | Then read |
+|---|---|---|
+| A web page or a Node program | the folder `src/core/` — ES modules, no build step, no dependencies. For the faster engine add `dist/wasm/lumen.wasm`; `src/core/wasm-engine.js` loads it | [Integration guide](docs/guide/03-integration.md) §3.2–§3.3 |
+| A Rust program | `lumen-code = { git = "https://github.com/atshelchin/lumen-code" }` in `Cargo.toml`; the library is `lumen` (no dependencies) | [src/rust/README.md](src/rust/README.md) |
+| An app in another language (Swift, Kotlin, C, …) | the C ABI of the same crate: `src/rust/include/lumen.h`, built with `--features ffi` | [Integration guide](docs/guide/03-integration.md) §3.5 |
+| A new implementation | the [specification](docs/PROTOCOL.md) and [`test/vectors/test-vectors.json`](test/vectors/test-vectors.json) | [Integration guide](docs/guide/03-integration.md) §3.7 |
+
+Every integration must keep these rules ([specification](docs/PROTOCOL.md) §10.4, §11, §13):
+
+- Use the receiver as it is: it enforces the limits and restarts a transfer whose file check fails.
+- The file name and the content come from the sender: never use the name as a path, and treat the file as one from an unknown source.
+- Warn the user before a code plays: it flashes many times per second.
+
 ## How it works (short)
 
 1. The file is optionally DEFLATE-compressed and split into source blocks.

@@ -52,6 +52,23 @@ npm run build          # 生成 dist/，可直接部署的静态站点（用 npm
 
 各子目录的说明为英文。
 
+## 在自己的项目里使用
+
+不需要安装任何包：直接从本仓库取代码（建议固定到某个标签或提交）。下面的步骤写得足够明确，编程 agent 也可以照着做。
+
+| 你要做的 | 取什么 | 再读 |
+|---|---|---|
+| 网页或 Node 程序 | `src/core/` 整个目录：ES 模块，无需构建，无依赖。要用更快的引擎，再加上 `dist/wasm/lumen.wasm`，由 `src/core/wasm-engine.js` 加载 | [集成指南](docs/guide/03-integration.zh-CN.md) §3.2–§3.3 |
+| Rust 程序 | 在 `Cargo.toml` 里写 `lumen-code = { git = "https://github.com/atshelchin/lumen-code" }`；库名为 `lumen`（无依赖） | [src/rust/README.md](src/rust/README.md) |
+| 其他语言的应用（Swift、Kotlin、C……） | 同一个 crate 的 C ABI：`src/rust/include/lumen.h`，用 `--features ffi` 构建 | [集成指南](docs/guide/03-integration.zh-CN.md) §3.5 |
+| 全新的实现 | [规范](docs/PROTOCOL.zh-CN.md)和 [`test/vectors/test-vectors.json`](test/vectors/test-vectors.json) | [集成指南](docs/guide/03-integration.zh-CN.md) §3.7 |
+
+所有集成都必须遵守以下规则（[规范](docs/PROTOCOL.zh-CN.md) §10.4、§11、§13）：
+
+- 直接使用现成的接收端：它负责执行资源上限，并在文件校验失败时自动重新开始传输。
+- 文件名和内容都来自发送端：绝不能把文件名当作路径使用，文件本身要按来源不明的文件对待。
+- 码开始播放之前要提醒用户：它每秒会闪烁多次。
+
 ## 原理简述
 
 1. 文件可选用 DEFLATE 压缩，再切分成源块；
