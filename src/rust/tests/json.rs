@@ -19,6 +19,21 @@ impl J {
             _ => panic!("not an object"),
         }
     }
+    pub fn opt(&self, k: &str) -> Option<&J> {
+        match self {
+            J::Obj(m) => m.get(k),
+            _ => None,
+        }
+    }
+    pub fn is_null(&self) -> bool {
+        matches!(self, J::Null)
+    }
+    pub fn b(&self) -> bool {
+        match self {
+            J::Bool(v) => *v,
+            _ => panic!("not a bool: {self:?}"),
+        }
+    }
     pub fn at(&self, i: usize) -> &J {
         match self {
             J::Arr(a) => &a[i],

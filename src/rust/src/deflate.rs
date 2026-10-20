@@ -49,6 +49,14 @@ impl Huff {
             counts[l as usize] += 1;
         }
         counts[0] = 0;
+        // an over-subscribed set of lengths is not a prefix code
+        let mut left = 1i32;
+        for &c in &counts[1..] {
+            left = left * 2 - c as i32;
+            if left < 0 {
+                return None;
+            }
+        }
         let mut offs = [0u16; 16];
         for i in 1..16 {
             offs[i] = offs[i - 1] + counts[i - 1];
@@ -97,7 +105,9 @@ fn fixed_tables() -> (Huff, Huff) {
     (Huff::new(&l).unwrap(), Huff::new(&[5u8; 30]).unwrap())
 }
 
-/// Inflate raw DEFLATE data. `limit` bounds the output size (protection against bombs).
+/// Inflate raw DEFLATE data (PROTOCOL §9.1, §11.3): `data` must be exactly one stream, with
+/// no byte after its final block, and the output may not be longer than `limit` bytes
+/// (protection against bombs). The same rules as src/core/inflate.js.
 pub fn inflate(data: &[u8], limit: usize) -> Option<Vec<u8>> {
     let mut b = Bits { data, pos: 0, bit: 0, nbits: 0 };
     let mut out: Vec<u8> = Vec::new();
@@ -112,6 +122,9 @@ pub fn inflate(data: &[u8], limit: usize) -> Option<Vec<u8>> {
                 if len != (!nlen & 0xffff) {
                     return None;
                 }
+                if out.len() + len as usize > limit {
+                    return None;
+                }
                 for _ in 0..len {
                     out.push(b.get(8)? as u8);
                 }
@@ -123,6 +136,9 @@ pub fn inflate(data: &[u8], limit: usize) -> Option<Vec<u8>> {
                     let hlit = b.get(5)? as usize + 257;
                     let hdist = b.get(5)? as usize + 1;
                     let hclen = b.get(4)? as usize + 4;
+                    if hlit > 286 || hdist > 30 {
+                        return None;
+                    }
                     const ORD: [usize; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
                     let mut cl = [0u8; 19];
                     for &o in ORD.iter().take(hclen) {
@@ -148,9 +164,12 @@ pub fn inflate(data: &[u8], limit: usize) -> Option<Vec<u8>> {
                             17 => i += 3 + b.get(3)? as usize,
                             _ => i += 11 + b.get(7)? as usize,
                         }
+                        if i > hlit + hdist {
+                            return None;
+                        }
                     }
-                    if i > hlit + hdist {
-                        return None;
+                    if i > hlit + hdist || lens[256] == 0 {
+                        return None; // a repeat past the end, or no end-of-block code
                     }
                     (Huff::new(&lens[..hlit])?, Huff::new(&lens[hlit..])?)
                 };
@@ -193,6 +212,9 @@ pub fn inflate(data: &[u8], limit: usize) -> Option<Vec<u8>> {
         if last == 1 {
             break;
         }
+    }
+    if b.pos != data.len() {
+        return None; // bytes after the final block
     }
     Some(out)
 }

@@ -10,7 +10,7 @@
 use crate::frame::Descriptor;
 use crate::layout::Header;
 use crate::scan::{FrameKey, Image, Scanner, SkipMap};
-use crate::transfer::{prepare, Finish, Prepared, Receiver, Sender};
+use crate::transfer::{prepare, Action, Finish, Limits, Prepared, Receiver, Sender, State};
 use std::alloc::{alloc, dealloc, Layout as AllocLayout};
 
 #[no_mangle]
@@ -155,7 +155,7 @@ pub extern "C" fn lm_sender_new(
 ) -> *mut WSender {
     let payload = unsafe { slice(payload, len as usize) }.to_vec();
     let name = String::from_utf8_lossy(unsafe { slice(name, name_len as usize) }).into_owned();
-    let prepared = Prepared { descriptor: Descriptor { flags: flags as u8, payload_length: len, file_size, crc, name }, payload };
+    let prepared = Prepared { descriptor: Descriptor { flags: flags as u8, payload_length: len, file_size, crc, name, records: Vec::new() }, payload };
     match Sender::new(&prepared, mode as usize, ecc as usize, x as usize, y as usize, tid as u16, seq) {
         Some(tx) => Box::into_raw(Box::new(WSender { tx, cells: Vec::new(), info: [0; 10] })),
         None => std::ptr::null_mut(),
@@ -229,12 +229,24 @@ pub struct WReceiver {
     rx: Receiver,
     file: Vec<u8>,
     name: Vec<u8>,
-    prog: [u32; 8],
+    prog: [u32; 10],
 }
 
+fn receiver(rx: Receiver) -> *mut WReceiver {
+    Box::into_raw(Box::new(WReceiver { rx, file: Vec::new(), name: Vec::new(), prog: [0; 10] }))
+}
+
+/// A receiver with the reference limits (PROTOCOL §11.4).
 #[no_mangle]
 pub extern "C" fn lm_receiver_new() -> *mut WReceiver {
-    Box::into_raw(Box::new(WReceiver { rx: Receiver::new(), file: Vec::new(), name: Vec::new(), prog: [0; 8] }))
+    receiver(Receiver::new())
+}
+
+/// A receiver with its own limits: maximum payload and file size in bytes, data packets kept
+/// for each transfer before its descriptor, transfer keys kept at the same time.
+#[no_mangle]
+pub extern "C" fn lm_receiver_new_limits(max_size: u32, max_kept: u32, max_transfers: u32) -> *mut WReceiver {
+    receiver(Receiver::with_limits(Limits { max_size: max_size as u64, max_kept: max_kept as usize, max_transfers: (max_transfers as usize).max(1) }))
 }
 
 #[no_mangle]
@@ -244,19 +256,33 @@ pub extern "C" fn lm_receiver_free(h: *mut WReceiver) {
     }
 }
 
+/// The action of PROTOCOL §11.2: 0 discard, 1 keep, 2 add, 3 accept, 4 refuse.
 #[no_mangle]
-pub extern "C" fn lm_receiver_push(h: *mut WReceiver, ptr: *const u8, len: u32) {
+pub extern "C" fn lm_receiver_push(h: *mut WReceiver, ptr: *const u8, len: u32) -> u32 {
     let r = unsafe { &mut *h };
-    r.rx.push(unsafe { slice(ptr, len as usize) });
+    match r.rx.push(unsafe { slice(ptr, len as usize) }) {
+        Action::Discard => 0,
+        Action::Keep => 1,
+        Action::Add => 2,
+        Action::Accept => 3,
+        Action::Refuse => 4,
+    }
 }
 
-/// u32[8]: valid, tid, received, needed (0 = unknown), blocks, done, T, fileSize; name via lm_receiver_name.
+/// u32[10]: valid, tid, received, needed (0 = unknown), blocks, done, T, fileSize,
+/// state (0 collecting, 1 receiving, 2 refused, 3 complete), payloadLength; name via lm_receiver_name.
 #[no_mangle]
 pub extern "C" fn lm_receiver_progress(h: *mut WReceiver) -> *const u32 {
     let r = unsafe { &mut *h };
-    r.prog = [0; 8];
+    r.prog = [0; 10];
     if let Some(p) = r.rx.progress() {
-        r.prog = [1, p.tid as u32, p.received, p.needed.unwrap_or(0), p.blocks, p.done as u32, p.t as u32, p.size.unwrap_or(0)];
+        let state = match p.state {
+            State::Collecting => 0,
+            State::Receiving => 1,
+            State::Refused => 2,
+            State::Complete => 3,
+        };
+        r.prog = [1, p.tid as u32, p.received, p.needed.unwrap_or(0), p.blocks, p.done as u32, p.t as u32, p.size.unwrap_or(0), state, p.payload_length.unwrap_or(0)];
         r.name = p.name.unwrap_or_default().into_bytes();
     }
     r.prog.as_ptr()
@@ -272,7 +298,8 @@ pub extern "C" fn lm_receiver_name_len(h: *mut WReceiver) -> u32 {
     unsafe { (*h).name.len() as u32 }
 }
 
-/// 0 = not yet, 1 = file ready (lm_receiver_file*), 2 = checksum error.
+/// 0 = not yet, 1 = file ready (lm_receiver_file*), 2 = the file check failed and the
+/// transfer starts again (PROTOCOL §11.3).
 #[no_mangle]
 pub extern "C" fn lm_receiver_finish(h: *mut WReceiver) -> u32 {
     let r = unsafe { &mut *h };

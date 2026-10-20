@@ -7,6 +7,9 @@ pub const VERSION: u32 = 1;
 pub const MIN_DIM: usize = 40;
 pub const MAX_DIM: usize = 511;
 pub const HEADER_BITS: usize = 70;
+/// Smallest symbol length T, and the smallest packet k = T + 7 (§6.3, §8.1).
+pub const MIN_T: usize = 16;
+pub const MIN_K: usize = MIN_T + 7;
 
 pub const K_DATA: u8 = 0;
 pub const K_FIXED: u8 = 1;
@@ -66,6 +69,13 @@ pub fn lattice_axis(d: usize) -> Vec<usize> {
         segs -= 1;
     }
     (0..=segs).map(|i| 3 + (2 * i * span + segs) / (2 * segs)).collect()
+}
+
+/// Number of data cells of an `x` × `y` grid without building the layout: all cells minus
+/// 4 × 49 pattern cells, 4 × 15 separator cells, 4 × 70 header cells and 9 cells for each
+/// of the nx · ny − 4 markers.
+pub fn data_cell_count(x: usize, y: usize) -> usize {
+    x * y - 500 - 9 * lattice_axis(x).len() * lattice_axis(y).len()
 }
 
 /// Hilbert curve: index -> (x, y) on an order×order grid (order a power of two).
@@ -222,7 +232,23 @@ pub fn pack_header(h: &Header, copy: usize) -> [u8; HEADER_BITS] {
     bits
 }
 
-pub fn unpack_header(raw: &[u8], copy: usize) -> Option<Header> {
+/// Why a header is not valid (§6.3): the first rule that fails.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderError {
+    Crc,
+    Version,
+    Mode,
+    /// X or Y < 40
+    Size,
+    /// nsym < 2
+    Nsym,
+    /// T < 16
+    T,
+    /// no codeword fits in the grid (m < 1)
+    M,
+}
+
+pub fn decode_header(raw: &[u8], copy: usize) -> Result<Header, HeaderError> {
     let mut bits = [0u8; HEADER_BITS];
     for i in 0..HEADER_BITS {
         bits[i] = raw[i] ^ header_mask(copy, i);
@@ -246,13 +272,29 @@ pub fn unpack_header(raw: &[u8], copy: usize) -> Option<Header> {
     get(7);
     let crc = get(16);
     if crc != crc16_bits(&bits[..54]) as u32 {
-        return None;
+        return Err(HeaderError::Crc);
     }
-    if ver != VERSION || mode > 2 {
-        return None;
+    if ver != VERSION {
+        return Err(HeaderError::Version);
     }
-    if (x as usize) < MIN_DIM || (y as usize) < MIN_DIM || n < 24 || nsym >= n || nsym < 2 {
-        return None;
+    if mode > 2 {
+        return Err(HeaderError::Mode);
     }
-    Some(Header { mode, x, y, n, nsym, seq })
+    if (x as usize) < MIN_DIM || (y as usize) < MIN_DIM {
+        return Err(HeaderError::Size);
+    }
+    if nsym < 2 {
+        return Err(HeaderError::Nsym);
+    }
+    if ((n - nsym.min(n)) as usize) < MIN_K {
+        return Err(HeaderError::T);
+    }
+    if data_cell_count(x as usize, y as usize) < cells_per_codeword(n as usize, MODES[mode as usize].bpc) {
+        return Err(HeaderError::M);
+    }
+    Ok(Header { mode, x, y, n, nsym, seq })
+}
+
+pub fn unpack_header(raw: &[u8], copy: usize) -> Option<Header> {
+    decode_header(raw, copy).ok()
 }

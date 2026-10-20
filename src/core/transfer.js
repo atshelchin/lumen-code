@@ -1,24 +1,26 @@
 // Sender: file bytes -> stream of frames. Receiver: packets -> file.
 
-import { makeLayout, chooseCodeword, codewordsPerFrame, MODES, ECC_LEVELS } from './layout.js';
+import { makeLayout, chooseCodeword, codewordsPerFrame, MODES, ECC_LEVELS, MIN_K, MIN_T } from './layout.js';
 import {
   encodeFrameCells,
   packetDataSize,
   writePacketHeader,
   readPacket,
   sealPacket,
+  packetIntact,
   encodeMeta,
-  decodeMeta,
+  parseDescriptor,
   PKT_HDR,
   PKT_OVERHEAD,
-  MAX_SBN,
+  MAX_BLOCKS,
+  MAX_BLOCK_SYMBOLS,
+  FLAG_DEFLATE,
 } from './frame.js';
 import { FountainEncoder, FountainDecoder } from './fountain.js';
+import { inflate } from './inflate.js';
 import { crc32, mix32 } from './util.js';
 
-export const FLAG_DEFLATE = 1;
-
-export const MAX_BLOCK_SYMBOLS = 16384;
+export { FLAG_DEFLATE, MAX_BLOCK_SYMBOLS };
 
 // Seed of the fountain code for source block `sbn` of transfer `tid`.
 export function fountainSeed(tid, sbn = 0) {
@@ -30,7 +32,7 @@ export function fountainSeed(tid, sbn = 0) {
 export function blockPlan(payloadLength, T) {
   const Kt = Math.max(1, Math.ceil(payloadLength / T));
   const Z = Math.ceil(Kt / MAX_BLOCK_SYMBOLS);
-  if (Z > MAX_SBN + 1) throw new Error('payload too large');
+  if (Z > MAX_BLOCKS) throw new Error('payload too large');
   const KS = Math.floor(Kt / Z);
   const ZL = Kt - KS * Z;
   const sizes = [];
@@ -80,6 +82,7 @@ export class Sender {
     this.seq = (Math.random() * 256) | 0; // random start: a restarted transfer never repeats recent seqs
     this.counter = 0; // packets emitted; packet i goes to block i mod Z with ESI floor(i / Z)
     this.frames = 0;
+    this.descriptors = 0; // descriptors sent: the next one goes in codeword mix32(count) mod m
     this._configure(X, Y, true);
   }
 
@@ -90,6 +93,7 @@ export class Sender {
       this.n = n;
       this.nsym = nsym;
       this.T = packetDataSize(n, nsym);
+      if (this.T < MIN_T) throw new Error('code area too small');
       this.plan = blockPlan(this.payload.length, this.T);
       const padded = new Uint8Array(this.plan.Kt * this.T);
       padded.set(this.payload);
@@ -141,17 +145,18 @@ export class Sender {
     return { cells, layout: this.layout, seq };
   }
 
-  // The packets (RS messages) of the next frame, without the visual layer.
+  // The packets (RS messages) of the next frame, without the visual layer (§10.2).
   nextPackets() {
     const k = this.n - this.nsym;
     const msgs = [];
     const m = this.perFrame;
-    // descriptor: every frame for tiny transfers, otherwise every 4th frame
-    const withMeta = this.K <= 2 * m || this.frames % 4 === 0;
+    // descriptor: every frame for tiny transfers, otherwise every 4th frame; its codeword
+    // moves, so that a corner hidden by glare cannot hide every copy
+    const metaAt = this.K <= 2 * m || this.frames % 4 === 0 ? mix32(this.descriptors++) % m : -1;
     const Z = this.plan.Z;
     for (let i = 0; i < m; i++) {
       const msg = new Uint8Array(k);
-      if (withMeta && i === 0) {
+      if (i === metaAt) {
         writePacketHeader(msg, this.tid, 0, 0, true);
         msg.set(this.metaBody, PKT_HDR);
       } else {
@@ -168,72 +173,119 @@ export class Sender {
   }
 }
 
+// Reference limits of a receiver (§11.4).
+export const RECEIVER_LIMITS = {
+  maxSize: 256 * 1024 * 1024, // bytes; a transfer with a larger payload or file is refused
+  maxKept: 4096, // data packets kept for each transfer before its descriptor arrives
+  maxTransfers: 4, // transfer keys kept at the same time
+};
+
+// State of one transfer key (TID, T), §11.2: 'collecting', 'receiving', 'refused' or 'complete'.
 class Inbound {
   constructor(tid, T) {
     this.tid = tid;
     this.T = T;
+    this.touched = 0;
+    this.reset();
+  }
+
+  reset() {
+    this.state = 'collecting';
+    this.descBytes = null; // the accepted descriptor, all T bytes
     this.meta = null;
     this.plan = null;
-    this.pending = new Map(); // "sbn:esi" -> data, packets that arrive before the descriptor
-    this.decs = null;
-    this.outs = null; // decoded block bytes
-    this.lastTry = null;
-    this.done = false;
+    this.kept = new Map(); // sbn * 65536 + esi -> payload, data packets before the descriptor
+    this.decs = null; // one fountain decoder per block, null once the block is decoded
+    this.outs = null; // decoded blocks
+    this.lastTry = null; // symbol count of the last failed decode of each block
   }
 
   received() {
-    if (!this.decs) return this.pending.size;
+    if (this.state === 'collecting') return this.kept.size;
+    if (this.state !== 'receiving') return this.state === 'complete' ? this.plan.Kt : 0;
     let r = 0;
-    for (let b = 0; b < this.decs.length; b++) r += this.outs[b] ? this.plan.sizes[b] : this.decs[b].count;
+    for (let b = 0; b < this.plan.Z; b++) r += this.outs[b] ? this.plan.sizes[b] : this.decs[b].count;
     return r;
   }
 }
 
+const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
 export class Receiver {
-  constructor() {
-    this.transfers = new Map();
-    this.active = null;
+  constructor(limits = {}) {
+    this.limits = { ...RECEIVER_LIMITS, ...limits };
+    this.transfers = new Map(); // "tid:T" -> Inbound
+    this.active = null; // the transfer of the newest packet
+    this.clock = 0;
   }
 
+  /**
+   * Give one packet (k bytes, the message of a codeword) to the transfer state machine.
+   * Returns the action of §11.2: 'discard', 'keep' (kept until the descriptor arrives),
+   * 'add' (given to a block decoder), 'accept' (descriptor accepted) or 'refuse' (descriptor
+   * accepted, transfer over a limit).
+   */
   async push(bytes) {
+    if (bytes.length < MIN_K || !packetIntact(bytes)) return 'discard';
     const p = readPacket(bytes);
+    let desc = null;
+    if (p.meta) {
+      if (p.sbn !== 0 || p.esi !== 0) return 'discard'; // reserved metadata (§8.3)
+      const r = parseDescriptor(p.data);
+      if (r.error) return 'discard';
+      desc = r.descriptor;
+    }
     const key = `${p.tid}:${p.data.length}`;
     let tr = this.transfers.get(key);
     if (!tr) {
+      if (this.transfers.size >= this.limits.maxTransfers) {
+        let old = null;
+        for (const [k, t] of this.transfers) if (!old || t.touched < this.transfers.get(old).touched) old = k;
+        this.transfers.delete(old);
+      }
       tr = new Inbound(p.tid, p.data.length);
       this.transfers.set(key, tr);
     }
+    tr.touched = ++this.clock;
     this.active = tr;
-    if (tr.done) return { duplicate: true };
-    if (p.meta) {
-      if (!tr.meta && p.esi === 0) {
-        const m = decodeMeta(p.data);
-        if (m) {
-          let plan;
-          try {
-            plan = blockPlan(m.payloadLength, tr.T);
-          } catch (e) {
-            return null;
-          }
-          tr.meta = m;
-          tr.plan = plan;
-          tr.decs = plan.sizes.map((k, b) => new FountainDecoder(k, tr.T, fountainSeed(tr.tid, b)));
-          tr.outs = new Array(plan.Z).fill(null);
-          tr.lastTry = new Int32Array(plan.Z).fill(-1);
-          for (const [k2, data] of tr.pending) {
-            const [sbn, esi] = k2.split(':').map(Number);
-            if (sbn < plan.Z) tr.decs[sbn].add(esi, data);
-          }
-          tr.pending.clear();
-        }
+
+    if (desc) {
+      if (tr.descBytes) {
+        if (sameBytes(tr.descBytes, p.data)) return 'discard';
+        tr.reset(); // another transfer with the same key, or a wrong descriptor (§11.2)
       }
-    } else if (tr.decs) {
-      if (p.sbn < tr.plan.Z && !tr.outs[p.sbn]) tr.decs[p.sbn].add(p.esi, p.data);
-    } else {
-      const k2 = `${p.sbn}:${p.esi}`;
-      if (tr.pending.size < 200000 && !tr.pending.has(k2)) tr.pending.set(k2, p.data.slice());
+      return this._accept(tr, desc, p.data.slice());
     }
-    return null;
+    if (tr.state === 'collecting') {
+      const k = p.sbn * 65536 + p.esi;
+      if (tr.kept.has(k) || tr.kept.size >= this.limits.maxKept) return 'discard';
+      tr.kept.set(k, p.data.slice());
+      return 'keep';
+    }
+    if (tr.state !== 'receiving' || p.sbn >= tr.plan.Z || tr.outs[p.sbn]) return 'discard';
+    return tr.decs[p.sbn].add(p.esi, p.data) ? 'add' : 'discard';
+  }
+
+  _accept(tr, meta, bytes) {
+    tr.descBytes = bytes;
+    tr.meta = meta;
+    tr.plan = blockPlan(meta.payloadLength, tr.T);
+    if (Math.max(meta.payloadLength, meta.fileSize) > this.limits.maxSize) {
+      tr.state = 'refused';
+      tr.kept.clear();
+      return 'refuse';
+    }
+    const { Z, sizes } = tr.plan;
+    tr.decs = sizes.map((k, b) => new FountainDecoder(k, tr.T, fountainSeed(tr.tid, b)));
+    tr.outs = new Array(Z).fill(null);
+    tr.lastTry = new Int32Array(Z).fill(-1);
+    for (const [k, data] of tr.kept) {
+      const sbn = Math.floor(k / 65536);
+      if (sbn < Z) tr.decs[sbn].add(k % 65536, data);
+    }
+    tr.kept.clear();
+    tr.state = 'receiving';
+    return 'accept';
   }
 
   progress() {
@@ -241,41 +293,51 @@ export class Receiver {
     if (!tr) return null;
     return {
       tid: tr.tid,
+      T: tr.T,
+      state: tr.state,
       name: tr.meta ? tr.meta.name : null,
       size: tr.meta ? tr.meta.fileSize : null,
+      payloadLength: tr.meta ? tr.meta.payloadLength : null,
       received: tr.received(),
       needed: tr.plan ? tr.plan.Kt : null,
       blocks: tr.plan ? tr.plan.Z : null,
-      done: tr.done,
+      done: tr.state === 'complete',
     };
   }
 
-  // Try to finish the active transfer. Returns { name, bytes }, { error }, or null.
+  /**
+   * Decode what can be decoded in the active transfer and, when every block is decoded,
+   * do the file check (§11.3). Returns { name, bytes } once, { error: 'checksum', name }
+   * when the check fails (the transfer then starts again), or null.
+   */
   async tryFinish() {
     const tr = this.active;
-    if (!tr || tr.done || !tr.decs) return null;
-    for (let b = 0; b < tr.plan.Z; b++) {
+    if (!tr || tr.state !== 'receiving') return null;
+    const { Z, sizes, starts, Kt } = tr.plan;
+    for (let b = 0; b < Z; b++) {
       const dec = tr.decs[b];
-      if (tr.outs[b] || dec.count < dec.K || dec.count === tr.lastTry[b]) continue;
+      if (!dec || dec.count < sizes[b] || dec.count === tr.lastTry[b]) continue;
       tr.lastTry[b] = dec.count;
       const out = dec.decode();
       if (out) {
         tr.outs[b] = out;
-        tr.decs[b] = { count: dec.K, K: dec.K }; // free the decoder state
+        tr.decs[b] = null;
       }
     }
     if (tr.outs.some((o) => !o)) return null;
-    const all = new Uint8Array(tr.plan.Kt * tr.T);
-    tr.outs.forEach((o, b) => all.set(o, tr.plan.starts[b] * tr.T));
-    let bytes = all.subarray(0, tr.meta.payloadLength);
-    if (tr.meta.flags & FLAG_DEFLATE) {
-      bytes = await streamThrough(bytes, new DecompressionStream('deflate-raw'));
+    const { payloadLength, fileSize, flags, crc, name } = tr.meta;
+    const all = new Uint8Array(Kt * tr.T);
+    tr.outs.forEach((o, b) => all.set(o, starts[b] * tr.T));
+    const payload = all.subarray(0, payloadLength);
+    const bytes = flags & FLAG_DEFLATE ? inflate(payload, fileSize) : payload;
+    if (!bytes || bytes.length !== fileSize || crc32(bytes) !== crc) {
+      tr.reset();
+      return { error: 'checksum', name };
     }
-    if (bytes.length !== tr.meta.fileSize || crc32(bytes) !== tr.meta.crc) {
-      return { error: 'checksum', name: tr.meta.name };
-    }
-    tr.done = true;
-    return { name: tr.meta.name, bytes };
+    tr.state = 'complete';
+    tr.decs = null;
+    tr.outs = null;
+    return { name, bytes: bytes.slice() };
   }
 }
 

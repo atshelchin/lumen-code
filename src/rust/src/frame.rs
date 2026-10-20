@@ -10,6 +10,8 @@ pub const IDX_PAPER: u8 = 9;
 pub const PKT_HDR: usize = 5;
 pub const PKT_OVERHEAD: usize = PKT_HDR + 2;
 pub const MAX_SBN: u32 = 127;
+pub const MAX_BLOCKS: u64 = MAX_SBN as u64 + 1;
+pub const MAX_BLOCK_SYMBOLS: u64 = 16384;
 pub const DESC_FIXED: usize = 15;
 pub const FLAG_DEFLATE: u8 = 1;
 
@@ -55,13 +57,16 @@ pub fn read_packet(buf: &[u8]) -> (PacketId, &[u8]) {
     (id, &buf[PKT_HDR..buf.len() - 2])
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Descriptor {
     pub flags: u8,
     pub payload_length: u32,
     pub file_size: u32,
     pub crc: u32,
     pub name: String,
+    /// TLV records (type, value) of a received descriptor, known or not. Version 1 defines
+    /// no types, so the encoder writes none.
+    pub records: Vec<(u8, Vec<u8>)>,
 }
 
 fn utf8_truncate(bytes: &[u8], max: usize) -> &[u8] {
@@ -88,21 +93,59 @@ pub fn encode_descriptor(d: &Descriptor, t: usize) -> Vec<u8> {
     out
 }
 
-pub fn decode_descriptor(data: &[u8]) -> Option<Descriptor> {
-    if data.len() < DESC_FIXED || data[0] != 1 {
-        return None;
+/// Why a descriptor is not valid (§8.4): the first rule that fails.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DescriptorError {
+    Version,
+    Flags,
+    NameLength,
+    NameUtf8,
+    Tlv,
+    /// L != F without compression
+    Length,
+    /// more than 128 source blocks
+    Blocks,
+}
+
+/// Descriptor validity (§8.4). `data` is the T payload bytes of metadata packet 0.
+pub fn parse_descriptor(data: &[u8]) -> Result<Descriptor, DescriptorError> {
+    let t = data.len();
+    if t < DESC_FIXED || data[0] != 1 {
+        return Err(DescriptorError::Version);
+    }
+    let flags = data[1];
+    if flags & !FLAG_DEFLATE != 0 {
+        return Err(DescriptorError::Flags);
+    }
+    let nl = data[14] as usize;
+    if nl > t - DESC_FIXED {
+        return Err(DescriptorError::NameLength);
+    }
+    let name = std::str::from_utf8(&data[DESC_FIXED..DESC_FIXED + nl]).map_err(|_| DescriptorError::NameUtf8)?.to_string();
+    let mut records = Vec::new();
+    let mut p = DESC_FIXED + nl;
+    while p < t && data[p] != 0 {
+        if p + 2 > t || p + 2 + data[p + 1] as usize > t {
+            return Err(DescriptorError::Tlv);
+        }
+        let len = data[p + 1] as usize;
+        records.push((data[p], data[p + 2..p + 2 + len].to_vec()));
+        p += 2 + len;
     }
     let u32at = |o: usize| u32::from_be_bytes([data[o], data[o + 1], data[o + 2], data[o + 3]]);
-    let nl = (data[14] as usize).min(data.len() - DESC_FIXED);
-    let name = String::from_utf8_lossy(&data[DESC_FIXED..DESC_FIXED + nl]).into_owned();
-    // TLV records after the name are reserved for extensions; unknown types are skipped.
-    Some(Descriptor {
-        flags: data[1],
-        payload_length: u32at(2),
-        file_size: u32at(6),
-        crc: u32at(10),
-        name: if name.is_empty() { "file".into() } else { name },
-    })
+    let (payload_length, file_size) = (u32at(2), u32at(6));
+    if flags & FLAG_DEFLATE == 0 && payload_length != file_size {
+        return Err(DescriptorError::Length);
+    }
+    let kt = (payload_length as u64).div_ceil(t as u64).max(1);
+    if kt.div_ceil(MAX_BLOCK_SYMBOLS) > MAX_BLOCKS {
+        return Err(DescriptorError::Blocks);
+    }
+    Ok(Descriptor { flags, payload_length, file_size, crc: u32at(10), name, records })
+}
+
+pub fn decode_descriptor(data: &[u8]) -> Option<Descriptor> {
+    parse_descriptor(data).ok()
 }
 
 /// Cell values of one frame: data cells hold palette indices, all others IDX_INK / IDX_PAPER.

@@ -79,24 +79,50 @@ export function encodeMeta(meta, T) {
   return out;
 }
 
-export function decodeMeta(data) {
-  if (data.length < DESC_FIXED || data[0] !== 1) return null;
-  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  const nameLen = Math.min(data[14], data.length - DESC_FIXED);
-  let name = 'file';
+export const FLAG_DEFLATE = 1;
+export const MAX_BLOCKS = MAX_SBN + 1;
+export const MAX_BLOCK_SYMBOLS = 16384;
+
+const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+const u32 = (d, o) => ((d[o] << 24) | (d[o + 1] << 16) | (d[o + 2] << 8) | d[o + 3]) >>> 0;
+
+/**
+ * Descriptor validity (§8.4). `data` is the T payload bytes of metadata packet 0.
+ * Returns { descriptor } or { error } with the first failed rule: 'version', 'flags',
+ * 'name-length', 'name-utf8', 'tlv', 'length' (L != F without compression), 'blocks' (Z > 128).
+ * descriptor.records holds the TLV records ({ type, value }), known or not.
+ */
+export function parseDescriptor(data) {
+  const T = data.length;
+  if (T < DESC_FIXED || data[0] !== 1) return { error: 'version' };
+  const flags = data[1];
+  if (flags & ~FLAG_DEFLATE) return { error: 'flags' };
+  const N = data[14];
+  if (N > T - DESC_FIXED) return { error: 'name-length' };
+  let name;
   try {
-    name = new TextDecoder('utf-8', { fatal: false }).decode(data.subarray(DESC_FIXED, DESC_FIXED + nameLen)) || 'file';
+    name = UTF8.decode(data.subarray(DESC_FIXED, DESC_FIXED + N));
   } catch (e) {
-    /* keep default */
+    return { error: 'name-utf8' };
   }
-  // TLV records after the name are reserved for extensions; unknown types are skipped.
-  return {
-    flags: data[1],
-    payloadLength: dv.getUint32(2),
-    fileSize: dv.getUint32(6),
-    crc: dv.getUint32(10),
-    name,
-  };
+  const records = [];
+  for (let p = DESC_FIXED + N; p < T; ) {
+    const type = data[p];
+    if (type === 0) break;
+    if (p + 2 > T || p + 2 + data[p + 1] > T) return { error: 'tlv' };
+    records.push({ type, value: data.slice(p + 2, p + 2 + data[p + 1]) });
+    p += 2 + data[p + 1];
+  }
+  const payloadLength = u32(data, 2);
+  const fileSize = u32(data, 6);
+  if (!(flags & FLAG_DEFLATE) && payloadLength !== fileSize) return { error: 'length' };
+  const Kt = Math.max(1, Math.ceil(payloadLength / T));
+  if (Math.ceil(Kt / MAX_BLOCK_SYMBOLS) > MAX_BLOCKS) return { error: 'blocks' };
+  return { descriptor: { flags, payloadLength, fileSize, crc: u32(data, 10), name, records } };
+}
+
+export function decodeMeta(data) {
+  return parseDescriptor(data).descriptor || null;
 }
 
 /**

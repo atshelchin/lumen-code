@@ -46,15 +46,18 @@ const uint8_t *lm_sender_next_frame(WSender *h);
 uint32_t lm_sender_resize(WSender *h, uint32_t x, uint32_t y);
 uint32_t lm_sender_reconfigure(WSender *h, uint32_t mode, uint32_t ecc);
 
-/* ---- receiver: packets -> file ---- */
-WReceiver *lm_receiver_new(void);
+/* ---- receiver: packets -> file (PROTOCOL §11) ---- */
+WReceiver *lm_receiver_new(void); /* reference limits: 256 MiB, 4096 kept packets, 4 transfers */
+WReceiver *lm_receiver_new_limits(uint32_t max_size, uint32_t max_kept, uint32_t max_transfers);
 void lm_receiver_free(WReceiver *h);
-void lm_receiver_push(WReceiver *h, const uint8_t *packet, uint32_t len);
-/* u32[8]: valid, tid, received, needed, blocks, done, T, fileSize */
+/* returns the action of §11.2: 0 discard, 1 keep, 2 add, 3 accept, 4 refuse */
+uint32_t lm_receiver_push(WReceiver *h, const uint8_t *packet, uint32_t len);
+/* u32[10]: valid, tid, received, needed, blocks, done, T, fileSize,
+ * state (0 collecting, 1 receiving, 2 refused, 3 complete), payloadLength */
 const uint32_t *lm_receiver_progress(WReceiver *h);
 const uint8_t *lm_receiver_name(WReceiver *h);
 uint32_t lm_receiver_name_len(WReceiver *h);
-/* 0 = not yet, 1 = file ready, 2 = checksum error */
+/* 0 = not yet, 1 = file ready, 2 = the file check failed: the transfer starts again */
 uint32_t lm_receiver_finish(WReceiver *h);
 const uint8_t *lm_receiver_file(WReceiver *h);
 uint32_t lm_receiver_file_len(WReceiver *h);

@@ -179,29 +179,44 @@ export class WasmSender {
   }
 }
 
+const ACTIONS = ['discard', 'keep', 'add', 'accept', 'refuse'];
+const STATES = ['collecting', 'receiving', 'refused', 'complete'];
+
 export class WasmReceiver {
-  constructor() {
-    this.h = X.lm_receiver_new();
+  // limits: { maxSize, maxKept, maxTransfers } as for Receiver (PROTOCOL §11.4)
+  constructor(limits = null) {
+    this.h = limits ? X.lm_receiver_new_limits(limits.maxSize >>> 0, limits.maxKept >>> 0, limits.maxTransfers >>> 0) : X.lm_receiver_new();
     this.buf = new Buf();
   }
 
   async push(bytes) {
     const p = this.buf.get(bytes.length);
     u8().set(bytes, p);
-    X.lm_receiver_push(this.h, p, bytes.length);
-    return null;
+    return ACTIONS[X.lm_receiver_push(this.h, p, bytes.length)];
   }
 
   _name() {
     const p = X.lm_receiver_name(this.h);
     const n = X.lm_receiver_name_len(this.h);
-    return n ? new TextDecoder().decode(u8().slice(p, p + n)) : null;
+    return new TextDecoder().decode(u8().slice(p, p + n));
   }
 
   progress() {
-    const v = new Uint32Array(X.memory.buffer, X.lm_receiver_progress(this.h), 8).slice();
+    const v = new Uint32Array(X.memory.buffer, X.lm_receiver_progress(this.h), 10).slice();
     if (!v[0]) return null;
-    return { tid: v[1], received: v[2], needed: v[3] || null, blocks: v[4] || null, done: !!v[5], T: v[6], size: v[3] ? v[7] : null, name: this._name() };
+    const known = v[8] !== 0; // a descriptor is accepted
+    return {
+      tid: v[1],
+      T: v[6],
+      state: STATES[v[8]],
+      name: known ? this._name() : null,
+      size: known ? v[7] : null,
+      payloadLength: known ? v[9] : null,
+      received: v[2],
+      needed: v[3] || null,
+      blocks: v[4] || null,
+      done: !!v[5],
+    };
   }
 
   get active() {
@@ -214,9 +229,13 @@ export class WasmReceiver {
     if (st === 1) {
       const p = X.lm_receiver_file(this.h);
       const n = X.lm_receiver_file_len(this.h);
-      return { name: this._name() || 'file', bytes: u8().slice(p, p + n) };
+      return { name: this._name(), bytes: u8().slice(p, p + n) };
     }
-    if (st === 2) return { error: 'checksum' };
+    if (st === 2) return { error: 'checksum', name: null };
     return null;
+  }
+
+  free() {
+    X.lm_receiver_free(this.h);
   }
 }

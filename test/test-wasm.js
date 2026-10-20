@@ -1,8 +1,9 @@
 // JS <-> Rust/WASM interoperability: identical frames, cross decoding, timing.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { loadWasm, WasmScanner, WasmSender, WasmReceiver } from '../src/core/wasm-engine.js';
-import { Sender } from '../src/core/transfer.js';
+import { Sender, Receiver } from '../src/core/transfer.js';
 import { Scanner } from '../src/core/scan.js';
+import { Renderer } from '../src/core/render.js';
 import { crc32, Rng } from '../src/core/util.js';
 
 await loadWasm(readFileSync(new URL('../dist/wasm/lumen.wasm', import.meta.url)));
@@ -36,7 +37,49 @@ const okA = done && done.bytes.length === file.length && done.bytes.every((v, i)
 console.log('JS sender -> WASM receiver:', !!okA, done && done.name);
 if (!okA) fail++;
 
-// 3. scanners on the JS camera fixtures
+// 3. the other direction through the visual layer: WASM sender frames -> render -> JS scanner -> JS receiver
+{
+  const wtx = new WasmSender(prepared, { mode: 1, ecc: 1, X: 86, Y: 152 });
+  const sc = new Scanner();
+  const jrx = new Receiver();
+  let out = null;
+  for (let f = 0; f < 100 && !out; f++) {
+    const { cells, layout } = wtx.nextFrame();
+    const r = new Renderer(layout, 1, 4);
+    const rgba = new Uint8Array(r.width * r.height * 4);
+    r.draw(cells, new Uint32Array(rgba.buffer));
+    const res = sc.scan({ width: r.width, height: r.height, data: rgba });
+    if (res.ok) for (const c of res.codewords) if (c.ok) await jrx.push(c.bytes);
+    out = await jrx.tryFinish();
+  }
+  const okB = out && out.bytes && out.bytes.length === file.length && out.bytes.every((v, i) => v === file[i]);
+  console.log('WASM sender -> JS scanner and receiver:', !!okB);
+  if (!okB) fail++;
+  wtx.free();
+}
+
+// 4. the receiver state machine of the WASM build against the stream vectors (PROTOCOL §11)
+{
+  const V = JSON.parse(readFileSync(new URL('./vectors/test-vectors.json', import.meta.url), 'utf8'));
+  const unhex = (h) => new Uint8Array(Buffer.from(h, 'hex'));
+  let bad = 0;
+  for (const st of V.streams) {
+    const rx = new WasmReceiver(st.limits ? { maxSize: 256 * 1024 * 1024, maxKept: 4096, maxTransfers: 4, ...st.limits } : null);
+    for (const s of st.steps) {
+      if (s.push && (await rx.push(unhex(s.push))) !== s.result) bad++;
+      else if ('finish' in s) {
+        const got = await rx.tryFinish();
+        const norm = got && (got.bytes ? { file: Buffer.from(got.bytes).toString('hex'), name: got.name } : { error: 'check' });
+        if (JSON.stringify(norm) !== JSON.stringify(s.finish)) bad++;
+      } else if (s.state && ((rx.progress() || { state: 'new' }).state !== s.state)) bad++;
+    }
+    rx.free();
+  }
+  console.log(`WASM receiver, stream vectors: ${bad ? bad + ' wrong steps' : 'all ' + V.streams.length + ' streams pass'}`);
+  if (bad) fail++;
+}
+
+// 5. scanners on the JS camera fixtures
 if (existsSync('test/out/raw')) {
   const sj = new Scanner();
   const sw = new WasmScanner();
