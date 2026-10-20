@@ -85,7 +85,7 @@ file ──(optional DEFLATE)──► payload ──split──► source block
                                          frame (grid of coloured cells) ──► screen ──► camera
 ```
 
-A receiver does these steps in the opposite direction. One complete packet is enough to use the data in it. The receiver can reconstruct a source block when it has slightly more than K different packets of that block (Appendix C.2).
+A receiver does these steps in the opposite direction. One complete packet is enough to use the data in it. The receiver can reconstruct a source block when it has slightly more than K different packets of that block: on average K + 1.6 to K + 2.4 (Appendix C.2).
 
 Errors are found at four levels. Each level discards what it cannot use:
 
@@ -782,13 +782,45 @@ hilbert(N, d):                    N is a power of two
 
 ## Appendix C — Residual errors and fountain overhead (informative)
 
+The values in this appendix come from `src/rust/examples/measure.rs` (`residual`, `fountain`, `tail`, `rank`). The reference implementations give the same results, because their decoders make the same decisions (test vectors, `differential` section).
+
 ### C.1 Wrong packets
 
-To be completed with measured values.
+A wrong packet can pass all checks only if Reed–Solomon decoding accepts a wrong codeword and the packet CRC-16 is then correct by chance (probability 2^−16).
+
+The reference codeword decoder (§11.6) tries three times: without erasures, then with the nsym/4 and the nsym/2 least reliable bytes as erasures. A try with f erasures accepts a random word with the probability `V(n − f, t) / 256^(nsym − f)`, with `t = floor((nsym − f) / 2)` and `V(n, t)` = the number of words within Hamming distance t of a word. The table gives the sum over the three tries for a codeword read from garbage, for example from a misread frame. This is the worst case: a codeword with only some errors is accepted less often.
+
+| n | nsym | Reed–Solomon accepts garbage | wrong packet (× 2^−16) |
+|---|---|---|---|
+| 255 | 26 (ECC low) | 3.7 · 10^−6 | 5.7 · 10^−11 |
+| 255 | 40 (ECC medium, default) | 9.3 · 10^−8 | 1.4 · 10^−12 |
+| 255 | 56 (ECC high) | 1.3 · 10^−12 | 2.0 · 10^−17 |
+| 255 | 76 (ECC very high) | 1.5 · 10^−19 | 2.2 · 10^−24 |
+| 127 | 20 | 1.5 · 10^−4 | 2.3 · 10^−9 |
+
+A Monte Carlo test of the decoder agrees with this analysis within 2 % where the rate is large enough to measure (n = 40, 63 and 100 with nsym = 4, 8 and 10). Almost all of the risk comes from the try with nsym/2 erasures. A receiver that needs fewer wrong packets can omit that try.
+
+Example: a receiver that decodes 1200 codewords per second, all of them garbage, with the default parameters gets one wrong packet in approximately 19 years; with ECC low, in approximately 170 days. A wrong packet makes the file check fail (§11.3), and the transfer starts again. A wrong file is delivered only if, in addition, its size and its CRC-32 are correct (probability approximately 2^−32 for each failed check).
 
 ### C.2 Fountain overhead
 
-To be completed with measured values.
+The table gives the probability that a block of K source symbols is not decodable from K + e different symbols with random ESIs.
+
+| K | e = 0 | 1 | 2 | 3 | 4 | 5 | 8 | 16 | 32 | mean e | trials |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 0.50 | 0.25 | 0.13 | 0.063 | 0.032 | 0.015 | 0.002 | — | — | 1.0 | 20 000 |
+| 10 | 0.71 | 0.42 | 0.23 | 0.12 | 0.061 | 0.031 | 0.003 | — | — | 1.6 | 20 000 |
+| 100 | 0.71 | 0.42 | 0.23 | 0.12 | 0.063 | 0.032 | 0.004 | — | — | 1.6 | 10 000 |
+| 1000 | 0.71 | 0.44 | 0.23 | 0.12 | 0.064 | 0.035 | 0.003 | — | — | 1.6 | 2 000 |
+| 3000 | 0.72 | 0.45 | 0.24 | 0.12 | 0.075 | 0.036 | 0.009 | 0.001 | 0 | 1.7 | 1 000 |
+| 10 000 | 0.74 | 0.45 | 0.26 | 0.15 | 0.085 | 0.050 | 0.024 | 0.002 | 0 | 1.9 | 1 000 |
+| 16 384 | 0.72 | 0.48 | 0.29 | 0.19 | 0.12 | 0.082 | 0.048 | 0.019 | 0.002 | 2.4 | 1 000 |
+
+Up to K = 1000 the code behaves like a random linear code over GF(2): each extra symbol halves the probability of failure (the theoretical values are 0.71, 0.42, 0.23, 0.12, …). For larger K the distribution has a longer tail. The largest values seen were 30 extra symbols for K = 3000 and K = 10 000, and 47 for K = 16 384. A dense GF(2) rank test of the equations of §9.7 confirms that each set where the reference decoder fails is not decodable. Thus the tail is a property of the code, not of the decoder.
+
+> In practice the overhead is small: 47 symbols are less than two frames of a phone-size code, and the receiver does not need to know K + e in advance. A future version can reduce the tail with dense rows over GF(256), as RaptorQ (RFC 6330) does.
+
+Decoding time (reference Rust decoder, Apple M2 Pro, T = 200 bytes): 0.1 ms for K = 100, 0.8 ms for K = 1000, 20 ms for K = 16 384. The JavaScript decoder needs 1.1, 8.4 and 105 ms.
 
 ## Appendix D — Changes from draft 1 (informative)
 

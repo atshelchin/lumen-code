@@ -16,7 +16,7 @@ actual speed = FPS × codewords per frame × payload per codeword T
 - **Raw rate**: the "Raw rate" that the demo sender shows. It assumes that every frame is received in full.
 - **Capture rate**: the share of the sender's frames that the receiver captured and scanned ("captured" in the diagnostic line of the demo receiver).
 - **Codeword success rate**: the share of codewords decoded from the captured frames ("Success").
-- **Fountain overhead**: recovering K source symbols takes about K + 2 symbols. For large files this is negligible.
+- **Fountain overhead**: recovering K source symbols takes on average K + 1.6 symbols (K + 2.4 for the largest blocks; specification Appendix C.2). For large files this is negligible.
 
 Every speed-up technique raises one of these terms. Below, we compare Lumen Code with ordinary animated QR codes, term by term.
 
@@ -110,7 +110,25 @@ From the largest impact to the smallest:
 
 Tuning order: first secure the success rate (≥ 4.5 pixels per cell, success rate ≥ 90%), then raise the FPS, and only then consider a higher density or C8. When there is headroom, the receiver shows "Spare capacity: you can raise the sender FPS to about N".
 
-## 4.6 Can it go faster? Roadmap
+## 4.6 Measured cost of each stage
+
+Method: `node test/bench.js` (JavaScript, Node 22) and `cargo run --release --example measure -- bench` in `src/rust` (Rust, native). Each value is the mean of many repetitions after one warm-up run. Machine: Apple M2 Pro, macOS 26.5. T = 200 bytes; RS(255, 215) is the default codeword of a large grid.
+
+| Stage | JavaScript | Rust |
+|---|---|---|
+| RS encode, one codeword | 12.8 µs | 8.0 µs |
+| RS decode, clean codeword | 33 µs | 33 µs |
+| RS decode, 20 byte errors | 87 µs | 75 µs |
+| Fountain: one encoding symbol | 1.2 µs | 0.12 µs |
+| Fountain: decode K = 1000 from K + 10 symbols | 8.4 ms (24 MB/s) | 0.8 ms (250 MB/s) |
+| Fountain: decode K = 16 384 from K + 10 symbols | 105 ms (31 MB/s) | 20 ms (167 MB/s) |
+| Frame cells, 150 × 240 C4 (34 codewords) | 0.76 ms | 0.76 ms |
+| Inflate (zlib stream of 2.2 MB of text) | 147 MB/s | — |
+| Receiver, 2 MB transfer from packets (10 064 packets) | 168 ms (12 MB/s) | 25 ms (79 MB/s) |
+
+The receiver's packet handling and decoding cost far less than scanning (§4.4): a camera link of 100 KB/s uses about 1 % of one core for everything after the scanner.
+
+## 4.7 Can it go faster? Roadmap
 
 The improvements fall into three groups, by whether the protocol must change. The parts that do not change the protocol can be done at any time, and they stay compatible with all existing implementations.
 

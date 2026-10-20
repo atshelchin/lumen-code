@@ -59,6 +59,8 @@ A design detail of C8: the three bits of the colour index are the on/off states 
 
 > When the receiver has **any** K + 2 or so **distinct** encoding symbols, it can decode all K source symbols.
 
+(Measured: on average K + 1.6 symbols for small blocks and K + 2.4 for the largest; each extra symbol roughly halves the chance that the decode still fails. Specification Appendix C.2 has the full table.)
+
 So the receiver does not care which symbols it gets, which frames are lost, or when it starts scanning. The sender does not need to "play in a loop" either: every frame is new data. The Lumen Code fountain code is in the same family as RaptorQ (an LT code with LDPC/HDPC precoding, decoded with "inactivation" Gaussian elimination). Its parameters and its pseudo-random number generator are fully defined in specification §9, and the two implementations generate bit-identical symbols.
 
 **④ Packets.** Each encoding symbol gets a 7-byte packet header/trailer:
@@ -68,7 +70,7 @@ So the receiver does not care which symbols it gets, which frames are lost, or w
 ```
 
 - The transfer ID (TID) distinguishes different files. The receiver identifies a transfer by (TID, T).
-- A packet with M = 1 is a **metadata packet**. It holds the file descriptor (file name, size, CRC-32, compressed or not). It appears every 4 frames (in every frame for small files), so a receiver that joins midway still gets the file name.
+- A packet with M = 1 is a **metadata packet**. It holds the file descriptor (file name, size, CRC-32, compressed or not). It appears every 4 frames (in every frame for small files), so a receiver that joins midway still gets the file name. It moves to a different codeword each time, so glare on one corner of the screen cannot hide every copy.
 - The CRC-16 catches the occasional codeword that RS decoding "corrects" to the wrong value. This protects the fountain decoder from being polluted.
 
 **⑤ Reed–Solomon codewords.** Each packet is used as a message. With nsym check bytes added, it becomes an RS codeword of length n (n is usually 235–255; at the default ECC level nsym ≈ 16% · n). RS can correct nsym/2 wrong bytes. If the receiver knows which bytes are suspect (erasures), it can correct more.
