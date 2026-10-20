@@ -4,14 +4,14 @@
 //   npm run build && node src/tools/social-card.js [chrome binary]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openChrome, defaultChrome } from './cdp.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dist = path.join(repo, 'dist');
 const out = path.join(repo, 'src/web/img');
-const chrome = process.argv[2] || process.env.CHROME || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome');
+const binary = process.argv[2] || defaultChrome();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TEXT = {
@@ -59,27 +59,10 @@ const port = 8600 + Math.floor(Math.random() * 300);
 fs.mkdirSync(out, { recursive: true });
 for (const lang of Object.keys(TEXT)) fs.writeFileSync(path.join(dist, `_card-${lang}.html`), card(TEXT[lang]));
 const server = spawn(process.execPath, [path.join(repo, 'src/tools/serve.js'), '--dist', `--port=${port}`], { stdio: 'ignore' });
-const dbg = 9600 + Math.floor(Math.random() * 300);
-const browser = spawn(chrome, ['--headless=new', `--remote-debugging-port=${dbg}`, `--user-data-dir=${fs.mkdtempSync(path.join(os.tmpdir(), 'card-'))}`, '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+let chrome;
 try {
-  let ws;
-  for (let i = 0; i < 50 && !ws; i++) {
-    await sleep(150);
-    try {
-      const page = (await (await fetch(`http://127.0.0.1:${dbg}/json`)).json()).find((p) => p.type === 'page');
-      if (page) ws = new WebSocket(page.webSocketDebuggerUrl);
-    } catch (e) {
-      /* not up yet */
-    }
-  }
-  await new Promise((r) => (ws.onopen = r));
-  let id = 0;
-  const wait = new Map();
-  ws.onmessage = (m) => {
-    const d = JSON.parse(m.data);
-    if (d.id && wait.has(d.id)) wait.get(d.id)(d.result);
-  };
-  const send = (method, params = {}) => new Promise((r) => { wait.set(++id, r); ws.send(JSON.stringify({ id, method, params })); });
+  chrome = await openChrome(binary, ['--hide-scrollbars']);
+  const send = chrome.send;
   await send('Emulation.setDeviceMetricsOverride', { width: 1200, height: 630, deviceScaleFactor: 1, mobile: false });
   for (const lang of Object.keys(TEXT)) {
     await send('Page.navigate', { url: `http://localhost:${port}/_card-${lang}.html` });
@@ -93,7 +76,7 @@ try {
     console.log(`wrote src/web/img/social-${lang}.png`);
   }
 } finally {
-  browser.kill();
+  if (chrome) chrome.close();
   server.kill();
   for (const lang of Object.keys(TEXT)) fs.rmSync(path.join(dist, `_card-${lang}.html`), { force: true });
 }

@@ -2,67 +2,43 @@
 // receiver page (dist/recv.html) opens that camera and must deliver the file in it.
 //   npm run build && node test/make-y4m.js test/out/cam.y4m 60000 1 100 170 8 1280 720
 //   node test/browser-e2e.js [engine: wasm|js] [language: en|zh] [chrome binary]   (or CHROME=<binary>)
-// Zero dependencies: the DevTools protocol over the WebSocket of Node 22.
+// Zero dependencies: the DevTools protocol over the WebSocket of Node 22 (src/tools/cdp.js).
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openChrome, defaultChrome } from '../src/tools/cdp.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const engine = process.argv[2] || 'wasm';
 const dir = process.argv[3] === 'zh' ? 'zh/' : ''; // the pages of the other language live in zh/
-const chrome = process.argv[4] || process.env.CHROME || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome');
+const binary = process.argv[4] || defaultChrome();
 const video = path.join(repo, 'test/out/cam.y4m');
 const want = createHash('sha256').update(readFileSync(video + '.src')).digest('hex');
 const port = 8000 + Math.floor(Math.random() * 900);
-const dbg = 9300 + Math.floor(Math.random() * 600);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const server = spawn(process.execPath, [path.join(repo, 'src/tools/serve.js'), '--dist', `--port=${port}`], { stdio: 'ignore' });
-const browser = spawn(chrome, [
-  '--headless=new',
-  `--remote-debugging-port=${dbg}`,
-  `--user-data-dir=${mkdtempSync(path.join(tmpdir(), 'lumen-e2e-'))}`,
-  '--use-fake-device-for-media-stream',
-  `--use-file-for-fake-video-capture=${video}`,
-  '--use-fake-ui-for-media-stream',
-  '--no-first-run',
-  'about:blank',
-], { stdio: 'ignore' });
+let chrome;
+try {
+  chrome = await openChrome(binary, ['--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${video}`, '--use-fake-ui-for-media-stream']);
+} catch (e) {
+  console.log(`browser e2e: ${e.message}`);
+  server.kill();
+  process.exit(1);
+}
 const stop = (code) => {
-  browser.kill();
+  chrome.close();
   server.kill();
   process.exit(code);
 };
-
-let ws;
-for (let i = 0; i < 50 && !ws; i++) {
-  await sleep(200);
-  try {
-    const pages = await (await fetch(`http://127.0.0.1:${dbg}/json`)).json();
-    const page = pages.find((p) => p.type === 'page');
-    if (page) ws = new WebSocket(page.webSocketDebuggerUrl);
-  } catch (e) {
-    /* not up yet */
-  }
-}
-if (!ws) {
-  console.log('browser e2e: Chrome did not start');
-  stop(1);
-}
-await new Promise((r) => (ws.onopen = r));
-let id = 0;
-const waiting = new Map();
 const errors = [];
-ws.onmessage = (m) => {
-  const msg = JSON.parse(m.data);
-  if (msg.id && waiting.has(msg.id)) waiting.get(msg.id)(msg.result);
+chrome.on((msg) => {
   if (msg.method === 'Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.text + ' ' + (msg.params.exceptionDetails.exception?.description || ''));
   if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') errors.push(msg.params.args.map((a) => a.value ?? a.description).join(' '));
-};
-const send = (method, params = {}) => new Promise((r) => { waiting.set(++id, r); ws.send(JSON.stringify({ id, method, params })); });
+});
+const send = chrome.send;
 const evaluate = async (expr) => (await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true })).result?.value;
 
 await send('Runtime.enable');

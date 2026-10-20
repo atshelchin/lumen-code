@@ -3,8 +3,10 @@
 # app core, and the built site in headless Chrome with a video file as its webcam.
 name: Tests
 
+# main and pull requests; a release branch is cut from main, where its commit was tested
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
