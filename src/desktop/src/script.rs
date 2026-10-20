@@ -50,7 +50,8 @@ pub async fn run(this: WeakEntity<Root>, cx: &mut AsyncWindowContext, script: St
             "tap" => rt.dispatch(Event::TapCode),
             "diag" => {
                 let v = rt.view();
-                eprintln!("[lumen-diag] {} · {} · {}", v.recv.status, v.recv.diag, v.recv.tip);
+                let done = v.recv.done.as_ref().map_or(String::new(), |d| format!(" · done: {} {}", d.name, d.sub));
+                eprintln!("[lumen-diag] {:?} {} {} · {} · {}{done}", v.recv.phase, v.recv.pct, v.recv.status, v.recv.diag, v.recv.tip);
             }
             "fps" => rt.dispatch(Event::SetFps { value: arg.parse().unwrap_or(30) }),
             "settings" => rt.dispatch(Event::ToggleSettings),
