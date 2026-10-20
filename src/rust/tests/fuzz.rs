@@ -245,7 +245,7 @@ fn grid_kinds_never_overlap() {
             assert!((16..=24).contains(&(w[1] - w[0])), "gap {d}: {l:?}");
         }
         for &p in &l[1..l.len() - 1] {
-            assert!(p - 1 >= 18 && p + 1 <= d - 19, "inner marker near a corner {d}: {l:?}");
+            assert!(p > 18 && p < d - 19, "inner marker near a corner {d}: {l:?}"); // cells p − 1 … p + 1
         }
     }
     let mut r = Rng::new(5);

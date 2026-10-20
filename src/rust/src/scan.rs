@@ -1156,7 +1156,8 @@ impl<'a> Ctx<'a> {
                 m1 = s1 / n1 as f64;
                 t = (m0 + m1) / 2.0;
             }
-            let ts: &[f64] = if t == thr { &[thr] } else { &[t, thr] };
+            let both = [t, thr];
+            let ts: &[f64] = if t == thr { &both[1..] } else { &both };
             for &tt in ts {
                 for b in 0..HEADER_BITS {
                     raw[b] = (vals[b] > tt) as u8;
@@ -1350,7 +1351,7 @@ impl<'a> Ctx<'a> {
 
         // a reused header has no seq: such a frame cannot be told apart from others (no skipping)
         let frame_key = if reused { None } else { Some(FrameKey { seq: hdr.seq, x: hdr.x, y: hdr.y, mode: hdr.mode, n: hdr.n, nsym: hdr.nsym }) };
-        let count = codewords_per_frame(&layout, mode, n);
+        let count = codewords_per_frame(layout, mode, n);
         let mut done = vec![false; count];
         let mut done_n = 0;
         if let Some(list) = frame_key.as_ref().and_then(|k| skip.and_then(|s| s.get(k))) {
@@ -1800,7 +1801,7 @@ impl<'a> Ctx<'a> {
         gain_pass(&symbols, &cent, &mut work);
         assign(false, &work, &mut cent, &mut symbols, &mut conf);
 
-        let cws = decode_codewords(&layout, mode, n, nsym, &symbols, &conf, count, &done);
+        let cws = decode_codewords(layout, mode, n, nsym, &symbols, &conf, count, &done);
         let corners = [[0.0, 0.0], [xf, 0.0], [xf, yf], [0.0, yf]].map(|[cx, cy]| {
             let (x, y) = apply_h(&hg, cx, cy);
             [x, y]

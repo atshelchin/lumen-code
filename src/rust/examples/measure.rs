@@ -2,6 +2,9 @@
 //!   cargo run --release --example measure -- fountain   decode failure vs. extra symbols
 //!   cargo run --release --example measure -- residual   wrong packets: analysis and Monte Carlo
 //!   cargo run --release --example measure -- bench      throughput of each stage
+
+// Index loops mirror the tables they print, as in the crate itself.
+#![allow(clippy::needless_range_loop, clippy::explicit_counter_loop)]
 use lumen::fountain::{Decoder, Encoder};
 use lumen::frame::encode_frame_cells;
 use lumen::layout::{choose_codeword, codewords_per_frame, Layout};

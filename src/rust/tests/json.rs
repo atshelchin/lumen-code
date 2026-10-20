@@ -73,8 +73,7 @@ impl J {
 pub fn parse(s: &str) -> J {
     let b = s.as_bytes();
     let mut i = 0;
-    let v = val(b, &mut i);
-    v
+    val(b, &mut i)
 }
 
 fn ws(b: &[u8], i: &mut usize) {
