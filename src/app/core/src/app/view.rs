@@ -346,6 +346,9 @@ fn recv_view(m: &Model) -> RecvView {
     // one hint at a time, most useful first
     let (tip, ok) = if now < r.checksum_until {
         (t(l, "checksum").to_string(), false)
+    } else if let Some(size) = r.progress.as_ref().and_then(|p| p.refused) {
+        let max = crate::engine::sink::limits().max_size as f64;
+        (t(l, "recvTooLarge").replace("{size}", &format::bytes(size as f64)).replace("{max}", &format::bytes(max)), false)
     } else if !found {
         (t(l, "tipSearch").to_string(), false)
     } else if cell_n > 0 && cell < 3.4 {

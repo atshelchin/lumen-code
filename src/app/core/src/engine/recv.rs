@@ -144,6 +144,10 @@ pub struct Plan {
     pub hint: Option<([[f64; 2]; 4], f64)>,
 }
 
+/// seq repeats every 256 frames, so a frame key names a frame for this long after it was
+/// first seen (PROTOCOL §11.5); entries stay a little longer for the statistics.
+const FRAME_KEY_MS: f64 = 1000.0;
+
 struct FrameEntry {
     t: f64,
     first: f64,
@@ -457,6 +461,9 @@ impl RecvEngine {
             }
             if let Some(key) = res.frame_key {
                 let total = stats.map_or(0, |s| s.2);
+                if self.frame_done.get(&key).is_some_and(|e| now - e.first > FRAME_KEY_MS) {
+                    self.frame_done.remove(&key); // the seq came round: a new frame
+                }
                 let e = self.frame_done.entry(key).or_insert_with(|| {
                     self.session.frames += 1;
                     self.session.cov_tot += total as u32;
@@ -522,8 +529,8 @@ impl RecvEngine {
     }
 
     fn skip_map(&mut self, now: f64) -> SkipMap {
-        self.frame_done.retain(|_, e| now - e.t <= 4000.0);
-        self.frame_done.iter().map(|(k, e)| (*k, e.ok.iter().copied().collect())).collect()
+        self.frame_done.retain(|_, e| now - e.first <= 4000.0);
+        self.frame_done.iter().filter(|(_, e)| now - e.first <= FRAME_KEY_MS).map(|(k, e)| (*k, e.ok.iter().copied().collect())).collect()
     }
 
     fn schedule(&mut self, ok: bool, skipped: bool, key: Option<FrameKey>, at: f64) {
