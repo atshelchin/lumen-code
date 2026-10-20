@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN" data-prerendered>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <link rel="alternate" hreflang="en" href="../send.html" />
+    <link rel="alternate" hreflang="zh-CN" href="send.html" />
+    <link rel="alternate" hreflang="x-default" href="../send.html" />
+    <script>
+      (function () {
+        try {
+          var here = document.documentElement.lang.indexOf('zh') === 0 ? 'zh' : 'en';
+          var want = localStorage.getItem('lumen.lang');
+          if (!want && here === 'en' && (navigator.language || '').toLowerCase().indexOf('zh') === 0) want = 'zh';
+          if (want && want !== here) {
+            var other = document.querySelector('link[rel="alternate"][hreflang="' + (want === 'zh' ? 'zh-CN' : 'en') + '"]');
+            if (other) location.replace(other.href + location.search + location.hash);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <meta name="theme-color" content="#07090d" />
+    <title data-i18n="titleSend">发送文件 — Lumen Code</title>
+    <meta name="description" data-i18n-content="descSend" content="在这块屏幕上把文件或文字播放成彩色动态码，让另一台设备用相机接收。无需网络、无需配对，全部在浏览器本地完成。" />
+    <link rel="stylesheet" href="../css/app.css?v=ec975e10e7" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0d14'/%3E%3Crect x='6' y='6' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='6' width='6' height='6' rx='1.5' fill='%23ff3d9a'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23f2f4f8'/%3E%3Crect x='20' y='13' width='6' height='6' rx='1.5' fill='%23ffd60a'/%3E%3Crect x='13' y='20' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='20' width='6' height='6' rx='1.5' fill='%232bdc74'/%3E%3C/svg%3E" />
+    <link rel="modulepreload" href="../js/send-app.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/i18n.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/transfer.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/layout.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/util.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/frame.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/rs.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/fountain.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/inflate.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/render.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/wasm-engine.js?v=ec975e10e7" />
+  </head>
+  <body>
+    <div class="stage" id="stage">
+      <div class="topbar" id="topbar">
+        <a class="home" href="./" data-i18n-title="home" title="返回首页" aria-label="返回首页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6" /></svg><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="drop" id="drop">
+        <div class="drop-card">
+          <div class="seg tabs" id="srcTabs" role="tablist">
+            <button data-v="file" role="tab" data-i18n="tabFile">文件</button>
+            <button data-v="text" role="tab" data-i18n="tabText">文本</button>
+          </div>
+          <div id="paneFile">
+            <div class="drop-art">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" /><path d="M4 14v3.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V14" /></svg>
+            </div>
+            <h1 data-i18n="dropTitle">发送文件</h1>
+            <p data-i18n="dropDesc">拖放文件到这里，或者点击选择。</p>
+            <div class="row">
+              <button class="btn primary" id="pick" data-i18n="choose">选择文件</button>
+            </div>
+          </div>
+          <div id="paneText" class="hidden">
+            <textarea id="textInput" data-i18n-ph="textPh" placeholder="输入或粘贴要发送的文本、链接、密码……" spellcheck="false"></textarea>
+            <div class="text-meta"><span class="num" id="textCount"></span><span data-i18n="textKbd">⌘/Ctrl + Enter 发送</span></div>
+            <div class="row">
+              <button class="btn primary" id="textSend" data-i18n="sendText" disabled>发送文本</button>
+            </div>
+          </div>
+          <div class="hint" data-i18n="dropHint">建议：调高屏幕亮度，接收端尽量正对屏幕。</div>
+          <p class="warn" role="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" /><path d="M12 9.5v4M12 17h.01" /></svg><span data-i18n="flashWarn">光敏提示：发送时码会以每秒最多 60 次闪烁变色，对闪光敏感（如光敏性癫痫）的人请勿注视。</span></p>
+          <input type="file" id="file" hidden />
+          <a class="switch-page" href="recv.html"><span data-i18n="goRecv">要接收？去接收页</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+        </div>
+      </div>
+
+      <div class="codewrap hidden" id="codewrap"><canvas id="code"></canvas></div>
+
+      <div class="dock panel hidden" id="dock">
+        <div class="row">
+          <button class="btn icon" id="playBtn" data-i18n-title="paused" title="已暂停" aria-label="已暂停">
+            <svg id="icoPause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+            <svg id="icoPlay" class="hidden" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 7 5.5Z" /></svg>
+          </button>
+          <div class="fileinfo grow">
+            <div class="fname"><span class="dot live" id="liveDot"></span><b id="fileName"></b><span id="fileSize" class="num"></span></div>
+            <div class="stats" id="stats"></div>
+          </div>
+          <button class="btn icon" id="setBtn" title="Settings" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+          </button>
+          <button class="btn icon" id="fsBtn" title="Fullscreen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" /></svg>
+          </button>
+          <button class="btn icon" id="hideBtn" data-i18n-title="hideDock" title="隐藏控制栏（轻点画面可再次显示）" aria-label="隐藏控制栏（轻点画面可再次显示）">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6" /></svg>
+          </button>
+          <button class="btn icon" id="closeBtn" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="settings hidden" id="settings">
+          <div class="field"><span data-i18n="density">密度</span>
+            <div class="seg" id="segDensity">
+              <button data-v="low" data-i18n="dLow">低</button><button data-v="auto" data-i18n="dAuto">自动</button><button data-v="high" data-i18n="dHigh">高</button><button data-v="max" data-i18n="dMax">极高</button>
+            </div>
+          </div>
+          <div class="field"><span data-i18n="colors">颜色</span>
+            <div class="seg" id="segMode"><button data-v="1">4</button><button data-v="2">8</button></div>
+          </div>
+          <div class="field"><span data-i18n="ecc">纠错</span>
+            <div class="seg" id="segEcc"><button data-v="0" data-i18n="eLow">低</button><button data-v="1" data-i18n="eMid">中</button><button data-v="2" data-i18n="eHigh">高</button></div>
+          </div>
+          <div class="field"><span data-i18n="speed">帧率</span><input type="range" id="fps" min="4" max="60" step="1" /><b class="num" id="fpsVal"></b></div>
+          <div class="field"><span data-i18n="engine">引擎</span>
+            <div class="seg" id="segEngine"><button data-v="js">JS</button><button data-v="wasm">Rust · WASM</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="../js/send-app.js?v=ec975e10e7"></script>
+    <!-- traffic analytics; kept last so it never delays the app -->
+    <script src="https://tj.appsdata.org/api/script.js" data-site-id="c474d69b2974" defer></script>
+  </body>
+</html>

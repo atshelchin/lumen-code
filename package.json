@@ -6,7 +6,7 @@
   "type": "module",
   "description": "Lumen Code: high-throughput screen-to-camera file transfer. Zero dependencies.",
   "scripts": {
-    "test": "node test/vectors.js --check && node test/test-vectors.js && node test/test-fuzz.js && node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js && node test/test-view.js",
+    "test": "node test/vectors.js --check && node test/test-vectors.js && node test/test-fuzz.js && node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js && node test/test-view.js && node test/test-site.js",
     "test:robustness": "node test/sweep.js && node test/realworld.js && node test/batch.js 30 1",
     "vectors": "node test/vectors.js",
     "figures": "node src/tools/figures.js",
@@ -16,6 +16,6 @@
     "serve:https": "node src/tools/serve.js --https",
     "serve:dist": "node src/tools/serve.js --dist",
     "test:fuzz": "FUZZ=20 node test/test-fuzz.js",
-    "test:browser": "npm run build && mkdir -p test/out && node test/make-y4m.js test/out/cam.y4m 60000 1 100 170 8 1280 720 && node test/browser-e2e.js wasm && node test/browser-e2e.js js"
+    "test:browser": "npm run build && mkdir -p test/out && node test/make-y4m.js test/out/cam.y4m 60000 1 100 170 8 1280 720 && node test/browser-e2e.js wasm en && node test/browser-e2e.js js zh"
   }
 }

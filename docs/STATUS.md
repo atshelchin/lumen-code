@@ -247,3 +247,12 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 - **真机实测**：用户此前已做过光学实测；本轮改动不涉及光学层（扫描器逻辑未改），合并后随手扫一次确认即可。
 
 - **原生 App 光敏警告**（用户决定加）：共享核心的发送视图增加 `flash_warn` 文案（中英文与网页相同），iOS、Android、桌面三个外壳在发送起始卡片的提示下方显示同样样式的琥珀色警告框。桌面（macOS）、iPhone 11 与 Redmi K40 都已在设备上截图确认。
+
+## 6 发布 0.1.2 与网页预渲染（2026-10-20）
+
+- **桌面 v0.1.2 已发布**：Windows、Linux 由 CI 构建；macOS 三个镜像（通用、arm64、x86_64）在本机用 Developer ID 签名、经苹果公证并附上公证票据，`spctl` 显示 "Notarized Developer ID"。Release 页面加了 0.1.2 更新说明。
+- **网页按钮先空几秒的问题**（用户反馈）：原因是文字由 JS 填入，而 JS 要等整条模块依赖链下载完。实测 300 ms 网络延迟下 send 页按钮空白约 1 秒。改为构建时把文字写进 HTML（`src/tools/prerender.js`），英文页在根目录、中文页在 `zh/`；语言切换改为在两套页面之间跳转，`<head>` 里的小脚本在绘制前按已保存的选择（或中文浏览器）跳到对应语言页面。改后文字在首次绘制之前就已存在；同时加了模块预加载，模块并行下载。
+- **SEO**：每页有各自语言的标题和描述、`<html lang>`、hreflang 互相标注；有站点网址时再加 canonical、Open Graph/Twitter 分享卡片（`src/web/img/social-*.png`，由 `src/tools/social-card.js` 生成）、JSON-LD 和 sitemap.xml。中文页从不把访客自动送走，所以爬虫能读到。
+- **测试**：`test/test-site.js`（325 项：每处文字、占位符、标题、描述、语言标注、每个相对链接都能解析）；浏览器端到端增加中文页真实接收与 7 项语言跳转检查。
+
+待定：网站的正式域名（canonical、分享卡片、sitemap 需要完整网址；在 package.json 的 homepage 或 `--site=` 里设置即可）。

@@ -1,15 +1,20 @@
 // Builds dist/: a self-contained static site that can be deployed as is.
-//   node src/tools/build.js          copy the web app, the JS core and the protocol docs
-//   node src/tools/build.js --wasm   also rebuild dist/wasm/lumen.wasm from src/rust (needs cargo)
+//   node src/tools/build.js                  copy the web app, the JS core and the protocol docs
+//   node src/tools/build.js --wasm           also rebuild dist/wasm/lumen.wasm from src/rust (needs cargo)
+//   node src/tools/build.js --site=https://… the site's public URL (default: "homepage" in package.json):
+//                                            adds canonical and Open Graph tags and sitemap.xml
 //
 // dist/
-//   index.html send.html recv.html  css/  js/ (app)  js/core/ (protocol library)
-//   wasm/lumen.wasm  docs/ (protocol + guides)  LICENSE
+//   index.html send.html recv.html  English pages, text pre-rendered (src/tools/prerender.js)
+//   zh/index.html send.html recv.html  the same in Chinese
+//   css/  js/ (app)  js/core/ (protocol library)  img/  wasm/lumen.wasm
+//   docs/ (protocol + guides)  robots.txt  sitemap.xml (with a site URL)  LICENSE
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { prerender } from './prerender.js';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dist = path.join(repo, 'dist');
@@ -38,6 +43,12 @@ fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(dist, 'LICENSE'));
 if (process.argv.includes('--wasm')) {
   execFileSync('sh', [path.join(repo, 'src/tools/build-wasm.sh')], { stdio: 'inherit' });
 }
+// the pages, one set per language, with their text in the HTML
+const siteUrl =
+  (process.argv.find((a) => a.startsWith('--site=')) || '').slice(7) || JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')).homepage || '';
+const pre = prerender(dist, { site: siteUrl });
+console.log(`pre-rendered ${pre.pages} pages${pre.site ? ` for ${pre.site}` : ' (no site URL: no canonical, Open Graph or sitemap)'}`);
+
 if (!fs.existsSync(path.join(dist, 'wasm/lumen.wasm'))) {
   console.warn('warning: dist/wasm/lumen.wasm is missing; run `npm run build:wasm` (the WASM engine will be unavailable)');
 }

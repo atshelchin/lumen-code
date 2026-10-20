@@ -26,6 +26,7 @@
 npm run serve          # http://localhost:8080，直接运行源码（localhost 下可用相机）
 npm run serve:https    # https://<局域网IP>:8443，供手机使用（自签名证书）
 npm run build          # 生成 dist/，可直接部署的静态站点（用 npm run serve:dist 检查）
+                       # 加上 -- --site=https://你的域名，可生成 canonical 链接、分享预览和 sitemap.xml
 ```
 
 在发送端屏幕打开 `send.html` 并选择文件，在接收端手机打开 `recv.html`。两个页面都同时支持手机和电脑，无需安装，数据不离开设备。
@@ -89,8 +90,8 @@ src/web/                         演示页面与应用代码（发送端、接�
 src/rust/                        Rust 参考实现（零依赖，C ABI，WASM）
 src/app/                         原生应用共用的核心（应用逻辑、扫描流水线、uniffi 绑定）
 src/ios/ src/android/ src/desktop/   原生外壳（SwiftUI、Jetpack Compose、GPUI）
-src/tools/                       构建脚本、WASM 构建、零依赖开发服务器、配图生成
-dist/                            构建出的静态站点，含 wasm/lumen.wasm（npm run build）
+src/tools/                       构建脚本与页面预渲染、WASM 构建、零依赖开发服务器、配图与分享卡片生成
+dist/                            构建出的静态站点：英文页面、zh/ 下的中文页面，文字直接写在 HTML 里；含 wasm/lumen.wasm（npm run build）
 test/                            Node 测试、相机模拟器、鲁棒性测试
 test/vectors/test-vectors.json   一致性测试向量（由 test/vectors.js 生成）
 ```

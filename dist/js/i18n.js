@@ -1,7 +1,18 @@
-// Tiny two-language dictionary. Elements use data-i18n="key".
+// Tiny two-language dictionary. Elements use data-i18n="key" (text), data-i18n-ph (placeholder),
+// data-i18n-title (title and aria-label), data-i18n-content (meta content) and data-i18n-href (a
+// link to a document that exists in both languages; set by the build only).
+// The build (src/tools/build.js) writes the text into the pages, one set per language, so a page
+// shows its text before any script runs and search engines see it; the functions below then
+// only translate what the scripts add later.
 
-const DICT = {
+export const DICT = {
   zh: {
+    titleHome: 'Lumen Code — 用屏幕和相机传文件',
+    descHome: 'Lumen Code 把文件变成彩色动态码：发送端屏幕播放，手机相机扫描接收。无需网络、无需配对，实测最高 96 KB/s。开放协议，MIT 许可。',
+    titleSend: '发送文件 — Lumen Code',
+    descSend: '在这块屏幕上把文件或文字播放成彩色动态码，让另一台设备用相机接收。无需网络、无需配对，全部在浏览器本地完成。',
+    titleRecv: '接收文件 — Lumen Code',
+    descRecv: '用手机或电脑的相机扫描另一块屏幕上的 Lumen 码，接收文件或文字。无需网络、无需配对，全部在浏览器本地完成。',
     tagline: '用屏幕和相机传文件',
     sampleCap: '一帧真实的 Lumen 码（静止画面）。发送时，这样的帧每秒变化 12–60 次。',
     s1: '实测最高速度（手机 App 之间）',
@@ -11,6 +22,8 @@ const DICT = {
     devT: '开放协议',
     devP: 'Lumen Code 1.0 有完整的规范（中英文）和两个参考实现（JavaScript、Rust），二者通过同一套一致性测试向量。不需要安装任何包：让你的编程 agent 读这个仓库，就能把它集成进你的应用。',
     specLink: '协议规范',
+    specHref: 'docs/PROTOCOL.zh-CN.md',
+    guideHref: 'docs/guide/README.zh-CN.md',
     vectorsLink: '测试向量',
     ghLink: 'GitHub 源码',
     ghTitle: 'GitHub 源码',
@@ -142,6 +155,8 @@ const DICT = {
     devT: 'An open protocol',
     devP: 'Lumen Code 1.0 has a complete specification (English and Chinese) and two reference implementations, JavaScript and Rust, that pass the same conformance test vectors. There is no package to install: point your coding agent at the repository and it can add Lumen Code to your app.',
     specLink: 'Specification',
+    specHref: 'docs/PROTOCOL.md',
+    guideHref: 'docs/guide/README.md',
     vectorsLink: 'Test vectors',
     ghLink: 'Source on GitHub',
     ghTitle: 'Source on GitHub',
@@ -150,6 +165,12 @@ const DICT = {
     releasesLink: 'Download for desktop',
     buildLink: 'Build from source',
     privacy: 'Files go from screen to camera only, never through a server.',
+    titleHome: 'Lumen Code — send files from a screen to a camera',
+    descHome: 'Lumen Code turns a file into an animated colour code: the sender’s screen plays it, a phone camera receives it. No network, no pairing; up to 96 KB/s measured. Open protocol, MIT licence.',
+    titleSend: 'Send a file — Lumen Code',
+    descSend: 'Play a file or text as an animated colour code on this screen, for another device to receive with its camera. No network, no pairing; everything stays in the browser.',
+    titleRecv: 'Receive a file — Lumen Code',
+    descRecv: 'Scan the Lumen Code on another screen with a phone or computer camera to receive a file or text. No network, no pairing; everything stays in the browser.',
     heroA: 'Turn files into',
     heroB: 'moving light',
     heroP: 'The sender plays your file as an animated colour code; the receiver scans it with a camera and rebuilds it. No network, Bluetooth or pairing — everything stays in the browser.',
@@ -265,14 +286,20 @@ const DICT = {
   },
 };
 
+// A page made by the build has its language fixed (the other language is another page); the
+// unbuilt sources of the dev server follow the saved choice or the browser.
+const root = typeof document !== 'undefined' ? document.documentElement : null;
+const prerendered = !!(root && root.hasAttribute('data-prerendered'));
+
 let lang = (() => {
+  if (prerendered) return root.lang.startsWith('zh') ? 'zh' : 'en';
   try {
     const saved = localStorage.getItem('lumen.lang');
     if (saved && DICT[saved]) return saved;
   } catch (e) {
     /* storage unavailable */
   }
-  return (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  return typeof navigator !== 'undefined' && (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
 })();
 
 export function t(key) {
@@ -287,12 +314,19 @@ export function applyI18n(root = document) {
 }
 
 export function toggleLang() {
-  lang = lang === 'zh' ? 'en' : 'zh';
+  const next = lang === 'zh' ? 'en' : 'zh';
   try {
-    localStorage.setItem('lumen.lang', lang);
+    localStorage.setItem('lumen.lang', next);
   } catch (e) {
     /* ignore */
   }
+  // a built page: open the same page in the other language
+  const other = prerendered && document.querySelector(`link[rel="alternate"][hreflang="${next === 'zh' ? 'zh-CN' : 'en'}"]`);
+  if (other) {
+    location.href = other.href;
+    return next;
+  }
+  lang = next;
   applyI18n();
   return lang;
 }

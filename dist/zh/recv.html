@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN" data-prerendered>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <link rel="alternate" hreflang="en" href="../recv.html" />
+    <link rel="alternate" hreflang="zh-CN" href="recv.html" />
+    <link rel="alternate" hreflang="x-default" href="../recv.html" />
+    <script>
+      (function () {
+        try {
+          var here = document.documentElement.lang.indexOf('zh') === 0 ? 'zh' : 'en';
+          var want = localStorage.getItem('lumen.lang');
+          if (!want && here === 'en' && (navigator.language || '').toLowerCase().indexOf('zh') === 0) want = 'zh';
+          if (want && want !== here) {
+            var other = document.querySelector('link[rel="alternate"][hreflang="' + (want === 'zh' ? 'zh-CN' : 'en') + '"]');
+            if (other) location.replace(other.href + location.search + location.hash);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <meta name="theme-color" content="#07090d" />
+    <title data-i18n="titleRecv">接收文件 — Lumen Code</title>
+    <meta name="description" data-i18n-content="descRecv" content="用手机或电脑的相机扫描另一块屏幕上的 Lumen 码，接收文件或文字。无需网络、无需配对，全部在浏览器本地完成。" />
+    <link rel="stylesheet" href="../css/app.css?v=ec975e10e7" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0d14'/%3E%3Crect x='6' y='6' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='6' width='6' height='6' rx='1.5' fill='%23ff3d9a'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23f2f4f8'/%3E%3Crect x='20' y='13' width='6' height='6' rx='1.5' fill='%23ffd60a'/%3E%3Crect x='13' y='20' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='20' width='6' height='6' rx='1.5' fill='%232bdc74'/%3E%3C/svg%3E" />
+    <link rel="modulepreload" href="../js/recv-app.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/i18n.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/text-view.js?v=ec975e10e7" />
+  </head>
+  <body>
+    <div class="stage recv" id="stage">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="overlay"></canvas>
+
+      <div class="topbar">
+        <a class="home" href="./" data-i18n-title="home" title="返回首页" aria-label="返回首页"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6" /></svg><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></a>
+        <span class="chip" id="statusChip"><span class="dot" id="statusDot"></span><b id="statusText" data-i18n="waiting">等待识别…</b></span>
+        <span class="spacer"></span>
+        <div class="seg" id="segEngine" title="Engine"><button data-v="js">JS</button><button data-v="wasm">WASM</button></div>
+      </div>
+
+      <div class="side-tools hidden" id="sideTools">
+        <button class="btn icon" id="switchCam" data-i18n-title="openCam" title="打开相机" aria-label="打开相机">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.5-2h5L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5Z" /><path d="M9 12.5a3 3 0 0 1 5.2-2M15 12a3 3 0 0 1-5.2 2" /><path d="M14.5 8.8 14.2 10.6 16 10.4M9.5 15.2l.3-1.8-1.8.2" /></svg>
+        </button>
+      </div>
+
+      <button class="zoom-chip hidden" id="zoomChip" data-i18n-title="zoomHint" title="双指在画面上缩放；轻点恢复 1×" aria-label="双指在画面上缩放；轻点恢复 1×"><b class="num" id="zoomVal">1.0×</b></button>
+
+      <div class="recv-bottom panel hidden" id="hud">
+        <div class="recv-title">
+          <span class="name" id="rxName" data-i18n="waiting">等待识别…</span>
+          <span class="pct" id="rxPct">0%</span>
+        </div>
+        <div class="progress"><div id="rxBar"></div></div>
+        <div class="metrics">
+          <div><span data-i18n="speedM">速度</span><b id="mSpeed">–</b></div>
+          <div><span data-i18n="etaM">剩余</span><b id="mEta">–</b></div>
+          <div><span data-i18n="cellM">格子</span><b id="mCell">–</b></div>
+          <div><span data-i18n="okM">成功率</span><b id="mOk">–</b></div>
+        </div>
+        <div class="tip" id="tip"></div>
+        <div class="diag num" id="diag"></div>
+      </div>
+
+      <div class="start" id="start">
+        <div class="inner">
+          <div class="drop-art">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" /><circle cx="12" cy="12" r="3.2" /></svg>
+          </div>
+          <h1 data-i18n="recvStartTitle">扫描接收</h1>
+          <p data-i18n="recvStartDesc">将相机对准发送端屏幕上的彩色码，保持稳定，进度会自动累积。</p>
+          <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap">
+            <button class="btn primary" id="startBtn" data-i18n="openCam">打开相机</button>
+            <button class="btn" id="fileBtn" data-i18n="fromImage">从图片识别</button>
+          </div>
+          <input type="file" id="mediaFile" accept="image/*,video/*" hidden />
+          <div class="err" id="startErr"></div>
+          <a class="switch-page" href="send.html"><span data-i18n="goSend">要发送？去发送页</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+        </div>
+      </div>
+
+      <div class="done hidden" id="done">
+        <div class="panel">
+          <div class="done-head">
+            <div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg></div>
+            <div class="done-title">
+              <h2 id="doneName"></h2>
+              <div class="sub" id="doneSub"></div>
+            </div>
+            <span class="head-tools" id="headTools">
+              <button class="tbtn" id="fontDown" data-i18n-title="smaller" title="缩小字号" aria-label="缩小字号"><span class="a-sm">A</span></button>
+              <button class="tbtn" id="fontUp" data-i18n-title="larger" title="放大字号" aria-label="放大字号"><span class="a-lg">A</span></button>
+            </span>
+            <button class="stats-btn" id="statsBtn" aria-expanded="false"><span data-i18n="details">参数</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg></button>
+          </div>
+          <div class="done-stats" id="doneStats"></div>
+          <div class="reader-bar hidden" id="readerBar">
+            <div class="seg hidden" id="segView"><button data-v="pretty" data-i18n="vPretty">格式化</button><button data-v="raw" data-i18n="vRaw">原文</button></div>
+            <span class="spacer"></span>
+            <button class="tbtn" id="wrapBtn" data-i18n-title="wrap" title="自动换行" aria-label="自动换行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4" /><path d="m15 16-2 2 2 2M4 18h5" /></svg></button>
+          </div>
+          <div class="preview hidden" id="preview"></div>
+          <div class="more-hint hidden" id="moreHint"></div>
+          <div class="row">
+            <button class="btn primary hidden" id="copyBtn" data-i18n="copy">复制</button>
+            <a class="btn hidden" id="linkBtn" target="_blank" rel="noopener noreferrer" data-i18n="openLink">打开链接</a>
+            <a class="btn primary" id="saveBtn" data-i18n="save">保存文件</a>
+            <a class="btn" id="openBtn" target="_blank" rel="noopener" data-i18n="open">打开</a>
+            <button class="btn" id="againBtn" data-i18n="again">再收一个</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="../js/recv-app.js?v=ec975e10e7"></script>
+    <!-- traffic analytics; kept last so it never delays the app -->
+    <script src="https://tj.appsdata.org/api/script.js" data-site-id="c474d69b2974" defer></script>
+  </body>
+</html>

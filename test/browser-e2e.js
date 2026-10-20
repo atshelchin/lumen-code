@@ -1,7 +1,7 @@
 // End to end in a real browser: headless Chrome plays a .y4m video as its webcam, the built
 // receiver page (dist/recv.html) opens that camera and must deliver the file in it.
 //   npm run build && node test/make-y4m.js test/out/cam.y4m 60000 1 100 170 8 1280 720
-//   node test/browser-e2e.js [engine: wasm|js] [chrome binary]   (or CHROME=<binary>)
+//   node test/browser-e2e.js [engine: wasm|js] [language: en|zh] [chrome binary]   (or CHROME=<binary>)
 // Zero dependencies: the DevTools protocol over the WebSocket of Node 22.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const engine = process.argv[2] || 'wasm';
-const chrome = process.argv[3] || process.env.CHROME || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome');
+const dir = process.argv[3] === 'zh' ? 'zh/' : ''; // the pages of the other language live in zh/
+const chrome = process.argv[4] || process.env.CHROME || (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 'google-chrome');
 const video = path.join(repo, 'test/out/cam.y4m');
 const want = createHash('sha256').update(readFileSync(video + '.src')).digest('hex');
 const port = 8000 + Math.floor(Math.random() * 900);
@@ -66,7 +67,7 @@ const evaluate = async (expr) => (await send('Runtime.evaluate', { expression: e
 
 await send('Runtime.enable');
 await send('Page.enable');
-await send('Page.navigate', { url: `http://localhost:${port}/recv.html` });
+await send('Page.navigate', { url: `http://localhost:${port}/${dir}recv.html` });
 await sleep(1500);
 // pick the engine (read at page load; the receiver defaults to WASM), then open the camera
 await evaluate(`localStorage.setItem('lumen.engine', ${JSON.stringify(engine)}); true`);
@@ -98,12 +99,12 @@ if (done) {
     return [...new Uint8Array(await crypto.subtle.digest('SHA-256', b))].map((x) => x.toString(16).padStart(2, '0')).join('');
   })()`);
   ok = got === want;
-  console.log(`browser e2e (${engine}): file received in ${((Date.now() - t0) / 1000).toFixed(1)} s, SHA-256 ${ok ? 'matches' : 'DIFFERS'}`);
-} else console.log(`browser e2e (${engine}): no file within 90 s`);
+  console.log(`browser e2e (${engine}, ${dir || 'en/'}): file received in ${((Date.now() - t0) / 1000).toFixed(1)} s, SHA-256 ${ok ? 'matches' : 'DIFFERS'}`);
+} else console.log(`browser e2e (${engine}, ${dir || 'en/'}): no file within 90 s`);
 if (errors.length) console.log('page errors:', errors.slice(0, 5));
 
 // the home page draws one still frame with the protocol library
-await send('Page.navigate', { url: `http://localhost:${port}/index.html` });
+await send('Page.navigate', { url: `http://localhost:${port}/${dir}index.html` });
 await sleep(2000);
 const home = await evaluate(`(() => {
   const c = document.getElementById('sample');
@@ -116,7 +117,7 @@ const homeOk = home && home.w > 300 && home.colours > 1000;
 console.log(`browser home: sample frame ${homeOk ? `drawn (${home.w}x${home.h} px)` : 'NOT drawn ' + JSON.stringify(home)}`);
 
 // the sender page: send typed text and check that frames are drawn
-await send('Page.navigate', { url: `http://localhost:${port}/send.html` });
+await send('Page.navigate', { url: `http://localhost:${port}/${dir}send.html` });
 await sleep(2500);
 const sent = await evaluate(`(async () => {
   document.querySelector('#srcTabs [data-v="text"], #srcTabs button:nth-child(2)').click();
@@ -131,5 +132,33 @@ const sent = await evaluate(`(async () => {
 })()`);
 const senderOk = sent && sent.visible && sent.w > 100 && sent.h > 100;
 console.log(`browser sender: code ${senderOk ? `drawn (${sent.w}x${sent.h} px)` : 'NOT drawn ' + JSON.stringify(sent)}`);
+
+// the language versions: a saved choice, or a Chinese browser on the English pages, opens the
+// other page before anything is drawn; the language button switches pages
+const go = async (url, pre = '') => {
+  await send('Page.navigate', { url: `http://localhost:${port}/${url}` });
+  await sleep(1200);
+  if (pre) {
+    await evaluate(pre);
+    await sleep(1500);
+  }
+  return evaluate('location.pathname');
+};
+const langChecks = [
+  ['saved Chinese choice: send.html opens zh/send.html', (await go('send.html', "localStorage.setItem('lumen.lang','zh'); location.reload(); true")) === '/zh/send.html'],
+  ['saved English choice: zh/index.html opens the English home', (await go('zh/index.html', "localStorage.setItem('lumen.lang','en'); location.reload(); true")) === '/'],
+  ['home page button switches to Chinese', (await go('index.html', "document.getElementById('lang').click(); true")) === '/zh/'],
+  ['…and back to English', (await go('zh/', "document.getElementById('lang').click(); true")) === '/'],
+];
+await evaluate("localStorage.removeItem('lumen.lang'); true");
+await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (lumen e2e)', acceptLanguage: 'zh-CN', platform: 'MacIntel' });
+langChecks.push(['Chinese browser, no choice: recv.html opens zh/recv.html', (await go('recv.html')) === '/zh/recv.html']);
+langChecks.push(['Chinese browser: the Chinese pages stay', (await go('zh/send.html')) === '/zh/send.html']);
+await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (lumen e2e)', acceptLanguage: 'en-US', platform: 'MacIntel' });
+langChecks.push(['English browser, no choice: zh/recv.html stays (crawlers read it)', (await go('zh/recv.html')) === '/zh/recv.html']);
+const langOk = langChecks.every(([, pass]) => pass);
+for (const [what, pass] of langChecks) if (!pass) console.log(`language FAIL: ${what}`);
+console.log(`browser languages: ${langOk ? `all ${langChecks.length} checks pass` : 'FAILED'}`);
+
 if (errors.length) console.log('page errors:', errors.slice(0, 5));
-stop(ok && homeOk && senderOk && !errors.length ? 0 : 1);
+stop(ok && homeOk && senderOk && langOk && !errors.length ? 0 : 1);

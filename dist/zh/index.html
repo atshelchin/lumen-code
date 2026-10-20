@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN" data-prerendered>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="alternate" hreflang="en" href="../" />
+    <link rel="alternate" hreflang="zh-CN" href="./" />
+    <link rel="alternate" hreflang="x-default" href="../" />
+    <script>
+      (function () {
+        try {
+          var here = document.documentElement.lang.indexOf('zh') === 0 ? 'zh' : 'en';
+          var want = localStorage.getItem('lumen.lang');
+          if (!want && here === 'en' && (navigator.language || '').toLowerCase().indexOf('zh') === 0) want = 'zh';
+          if (want && want !== here) {
+            var other = document.querySelector('link[rel="alternate"][hreflang="' + (want === 'zh' ? 'zh-CN' : 'en') + '"]');
+            if (other) location.replace(other.href + location.search + location.hash);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <meta name="theme-color" content="#07090d" />
+    <title data-i18n="titleHome">Lumen Code — 用屏幕和相机传文件</title>
+    <meta name="description" data-i18n-content="descHome" content="Lumen Code 把文件变成彩色动态码：发送端屏幕播放，手机相机扫描接收。无需网络、无需配对，实测最高 96 KB/s。开放协议，MIT 许可。" />
+    <link rel="stylesheet" href="../css/app.css?v=ec975e10e7" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0d14'/%3E%3Crect x='6' y='6' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='6' width='6' height='6' rx='1.5' fill='%23ff3d9a'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23f2f4f8'/%3E%3Crect x='20' y='13' width='6' height='6' rx='1.5' fill='%23ffd60a'/%3E%3Crect x='13' y='20' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='20' width='6' height='6' rx='1.5' fill='%232bdc74'/%3E%3C/svg%3E" />
+    <link rel="modulepreload" href="../js/i18n.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/transfer.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/layout.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/util.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/frame.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/rs.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/fountain.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/inflate.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/core/render.js?v=ec975e10e7" />
+  </head>
+  <body>
+    <main class="landing">
+      <header>
+        <span class="brand"><span class="mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Lumen Code</span>
+        <span class="tools">
+          <a class="gh" href="https://github.com/atshelchin/lumen-code" data-i18n-title="ghTitle" title="GitHub 源码" aria-label="GitHub 源码"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+          <button class="lang" id="lang">中 / EN</button>
+        </span>
+      </header>
+
+      <section class="hero">
+        <div class="hero-text">
+          <h1><span data-i18n="heroA">把文件变成</span><br /><em data-i18n="heroB">流动的光</em></h1>
+          <p data-i18n="heroP">发送端把文件编码成一串彩色动态码，接收端用相机扫描即可还原。无需网络、蓝牙或配对，全部在浏览器本地完成。</p>
+        </div>
+        <figure class="hero-code">
+          <canvas id="sample" width="360" height="232" aria-hidden="true"></canvas>
+          <figcaption data-i18n="sampleCap">一帧真实的 Lumen 码（静止画面）。发送时，这样的帧每秒变化 12–60 次。</figcaption>
+        </figure>
+      </section>
+
+      <section class="choices">
+        <a class="choice" href="send.html">
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2.5" /><path d="M8 21h8M12 17v4" /><path d="M9.5 10.5 12 8l2.5 2.5M12 8v6" /></svg>
+          </span>
+          <h2 data-i18n="sendTitle">发送</h2>
+          <p data-i18n="sendDesc">选择文件，屏幕上会持续播放编码动画。手机和电脑都会按屏幕尺寸自动调整码密度。</p>
+          <span class="go" data-i18n="go">开始 →</span>
+        </a>
+        <a class="choice recv" href="recv.html">
+          <span class="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" /><circle cx="12" cy="12" r="3.2" /></svg>
+          </span>
+          <h2 data-i18n="recvTitle">接收</h2>
+          <p data-i18n="recvDesc">打开相机对准发送端的屏幕，收齐数据后即可保存文件。</p>
+          <span class="go" data-i18n="go">开始 →</span>
+        </a>
+      </section>
+
+      <p class="warn" role="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z" /><path d="M12 9.5v4M12 17h.01" /></svg><span data-i18n="flashWarn">光敏提示：发送时码会以每秒最多 60 次闪烁变色，对闪光敏感（如光敏性癫痫）的人请勿注视。</span></p>
+
+      <section class="stats">
+        <div><b>96 KB/s</b><span data-i18n="s1">实测最高速度（手机 App 之间）</span></div>
+        <div><b>3 / 4</b><span data-i18n="s2">只需看到三个角：一角被反光遮住也能读</span></div>
+        <div><b>0</b><span data-i18n="s3">不需要网络、配对或账号</span></div>
+        <div><b>1.0</b><span data-i18n="s4">开放协议，已冻结；MIT 许可</span></div>
+      </section>
+
+      <section class="facts">
+        <div><h3 data-i18n="f1t">自适应密度</h3><p data-i18n="f1p">根据屏幕物理尺寸选择格子大小，小屏手机也能被稳定识别。</p></div>
+        <div><h3 data-i18n="f2t">喷泉码</h3><p data-i18n="f2p">每帧都是新数据，丢帧、乱序都不影响，收够即可解出。</p></div>
+        <div><h3 data-i18n="f3t">多色编码 + 纠错</h3><p data-i18n="f3p">每格 2–3 bit，Reed–Solomon 纠错，逐包校验。</p></div>
+        <div><h3 data-i18n="f4t">零依赖、双实现</h3><p data-i18n="f4p">JavaScript 与 Rust/WASM 两套实现、帧逐位一致；无第三方库，数据不离开设备。</p></div>
+      </section>
+
+      <section class="more">
+        <div class="box">
+          <h2 data-i18n="devT">开放协议</h2>
+          <p data-i18n="devP">Lumen Code 1.0 有完整的规范（中英文）和两个参考实现（JavaScript、Rust），二者通过同一套一致性测试向量。不需要安装任何包：让你的编程 agent 读这个仓库，就能把它集成进你的应用。</p>
+          <p class="links">
+            <a href="../docs/PROTOCOL.zh-CN.md" data-i18n-href="specHref" data-i18n="specLink">协议规范</a>
+            <a href="../docs/guide/README.zh-CN.md" data-i18n-href="guideHref" data-i18n="guideLink">开发者指南</a>
+            <a href="https://github.com/atshelchin/lumen-code/blob/main/test/vectors/test-vectors.json" data-i18n="vectorsLink">测试向量</a>
+            <a href="https://github.com/atshelchin/lumen-code" data-i18n="ghLink">GitHub 源码</a>
+          </p>
+        </div>
+        <div class="box">
+          <h2 data-i18n="appsT">原生应用</h2>
+          <p data-i18n="appsP">桌面版（macOS、Windows、Linux）可在 GitHub Releases 下载；iOS 与 Android 版可从源码构建。原生版能用上 120 Hz 屏幕、高帧率相机和手动曝光，通常比网页更快。</p>
+          <p class="links">
+            <a href="https://github.com/atshelchin/lumen-code/releases" data-i18n="releasesLink">下载桌面版</a>
+            <a href="https://github.com/atshelchin/lumen-code#native-apps-ios-android-desktop" data-i18n="buildLink">从源码构建</a>
+          </p>
+        </div>
+      </section>
+
+      <p class="foot"><span data-i18n="privacy">文件只从屏幕传到相机，不经过任何服务器。</span> <span data-i18n="foot">提示：接收端需在 HTTPS 或 localhost 下才能使用相机。</span></p>
+    </main>
+    <script type="module">
+      import { applyI18n, toggleLang } from '../js/i18n.js?v=ec975e10e7';
+      import { Sender } from '../js/core/transfer.js?v=ec975e10e7';
+      import { Renderer } from '../js/core/render.js?v=ec975e10e7';
+      import { crc32 } from '../js/core/util.js?v=ec975e10e7';
+
+      applyI18n();
+      document.getElementById('lang').onclick = toggleLang;
+
+      // One real frame, drawn by the protocol library. It stays still: no flashing on this page.
+      const text = new TextEncoder().encode('Lumen Code: files as moving light. '.repeat(40));
+      const meta = { name: 'hello.txt', fileSize: text.length, crc: crc32(text), flags: 0, payloadLength: text.length };
+      const tx = new Sender({ payload: text, meta }, { mode: 1, ecc: 1, X: 86, Y: 54, tid: 0x4c43 });
+      tx.seq = 7;
+      const { cells, layout } = tx.nextFrame();
+      const r = new Renderer(layout, 1, 4);
+      const canvas = document.getElementById('sample');
+      canvas.width = r.width;
+      canvas.height = r.height;
+      const g = canvas.getContext('2d');
+      const img = g.createImageData(r.width, r.height);
+      r.draw(cells, new Uint32Array(img.data.buffer));
+      g.putImageData(img, 0, 0);
+    </script>
+    <!-- traffic analytics; kept last so it never delays the app -->
+    <script src="https://tj.appsdata.org/api/script.js" data-site-id="c474d69b2974" defer></script>
+  </body>
+</html>

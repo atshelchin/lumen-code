@@ -3,8 +3,8 @@
 //   { engine }         switch engine, keeping the reception: the unique packets received so far
 //                      are replayed into the new engine's receiver
 //   { packets }        add packets
-import { Receiver } from './core/transfer.js?v=a6f3ca6730';
-import { loadWasm, WasmReceiver } from './core/wasm-engine.js?v=a6f3ca6730';
+import { Receiver } from './core/transfer.js?v=ec975e10e7';
+import { loadWasm, WasmReceiver } from './core/wasm-engine.js?v=ec975e10e7';
 
 const LOG_LIMIT = 256 * 1024 * 1024; // bytes of packets kept for an engine switch
 
