@@ -1,8 +1,8 @@
 // Decodes camera frames off the main thread, with the JS or the Rust/WASM engine.
 // The main thread sends only the region of interest, already downscaled on the GPU
 // (see grab() in recv-app.js); `region` maps the result back to camera pixels.
-import { Scanner } from './core/scan.js?v=d5bf8a262c';
-import { loadWasm, WasmScanner } from './core/wasm-engine.js?v=d5bf8a262c';
+import { Scanner } from './core/scan.js?v=bd0b2be23b';
+import { loadWasm, WasmScanner } from './core/wasm-engine.js?v=bd0b2be23b';
 
 const scanners = { js: new Scanner(), wasm: null };
 let canvas = null;
