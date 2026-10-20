@@ -257,3 +257,8 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 
 - **站点网址**：https://lumencode.awesometools.dev（用户提供，写入 package.json 的 homepage）。该站由 Cloudflare 托管并随 main 自动部署；Cloudflare 把 `/send.html` 308 跳转到 `/send`，所以 canonical、hreflang、sitemap 用不带 `.html` 的地址，站内链接仍用 `send.html` 以便任何托管都能用。hreflang 写线上地址，`data-local` 写本站相对地址，语言跳转用后者，复制到别的托管上不会跳回线上站。
 - **404 与缓存**：加了双语 `404.html`（此前不存在的地址返回首页和 200，搜索引擎视作软 404）；加了 `_headers`，带版本戳的 JS、CSS、WASM 缓存一年，回访不再逐个向服务器确认；测试保证每个引用都带版本戳。
+
+## 7 版本号显示（2026-10-20，用户要求）
+
+- 网页：构建时把站点源码（src/web、src/core、src/rust、src/tools、docs、LICENSE、package.json）的最后一个提交 ID、日期写进 `dist/js/version.js` 并预渲染进页面：首页页脚、发送与接收卡片底部，链接到 GitHub 上的提交；接收完成的详情和浏览器控制台也有。源码有未提交改动时标 `+dev`。流程：先提交源码，再构建并提交 `dist/`，重建结果不变（测试验证）。只改原生 App 或测试不会改变网站版本号。
+- 原生 App：共享核心 build.rs 记录整个源码树的提交 ID、日期、`+dev`；视图模型带 `build`，接收详情显示，三个外壳首页底部显示"版本 <App 版本号> · <提交 · 日期>"。K40 截图与 iPhone 视图数据确认显示 9cc2078；桌面在有未提交改动时正确显示 +dev。原生显示要等下一次发布 App 才到用户手里。

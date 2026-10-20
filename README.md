@@ -123,5 +123,6 @@ The receiver also skips frames it has already decoded (header only, about 8 ms i
 - Protocol version 1.0 is final and frozen (2026-10-20): its wire format will not change, and the desktop app v0.1.x already speaks it. The specification covers the wire format and the receiver: validity rules, a transfer state machine, limits, errors, security considerations and extension rules.
 - Two independent implementations (JavaScript, Rust) pass the same conformance vectors: encoding, decoding of valid and invalid input, and packet streams through the receiver state machine. On pseudo-random corpora (20 000 headers, 20 000 descriptors, 5 000 damaged DEFLATE streams, 2 000 fountain symbol sets) they make identical decisions.
 - Validation so far: simulation, Chrome with a fake camera stream, and early tests on real phones. Real-device tuning continues; please report camera models and conditions that do not work well.
+- When you report a problem, quote the version: the web pages show it at the bottom of the home page and of the send and receive cards ("Version 9cc2078 · 2026-10-20", the commit of the sources), the apps at the bottom of their home screen and in the details of a received file.
 - License: [MIT](LICENSE).
 - The demo pages load a traffic-analytics script (`tj.appsdata.org`) at the end of each HTML file. Remove those lines if you host your own copy.
