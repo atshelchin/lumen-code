@@ -67,7 +67,7 @@ function utf8Truncate(bytes, max) {
 
 export function encodeMeta(meta, T) {
   const out = new Uint8Array(T);
-  const name = utf8Truncate(new TextEncoder().encode(meta.name || 'file'), Math.max(0, Math.min(255, T - DESC_FIXED)));
+  const name = utf8Truncate(new TextEncoder().encode(meta.name ?? ''), Math.max(0, Math.min(255, T - DESC_FIXED)));
   out[0] = 1;
   out[1] = meta.flags & 255;
   const dv = new DataView(out.buffer);

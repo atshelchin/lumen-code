@@ -127,7 +127,7 @@ export class WasmSender {
   // prepared = { payload, meta } from preparePayload (compression stays in JS)
   constructor(prepared, { mode = 1, ecc = 1, X: x, Y: y, tid } = {}) {
     this.tid = tid ?? (Math.random() * 65536) | 0;
-    const name = new TextEncoder().encode(prepared.meta.name || 'file');
+    const name = new TextEncoder().encode(prepared.meta.name ?? '');
     const pp = X.lm_alloc(prepared.payload.length);
     u8().set(prepared.payload, pp);
     const np = X.lm_alloc(name.length);

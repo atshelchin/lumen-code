@@ -6,7 +6,7 @@
   "type": "module",
   "description": "Lumen Code: high-throughput screen-to-camera file transfer. Zero dependencies.",
   "scripts": {
-    "test": "node test/vectors.js --check && node test/test-vectors.js && node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js && node test/test-view.js",
+    "test": "node test/vectors.js --check && node test/test-vectors.js && node test/test-fuzz.js && node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js && node test/test-view.js",
     "test:robustness": "node test/sweep.js && node test/realworld.js && node test/batch.js 30 1",
     "vectors": "node test/vectors.js",
     "figures": "node src/tools/figures.js",
@@ -14,6 +14,7 @@
     "build:wasm": "sh src/tools/build-wasm.sh",
     "serve": "node src/tools/serve.js",
     "serve:https": "node src/tools/serve.js --https",
-    "serve:dist": "node src/tools/serve.js --dist"
+    "serve:dist": "node src/tools/serve.js --dist",
+    "test:fuzz": "FUZZ=20 node test/test-fuzz.js"
   }
 }

@@ -772,7 +772,7 @@ hilbert(N, d):                    N is a power of two
 - **Light patterns on ink.** The frame is mostly dark. This is comfortable to look at and keeps camera exposure stable.
 - **Adaptive grid.** The sender selects the grid from the physical screen size. A phone screen gets fewer, larger cells, so that a camera at its focus distance can resolve them.
 - **Any three of four corners.** Glare, blur or the edge of the camera image can hide one corner. The receiver continues with the other three.
-- **Alignment lattice.** Markers every 16 to 18 cells correct perspective and lens distortion locally.
+- **Alignment lattice.** Markers every 16 to 24 cells correct perspective and lens distortion locally.
 - **Compact codewords.** The Hilbert order puts each codeword in one area. Rolling-shutter tears and local defects then remove only some codewords.
 - **Fountain code.** Every packet is new information. The receiver needs no specific frame and no return channel.
 - **Packet CRC.** It stops wrong packets that Reed–Solomon erasure decoding can accept.

@@ -818,6 +818,7 @@ function renderDoneStats(size, secs) {
 
 let cameraWasOn = false;
 function showDone(name, bytes) {
+  name = name || 'file'; // a descriptor can have no name (PROTOCOL §8.4)
   finished = true;
   truncated = false;
   running = false;

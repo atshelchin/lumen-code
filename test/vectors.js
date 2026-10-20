@@ -9,6 +9,8 @@ import { makeLayout, packHeader, decodeHeader, chooseCodeword, codewordsPerFrame
 import { fountainParams, FountainEncoder, FountainDecoder, _internals } from '../src/core/fountain.js';
 import { writePacketHeader, sealPacket, encodeMeta, encodeFrameCells, parseDescriptor, PKT_HDR } from '../src/core/frame.js';
 import { Sender, Receiver, fountainSeed, blockPlan } from '../src/core/transfer.js';
+import { inflate } from '../src/core/inflate.js';
+import { headerDigest, descriptorDigest, inflateDigest, fountainDigest } from './corpus.js';
 
 const PATH = new URL('./vectors/test-vectors.json', import.meta.url);
 const hex = (u8) => Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('hex');
@@ -206,6 +208,7 @@ function rawDescriptor({ version = 1, flags = 0, L, F, crc = 0, name = new Uint8
     { ...meta, T: 40, bytes: hex(encodeMeta(meta, 40)) },
     { name: 'a-very-long-name-that-does-not-fit.bin', fileSize: 10, payloadLength: 10, crc: 1, flags: 0, T: 30, bytes: hex(encodeMeta({ name: 'a-very-long-name-that-does-not-fit.bin', fileSize: 10, payloadLength: 10, crc: 1, flags: 0 }, 30)) },
     { name: 'ééééé', fileSize: 0, payloadLength: 0, crc: 0, flags: 0, T: 24, bytes: hex(encodeMeta({ name: 'ééééé', fileSize: 0, payloadLength: 0, crc: 0, flags: 0 }, 24)) },
+    { name: '', fileSize: 7, payloadLength: 7, crc: 0x11223344, flags: 0, T: 16, bytes: hex(encodeMeta({ name: '', fileSize: 7, payloadLength: 7, crc: 0x11223344, flags: 0 }, 16)) },
   ];
   // the last two are cut: at 15 bytes, and at a character boundary (é is 2 bytes; 9 bytes fit)
   check(parseDescriptor(unhex(encode[1].bytes)).descriptor.name === 'a-very-long-nam', 'cut name');
@@ -491,6 +494,25 @@ const pushes = (list, result) => list.map((p) => ({ push: p, result }));
     await add('wrong CRC-32 in the descriptor', [{ push: tr.desc, result: 'accept' }, ...pushes(enough(tr, 0x0402, 0), 'add'), { finish: { error: 'check' } }, { state: 'collecting' }]);
   }
   V.streams = streams;
+}
+
+// ---------------------------------------------------------------- differential corpora
+
+// Outcomes of the reference decoders on pseudo-random inputs (test/corpus.js makes them; the Rust
+// tests make the same inputs). An implementation with its own generators can skip this section.
+{
+  const text = utf8('Lumen Code moves a file from a screen to a camera. The sender shows frames of coloured cells; the receiver films them and rebuilds the file. No network, no pairing, no return channel. '.repeat(3) + '0123456789abcdefghijklmnopqrstuvwxyz');
+  // zlib level 9 output, frozen here: it has a dynamic-Huffman block
+  const dynamic = unhex('ed8e4b4e03311044af52074023fe1fb1641bb1e2021dbb1c9bd8dd497b3c039c1e650ec18a5de92deabddd6854bc59249a2dec10a45289e4d620e8c149c56c1004697499f091894e8d74f46c6b477269ecb08460d5863322b0d6fe8a3913cec0b2d02fbfad5f50836884733f4a8d1bd99c13de0dca79353f5e410d27295ef4b06de73c5c11b2a8b24ed8fd77ff69f7f5cdedddfdc3e3d3f38bec43643ae4f279ac4ded74f63e8f65fdfafef905');
+  const bases = [deflateStored(text), deflateFixed(text), dynamic];
+  for (const b of bases) check(hex(inflate(b, text.length)) === hex(text), 'inflate base');
+  V.differential = {
+    note: 'digests of the outcomes of the reference decoders on the corpora of test/corpus.js (src/rust/tests/corpus.rs)',
+    header: { seed: 101, count: 20000, digest: headerDigest(101, 20000) },
+    descriptor: { seed: 102, count: 20000, digest: descriptorDigest(102, 20000) },
+    inflate: { seed: 103, count: 5000, fileLen: text.length, bases: bases.map(hex), digest: inflateDigest(103, 5000, bases, text.length) },
+    fountain: { seed: 104, count: 2000, digest: fountainDigest(104, 2000) },
+  };
 }
 
 // ---------------------------------------------------------------- reference sender (informative)
