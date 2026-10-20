@@ -32,6 +32,7 @@ for (const e of fs.readdirSync(dist)) if (e !== 'wasm') fs.rmSync(path.join(dist
 copyDir(path.join(repo, 'src/web'), dist);
 copyDir(path.join(repo, 'src/core'), path.join(dist, 'js/core'));
 copyDir(path.join(repo, 'docs'), path.join(dist, 'docs'));
+fs.rmSync(path.join(dist, 'docs/STATUS.md'), { force: true }); // working notes, not part of the site
 fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(dist, 'LICENSE'));
 
 if (process.argv.includes('--wasm')) {
