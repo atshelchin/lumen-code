@@ -63,6 +63,7 @@ object Lumen {
     val cyan = Color(0xFF22D8FF)
     val pink = Color(0xFFFF3D9A)
     val amber = Color(0xFFFFD60A)
+    val warnText = Color(0xFFE8D48A)
     val green = Color(0xFF2BDC74)
     val red = Color(0xFFFF5468)
     val paper = Color(0xFFF2F4F8)

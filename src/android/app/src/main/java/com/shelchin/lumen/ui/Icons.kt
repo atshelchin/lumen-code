@@ -27,6 +27,7 @@ object Icons {
     val chevronLeft = icon("back", 2.2f, "m14.5 6-6 6 6 6")
     val chevronDown = icon("down", 1.8f, "m6 9.5 6 6 6-6")
     val arrowRight = icon("arrow", 2f, "M5 12h14M13 6l6 6-6 6")
+    val warn = icon("warn", 2f, "M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0ZM12 9.5v4M12 17h.01")
     val upload = icon("upload", 1.8f, "M12 15V4M7.5 8.5 12 4l4.5 4.5", "M4 14v3.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V14")
     val screen = icon(
         "screen", 1.8f,

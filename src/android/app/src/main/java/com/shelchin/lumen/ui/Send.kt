@@ -331,6 +331,17 @@ private fun PickCard(model: AppModel, s: SendVM) {
             }
             s.error?.let { Label(it, size = 13.sp, color = Lumen.red, modifier = Modifier.padding(top = 14.dp)) }
             Text(s.dropHint, color = Lumen.faint, fontSize = 12.5.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
+            // photosensitivity warning, before any code plays
+            Row(
+                Modifier.padding(top = 14.dp).widthIn(max = 460.dp)
+                    .background(Lumen.amber.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Lumen.amber.copy(alpha = 0.22f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                androidx.compose.material3.Icon(Icons.warn, null, tint = Lumen.amber, modifier = Modifier.padding(top = 1.dp).width(16.dp))
+                Text(s.flashWarn, color = Lumen.warnText, fontSize = 12.5.sp, lineHeight = 18.sp)
+            }
             Row(
                 Modifier.padding(top = 18.dp).clickable { model.dispatch(Ev.navigate("receive")) },
                 verticalAlignment = Alignment.CenterVertically,

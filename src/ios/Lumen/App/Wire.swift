@@ -68,6 +68,7 @@ struct SendVM: Decodable, Equatable {
     var canSendText: Bool
     var dropDesc: String
     var dropHint: String
+    var flashWarn: String
     var title: String
     var size: String
     var stats: [StatVM]

@@ -124,6 +124,19 @@ private struct PickCard: View {
                     Text(err).font(.system(size: 13)).foregroundStyle(Theme.red).padding(.top, 14)
                 }
                 Text(send.dropHint).font(.system(size: 12.5)).foregroundStyle(Theme.faint).multilineTextAlignment(.center).padding(.top, 18)
+                // photosensitivity warning, before any code plays
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.amber)
+                    Text(send.flashWarn).font(.system(size: 12.5)).foregroundStyle(Theme.warnText).multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: 460, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.amber.opacity(0.06)))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.amber.opacity(0.22), lineWidth: 1))
+                .accessibilityElement(children: .combine)
+                .padding(.top, 14)
                 Button {
                     model.dispatch(Ev.navigate(.receive))
                 } label: {

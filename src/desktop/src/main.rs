@@ -39,7 +39,7 @@ impl AssetSource for Assets {
             };
         }
         let bytes = icons!(
-            "arrow", "back", "check", "close", "down", "fullscreen", "pause", "play", "scan", "screen", "settings", "switch", "upload", "wrap"
+            "arrow", "back", "check", "close", "down", "fullscreen", "pause", "play", "scan", "screen", "settings", "switch", "upload", "warn", "wrap"
         );
         Ok(bytes.map(Cow::Borrowed))
     }

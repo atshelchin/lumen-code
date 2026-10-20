@@ -3,7 +3,7 @@
 use crate::app::Root;
 use crate::theme::*;
 use gpui::{
-    canvas, div, fill, point, prelude::*, px, size, AnyElement, Bounds, Context, Corners, FontWeight, Hsla, Pixels, Rgba, SharedString,
+    canvas, div, fill, point, prelude::*, px, rgba, size, AnyElement, Bounds, Context, Corners, FontWeight, Hsla, Pixels, Rgba, SharedString,
     Window,
 };
 use lumen_app::app::{Event, Screen, SendPhase, SourceTab};
@@ -138,6 +138,23 @@ fn pick(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> AnyElem
     let r5 = rt.clone();
     card = card
         .child(div().mt(px(18.)).text_size(px(12.5)).text_color(c(FAINT)).child(s.drop_hint.clone()))
+        // photosensitivity warning, before any code plays
+        .child(
+            div()
+                .mt(px(14.))
+                .max_w(px(460.))
+                .flex()
+                .items_start()
+                .gap(px(8.))
+                .px(px(12.))
+                .py(px(10.))
+                .rounded(px(12.))
+                .bg(rgba(0xffd60a10))
+                .border_1()
+                .border_color(rgba(0xffd60a38))
+                .child(div().mt(px(1.)).child(icon("warn", 16., c(AMBER))))
+                .child(div().flex_1().min_w(px(0.)).text_left().text_size(px(12.5)).line_height(px(18.)).text_color(c(0xe8d48a)).child(s.flash_warn.clone())),
+        )
         .child(
             div()
                 .id("go-recv")

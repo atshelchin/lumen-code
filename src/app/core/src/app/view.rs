@@ -40,6 +40,8 @@ pub struct SendView {
     pub can_send_text: bool,
     pub drop_desc: String,
     pub drop_hint: String,
+    /// Photosensitivity warning, shown before a code plays (PROTOCOL §10.4).
+    pub flash_warn: String,
     /// Dock: file name, or "Text: first words…"
     pub title: String,
     pub size: String,
@@ -209,6 +211,7 @@ fn send_view(m: &Model) -> SendView {
         text_meta,
         drop_desc: t(l, if mobile { "dropDescMobile" } else { "dropDesc" }).into(),
         drop_hint: t(l, if mobile { "dropHintMobile" } else { "dropHint" }).into(),
+        flash_warn: t(l, "flashWarn").into(),
         title,
         size,
         stats,

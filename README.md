@@ -30,7 +30,7 @@ npm run build          # writes dist/, a static site you can deploy as is (npm r
 
 Open `send.html` on the sending screen, choose a file, and open `recv.html` on the receiving phone.
 
-> **Photosensitivity warning:** while sending, the code flashes and changes colour up to 60 times a second. People who are sensitive to flashing light should not look at it.
+> **Photosensitivity warning:** while sending, the code flashes and changes colour up to 60 times a second. People who are sensitive to flashing light should not look at it. The web pages and the native apps show this warning before a code plays.
  Both pages work on phones and desktops. Nothing is installed and nothing leaves the devices.
 
 - **Sender:** send a file or type/paste text (File | Text tabs). Density (low / auto / high / max), 4 or 8 colours, ECC level, frame rate, engine. Tap the code to hide or show the controls.

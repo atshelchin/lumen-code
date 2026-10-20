@@ -64,6 +64,7 @@ data class SendVM(
     val canSendText: Boolean,
     val dropDesc: String,
     val dropHint: String,
+    val flashWarn: String = "",
     val title: String,
     val size: String,
     val stats: List<StatVM>,

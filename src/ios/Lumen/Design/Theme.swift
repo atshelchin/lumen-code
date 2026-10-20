@@ -17,6 +17,7 @@ enum Theme {
     static let cyan = Color(hex: 0x22d8ff)
     static let pink = Color(hex: 0xff3d9a)
     static let amber = Color(hex: 0xffd60a)
+    static let warnText = Color(hex: 0xe8d48a)
     static let green = Color(hex: 0x2bdc74)
     static let red = Color(hex: 0xff5468)
     static let paper = Color(hex: 0xf2f4f8)
