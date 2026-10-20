@@ -15,6 +15,7 @@
     "serve": "node src/tools/serve.js",
     "serve:https": "node src/tools/serve.js --https",
     "serve:dist": "node src/tools/serve.js --dist",
-    "test:fuzz": "FUZZ=20 node test/test-fuzz.js"
+    "test:fuzz": "FUZZ=20 node test/test-fuzz.js",
+    "test:browser": "npm run build && node test/make-y4m.js test/out/cam.y4m 60000 1 100 170 8 1280 720 && node test/browser-e2e.js wasm && node test/browser-e2e.js js"
   }
 }

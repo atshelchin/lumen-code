@@ -57,20 +57,27 @@ await video.play();
 const canvas = new OffscreenCanvas(video.videoWidth, video.videoHeight);
 const g = canvas.getContext('2d', { willReadFrequently: true });
 const scanner = new Scanner();
-const rx = new Receiver();
+const rx = new Receiver(); // reference limits; new Receiver({ maxSize, maxKept, maxTransfers }) to change them
 
 async function tick() {
   g.drawImage(video, 0, 0);
   const res = scanner.scan(g.getImageData(0, 0, canvas.width, canvas.height));
   if (res.ok) for (const cw of res.codewords) if (cw.ok) await rx.push(cw.bytes);
-  const out = await rx.tryFinish(); // { name, bytes } | { error: 'checksum' } | null
+  const out = await rx.tryFinish(); // { name, bytes } | { error: 'checksum' } (the transfer restarts) | null
   if (out && out.bytes) return save(out.name, out.bytes);
   setTimeout(tick, 50);
 }
 tick();
 ```
 
-This is the minimal version. In real use, put scanning in a Web Worker and schedule it as described in [guide 2 §2.4](02-scanner.md). `src/web/js/scan-worker.js`, `sink-worker.js` and `recv-app.js` are the complete reference. `rx.progress()` returns `{ name, size, received, needed, done }`, which you can use to draw a progress bar.
+This is the minimal version. In real use, put scanning in a Web Worker and schedule it as described in [guide 2 §2.4](02-scanner.md). `src/web/js/scan-worker.js`, `sink-worker.js` and `recv-app.js` are the complete reference.
+
+The receiver is the state machine of PROTOCOL §11:
+
+- `rx.push(packet)` returns what it did with the packet: `'discard'`, `'keep'` (held until the file descriptor arrives), `'add'`, `'accept'` (a descriptor) or `'refuse'` (a descriptor of a transfer larger than the limit).
+- `rx.progress()` returns `{ state, name, size, received, needed, done, T }` for the transfer of the newest packet. `state` is `'collecting'` (no descriptor yet), `'receiving'`, `'refused'` (tell the user the file is too large) or `'complete'`.
+- `rx.tryFinish()` returns the file once. If the decoded file fails its check (size or CRC-32, very rare), it returns `{ error: 'checksum' }` and starts the transfer again by itself; keep scanning.
+- Limits (§11.4): by default 256 MiB per file, 4096 packets kept before the descriptor, 4 transfers at a time. The name of a received file comes from the sender: never use it as a path (§13).
 
 ## 3.3 Web: WebAssembly
 
@@ -81,7 +88,7 @@ import { loadWasm, WasmScanner, WasmSender, WasmReceiver } from './core/wasm-eng
 
 await loadWasm('./wasm/lumen.wasm'); // an ArrayBuffer also works (for example in Node)
 const scanner = new WasmScanner();   // scan() returns the same result as Scanner
-const rx = new WasmReceiver();       // push() / progress() / tryFinish() same as Receiver
+const rx = new WasmReceiver();       // push() / progress() / tryFinish() same as Receiver; free() when done
 const tx = new WasmSender(prepared, { mode: 1, ecc: 1, X: 90, Y: 160 });
 // when no longer needed: scanner.free(), tx.free() release the WASM memory
 ```
@@ -159,9 +166,11 @@ const uint8_t *rec = lm_scan(sc, rgba, w, h, NULL, 0);
 //   u32 cornerFound, cwOk, cwTotal, cwCount, corrected
 //   u32 nPackets, packetLen
 //   nPackets × { u32 codeword index, packet of packetLen bytes }
-for (each packet p) lm_receiver_push(rx, p, packetLen);
+for (each packet p) lm_receiver_push(rx, p, packetLen);  // returns 0 discard, 1 keep, 2 add, 3 accept, 4 refuse
 
-if (lm_receiver_finish(rx) == 1) {          // 0 not finished, 1 finished, 2 checksum failed
+// lm_receiver_progress(rx): u32[10] valid, tid, received, needed, blocks, done, T, fileSize,
+//                           state (0 collecting, 1 receiving, 2 refused, 3 complete), payloadLength
+if (lm_receiver_finish(rx) == 1) {          // 0 not finished, 1 finished, 2 check failed: the transfer restarts
     const uint8_t *name = lm_receiver_name(rx);  uint32_t nl = lm_receiver_name_len(rx);
     const uint8_t *data = lm_receiver_file(rx);  uint32_t dl = lm_receiver_file_len(rx);
 }
@@ -185,8 +194,12 @@ You can change the grid size, colour mode and ECC level at any time during a tra
 
 ## 3.7 Building a new compatible implementation
 
-1. First pass all vectors in `test/vectors/test-vectors.json`: CRC, mix32, Rng, RS, layout, header, fountain code parameters and symbols, packets, descriptors, and finally two complete frames.
+1. Pass all vectors in `test/vectors/test-vectors.json` (PROTOCOL §15). `test/test-vectors.js` and `src/rust/tests/vectors.rs` show how each group is used:
+   - **encoding**: CRCs, mix32, Rng, Reed–Solomon codewords, grid layouts, header bits, frames made from given packets, packets, descriptors, fountain parameters and symbols, block plans;
+   - **decoding**: headers, packets and descriptors that must be accepted or discarded (each discarded one has exactly one named defect), damaged Reed–Solomon codewords inside the correction bound, sets of fountain symbols that are or are not decodable;
+   - **streams**: packet sequences fed to a fresh receiver, with the action of §11.2 for every packet and the result of every decode attempt — the state machine, the file check and its restart, the limits, DEFLATE edge cases.
 2. Generate frames with your sender and decode them with the reference receiver (or the other way around).
 3. Run `node test/make-raw.js` to generate frames that pass through the camera simulation, and let your scanner decode them.
+4. Optionally, reproduce the pseudo-random corpora of `test/corpus.js` and compare the digest of your decisions with the `differential` section of the vectors. This compares thousands of edge cases with the reference decoders.
 
-The parts of the specification marked "informative" (scanning algorithm, packet order, display method) leave you free to do as you like. They do not affect compatibility.
+The packet schedule, the choice of parameters, the scanning algorithm and the display method are yours to choose (§10.2–§10.4, §11.6). They do not affect compatibility. The `referenceSender` vectors show the reference choices, if you want frames identical to the reference sender.

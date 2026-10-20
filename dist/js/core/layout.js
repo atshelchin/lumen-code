@@ -10,11 +10,14 @@
 //  │ finder │                                    │ corner  │   corner: 7×7, light ring, 2-wide dark ring, light dot
 //  └────────┴────────────────────────────────────┴─────────┘
 
-import { crc16bits, mix32 } from './util.js?v=5fd5612805';
+import { crc16bits, mix32 } from './util.js?v=be07636865';
 
 export const VERSION = 1;
 export const MIN_DIM = 40;
 export const MAX_DIM = 511;
+// Smallest packet: 7 bytes of packet header and CRC plus T >= 16 symbol bytes (§6.3, §8.1).
+export const MIN_T = 16;
+export const MIN_K = MIN_T + 7;
 
 // cell kinds
 export const K_DATA = 0;
@@ -67,13 +70,20 @@ export const HEADER_MASKS = [0, 1, 2, 3].map((c) => {
   return m;
 });
 
-// Marker lattice along one axis of D cells (integer arithmetic; round half up).
-function latticeAxis(D) {
+// Marker lattice along one axis of D cells (§4.5; integer arithmetic, round half up).
+export function latticeAxis(D) {
   let segs = Math.max(1, Math.floor((D - 7 + 9) / 18));
   while (segs > 1 && D - 7 < 16 * segs) segs--;
   const out = [];
   for (let i = 0; i <= segs; i++) out.push(3 + Math.floor((2 * i * (D - 7) + segs) / (2 * segs)));
   return out;
+}
+
+// Number of data cells of an X × Y grid without building the layout: all cells minus
+// 4 × 49 pattern cells, 4 × 15 separator cells, 4 × 70 header cells and 9 cells for each
+// of the nx · ny − 4 markers.
+export function dataCellCount(X, Y) {
+  return X * Y - 500 - 9 * latticeAxis(X).length * latticeAxis(Y).length;
 }
 
 function hilbertD2XY(order, d) {
@@ -99,11 +109,18 @@ function hilbertD2XY(order, d) {
   return [x, y];
 }
 
+// A few recent layouts (a large one is about 2 MB).
 const layoutCache = new Map();
+const LAYOUT_CACHE = 8;
 
 export function makeLayout(X, Y) {
   const key = X * 1024 + Y;
-  if (layoutCache.has(key)) return layoutCache.get(key);
+  const hit = layoutCache.get(key);
+  if (hit) {
+    layoutCache.delete(key); // most recently used last
+    layoutCache.set(key, hit);
+    return hit;
+  }
   if (X < MIN_DIM || Y < MIN_DIM || X > MAX_DIM || Y > MAX_DIM) throw new Error('bad dims');
   const N = X * Y;
   const kind = new Uint8Array(N);
@@ -183,6 +200,7 @@ export function makeLayout(X, Y) {
 
   const L = { X, Y, kind, fixed, headers, lx, ly, dataOrder, whiten, dataCells: dataOrder.length };
   layoutCache.set(key, L);
+  if (layoutCache.size > LAYOUT_CACHE) layoutCache.delete(layoutCache.keys().next().value);
   return L;
 }
 
@@ -225,7 +243,9 @@ export function packHeader(h, copy) {
   return bits;
 }
 
-export function unpackHeader(raw, copy) {
+// Header validity (§6.3). Returns { header } or { error } with the first failed rule:
+// 'crc', 'version', 'mode', 'size' (X or Y < 40), 'nsym' (< 2), 'T' (T < 16), 'm' (no codeword fits).
+export function decodeHeader(raw, copy) {
   const bits = new Uint8Array(HEADER_BITS);
   for (let i = 0; i < HEADER_BITS; i++) bits[i] = raw[i] ^ HEADER_MASKS[copy][i];
   let p = 0;
@@ -243,8 +263,16 @@ export function unpackHeader(raw, copy) {
   const seq = get(8);
   get(7);
   const crc = get(16);
-  if (crc !== crc16bits(bits, 54)) return null;
-  if (ver !== VERSION || mode > 2) return null;
-  if (X < MIN_DIM || Y < MIN_DIM || n < 24 || nsym >= n || nsym < 2) return null;
-  return { mode, X, Y, n, nsym, seq };
+  if (crc !== crc16bits(bits, 54)) return { error: 'crc' };
+  if (ver !== VERSION) return { error: 'version' };
+  if (mode > 2) return { error: 'mode' };
+  if (X < MIN_DIM || Y < MIN_DIM) return { error: 'size' };
+  if (nsym < 2) return { error: 'nsym' };
+  if (n - nsym < MIN_K) return { error: 'T' };
+  if (Math.floor(dataCellCount(X, Y) / cellsPerCodeword(n, MODES[mode].bpc)) < 1) return { error: 'm' };
+  return { header: { mode, X, Y, n, nsym, seq } };
+}
+
+export function unpackHeader(raw, copy) {
+  return decodeHeader(raw, copy).header || null;
 }

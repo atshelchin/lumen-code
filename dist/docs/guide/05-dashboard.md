@@ -21,7 +21,7 @@ The demo pages show all the key numbers of a transfer. This guide explains what 
 | Display | Meaning |
 |---|---|
 | Status at top left: "Looking for a code…" / "Receiving" | Whether a code was detected in the last 0.7 seconds |
-| File name | Shown once the file descriptor arrives (the descriptor appears every 4 frames, and in every frame for small files) |
+| File name | Shown once the file descriptor arrives (the descriptor appears every 4 frames, and in every frame for small files; its position in the frame changes, so glare on one corner cannot hide it) |
 | Progress % | Distinct symbols received ÷ total source symbols of the file. The fountain code needs two or three symbols more than the total, so progress stays at 99% for a moment, until decoding succeeds and it becomes 100% |
 
 ### Four main metrics
@@ -70,7 +70,8 @@ The tips are checked in order, and the first one that holds is shown:
 | Spare capacity: you can raise the sender FPS to about N | Captured > 95%, success > 90%, load < 50%, camera FPS > 2.2 × sender FPS | Raise the FPS as suggested |
 | Reading well | None of the above holds | — |
 | The WASM engine could not load; switched back to JS | The WASM module failed to download or instantiate | Check that `wasm/lumen.wasm` is deployed, and that the server MIME type is `application/wasm` |
-| Checksum mismatch, still receiving… | The decoded file size or CRC-32 is wrong (very rare) | No action needed. The receiver keeps collecting symbols |
+| File check failed, receiving again… | The decoded file size or CRC-32 is wrong (very rare: a damaged packet passed every check, or two transfers had the same ID) | No action needed. The receiver drops what it collected for this transfer and starts again |
+| File too large (…); this receiver accepts up to … | The sender offers a file larger than the receiver's limit (256 MiB in the reference apps) | Send a smaller file or split it |
 
 ## 5.2 Receiver: after completion
 

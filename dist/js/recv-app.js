@@ -1,5 +1,5 @@
-import { applyI18n, t } from './i18n.js?v=5fd5612805';
-import { isJson, formatJson, linkify } from './text-view.js?v=5fd5612805';
+import { applyI18n, t } from './i18n.js?v=be07636865';
+import { isJson, formatJson, linkify } from './text-view.js?v=be07636865';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
@@ -17,7 +17,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js?v=5fd5612805', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=be07636865', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -26,7 +26,7 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js?v=5fd5612805', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=be07636865', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly
@@ -89,8 +89,12 @@ let progHist = []; // [t, received]
 let scanHist = []; // { t, ok, cwOk, cwTotal, cell }
 let finished = false;
 let activeTid = null;
-// frames already decoded (key -> { t, ok:Set, seq }) so workers can skip repeats
+// frames already decoded (key -> { t, first, ok:Set, seq, total }) so workers can skip repeats.
+// seq repeats every 256 frames, so a key is a frame for FRAME_KEY_MS after it was first seen
+// (PROTOCOL §11.5); the entries stay a little longer for the statistics.
 const frameDone = new Map();
+const FRAME_KEY_MS = 1000;
+const MAX_SIZE = 256 * 1024 * 1024; // the reference receiver limit (§11.4), shown when a file is refused
 let camFrames = []; // timestamps of camera frames
 let scanTimes = []; // timestamps of finished scans
 let checksumWarnUntil = 0;
@@ -326,8 +330,8 @@ function skipMap() {
   const now = performance.now();
   const out = {};
   for (const [key, e] of frameDone) {
-    if (now - e.t > 4000) frameDone.delete(key);
-    else out[key] = [...e.ok];
+    if (now - e.first > 4000) frameDone.delete(key);
+    else if (now - e.first <= FRAME_KEY_MS) out[key] = [...e.ok];
   }
   return out;
 }
@@ -424,6 +428,7 @@ function onResult(w, d) {
   while (scanTimes.length && now - scanTimes[0] > 2000) scanTimes.shift();
   if (d.frameKey) {
     let e = frameDone.get(d.frameKey);
+    if (e && now - e.first > FRAME_KEY_MS) e = null; // the seq came round: a new frame
     if (!e) {
       e = { t: now, first: now, ok: new Set(), seq: d.header.seq, total: d.stats ? d.stats.cwCount : 0 };
       frameDone.set(d.frameKey, e);
@@ -603,6 +608,8 @@ function updateHud() {
   let good = false;
   if (now < engineNoteUntil) msg = engineNote;
   else if (now < checksumWarnUntil) msg = t('checksum');
+  else if (progress && progress.state === 'refused')
+    msg = t('tooLarge').replace('{size}', fmtBytes(Math.max(progress.size, progress.payloadLength))).replace('{max}', fmtBytes(MAX_SIZE));
   else if (!found) msg = t('tipSearch');
   else if (cellN && cell < 3.4) {
     const h = lastResult && lastResult.header;
@@ -811,6 +818,7 @@ function renderDoneStats(size, secs) {
 
 let cameraWasOn = false;
 function showDone(name, bytes) {
+  name = name || 'file'; // a descriptor can have no name (PROTOCOL §8.4)
   finished = true;
   truncated = false;
   running = false;

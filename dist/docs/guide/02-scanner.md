@@ -95,6 +95,8 @@ The receiver identifies a frame by (seq, X, Y, mode, n, nsym). Cameras usually d
 - If all codewords of this frame are already decoded, the next scan reads only the header and returns (about 8 ms in JS, against 14–45 ms for a full decode).
 - If only some are decoded, the next scan samples only the remaining codewords.
 
+seq has only 8 bits, so the same key comes back after 256 frames (4.3 s at 60 FPS). A key therefore names a frame for 1 s after it was first decoded (PROTOCOL §11.5); a key seen again later is a new frame. This is safe for senders up to 255 FPS.
+
 ## 2.3 Failure reasons
 
 When scanning fails, the scanner returns a reason. This helps to locate the problem:

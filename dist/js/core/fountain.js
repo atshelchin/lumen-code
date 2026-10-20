@@ -8,7 +8,7 @@
 // the small dense remainder with GF(2) Gauss–Jordan. A symbolic pass checks rank before
 // any payload bytes are touched, so retrying with more packets is cheap.
 
-import { Rng, mix32, isPrime, nextPrime, xor32 } from './util.js?v=5fd5612805';
+import { Rng, mix32, isPrime, nextPrime, xor32 } from './util.js?v=be07636865';
 
 // Degree distribution (cumulative, out of 2^20), RaptorQ-like.
 const DEG = [
