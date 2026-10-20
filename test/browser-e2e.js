@@ -102,6 +102,19 @@ if (done) {
 } else console.log(`browser e2e (${engine}): no file within 90 s`);
 if (errors.length) console.log('page errors:', errors.slice(0, 5));
 
+// the home page draws one still frame with the protocol library
+await send('Page.navigate', { url: `http://localhost:${port}/index.html` });
+await sleep(2000);
+const home = await evaluate(`(() => {
+  const c = document.getElementById('sample');
+  const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let colours = 0;
+  for (let i = 0; i < px.length; i += 4) if (px[i] > 200 && px[i + 2] < 60) colours++; // yellow cells of C4
+  return { w: c.width, h: c.height, colours };
+})()`);
+const homeOk = home && home.w > 300 && home.colours > 1000;
+console.log(`browser home: sample frame ${homeOk ? `drawn (${home.w}x${home.h} px)` : 'NOT drawn ' + JSON.stringify(home)}`);
+
 // the sender page: send typed text and check that frames are drawn
 await send('Page.navigate', { url: `http://localhost:${port}/send.html` });
 await sleep(2500);
@@ -119,4 +132,4 @@ const sent = await evaluate(`(async () => {
 const senderOk = sent && sent.visible && sent.w > 100 && sent.h > 100;
 console.log(`browser sender: code ${senderOk ? `drawn (${sent.w}x${sent.h} px)` : 'NOT drawn ' + JSON.stringify(sent)}`);
 if (errors.length) console.log('page errors:', errors.slice(0, 5));
-stop(ok && senderOk && !errors.length ? 0 : 1);
+stop(ok && homeOk && senderOk && !errors.length ? 0 : 1);
