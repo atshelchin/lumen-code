@@ -85,7 +85,7 @@ file ──(optional DEFLATE)──► payload ──split──► source block
                                          frame (grid of coloured cells) ──► screen ──► camera
 ```
 
-A receiver does these steps in the opposite direction. One complete packet is enough to use the data in it. The receiver can reconstruct a source block when it has slightly more than K different packets of that block: on average K + 1.6 to K + 2.4 (Appendix C.2).
+A receiver does these steps in the opposite direction. One complete packet is enough to use the data in it. The receiver can reconstruct a source block when it has slightly more than K different packets of that block: on average 1 to 2.4 packets more than K (Appendix C.2).
 
 Errors are found at four levels. Each level discards what it cannot use:
 
@@ -419,7 +419,7 @@ seed[b] = mix32(TID · 65537 + 0x51ED + b · 0x9E3779B9)
 
 ### 9.4 Parameters
 
-For a block with K source symbols:
+For a block with K source symbols (in §9.4 to §9.7, X and L are local names: they are not the grid width of §4 or the payload length of §8.4):
 
 ```
 X  = the smallest integer ≥ 2 with X · (X − 1) ≥ 2 · K
@@ -509,6 +509,7 @@ A sender MUST:
 4. Put exactly m packets in each frame (§7.2). Each packet is the descriptor or a data packet of the transfer, with a correct CRC (§8).
 5. Send the descriptor again and again during the transfer. A receiver can start at any time and needs the descriptor.
 6. Increase seq for each frame (§6.4). Make the fixed cells, the markers, the four header copies, the codewords and the filler as §4 to §7 specify.
+7. Show each cell in the colour of its value. Rounded corners of the patterns and of the cells are permitted. A gap between cells is permitted, but the gap MUST be ink, and the colour of a cell MUST fill at least the centre half of the cell in each direction.
 
 A sender MAY change X, Y, the mode, n and nsym between frames, but not T (§8.1). To change T, start a new transfer with a new TID.
 
@@ -542,7 +543,6 @@ nsym = max(4, 2 · floor((n · pct + 100) / 200))
 
 - Use an integer number of device pixels for each cell. Use 3 pixels or more.
 - Put a quiet zone of at least 2 cells of ink around the grid.
-- Rounded corners of the patterns and of the cells are permitted. A gap between cells is permitted. The gap MUST be ink. The colour of a cell MUST fill at least the centre half of the cell in each direction.
 - Use a frame rate that the receiver can capture. The reference sender uses 12 frames per second by default and permits up to 60.
 - Select the cell size from the physical size of the screen. The reference sender uses approximately 0.75 mm for each cell. It also limits the short side to 52 … 150 cells. The grid fills the display area, and the aspect ratio is not more than 2.4.
 
@@ -616,7 +616,9 @@ A sender can be malicious (§13). A receiver MUST limit the memory and time that
 
 The reference receivers use these values: maximum size 256 MiB, 4096 kept packets for each key, 4 keys.
 
-> Informative: a receiver MAY reset a key at any time, for example when no packet has arrived for some time, or to free memory. The fountain code makes this safe: the sender never needs to know.
+A receiver MAY reset a key at any time, for example when no packet has arrived for some time, or to free memory.
+
+> Informative: the fountain code makes a reset safe. The sender never needs to know, and the receiver collects new packets.
 
 ### 11.5 Frame keys
 
@@ -634,7 +636,7 @@ A receiver can use any algorithm. The reference receivers use this procedure:
 4. Sample each data cell. Normalise its colour with the local ink and paper of the near markers.
 5. Classify the colours with k-means. Start from the nominal palette. Correct local gain (moiré, uneven light) and classify again.
 6. Decode each codeword. If decoding fails, try again with the least reliable bytes as erasures. Keep at least nsym / 2 bytes of redundancy.
-7. If no header copy is valid but the grid is found, use the last valid header for 3 more tries (§11.1).
+7. If no header copy is valid but the grid is found, decode the frame with the last valid header (§11.1). Forget that header after 3 such frames in a row that give no codeword.
 
 ## 12 Errors
 
@@ -672,7 +674,7 @@ The channel is one way. No error goes back to the sender. Each error has a local
 
 ## 14 Extensibility and versions
 
-The channel is one way, so there is no negotiation. The sender selects the formats. A receiver that does not know a format discards it. These are the only extension points:
+The channel is one way, so there is no negotiation. The sender selects the formats. A receiver discards a format that it does not know, and ignores the parts that the table marks as parts to ignore. These are the only extension points:
 
 | Point | Rule for a receiver of this version | Use |
 |---|---|---|
@@ -694,7 +696,7 @@ A flag bit is "critical": a receiver that does not know it cannot use the transf
 - packets from (TID, M, SBN, ESI, payload),
 - descriptors from (flags, L, F, CRC-32, name, T),
 - fountain symbols from (block data, T, TID, SBN, ESI),
-- the checksums, the hash, the generator, Reed–Solomon codewords, grid layouts and block plans.
+- CRC-32, CRC-16, mix32, Rng, Reed–Solomon codewords, grid layouts and block plans.
 
 **Sender.** A conforming sender MUST obey §10.1. The schedule and the parameter selection are free. The `referenceSender` vectors show the reference choices (§10.2, §10.3); they are informative.
 
@@ -818,13 +820,13 @@ The table gives the probability that a block of K source symbols is not decodabl
 
 Up to K = 1000 the code behaves like a random linear code over GF(2): each extra symbol halves the probability of failure (the theoretical values are 0.71, 0.42, 0.23, 0.12, …). For larger K the distribution has a longer tail. The largest values seen were 30 extra symbols for K = 3000 and K = 10 000, and 47 for K = 16 384. A dense GF(2) rank test of the equations of §9.7 confirms that each set where the reference decoder fails is not decodable. Thus the tail is a property of the code, not of the decoder.
 
-> In practice the overhead is small: 47 symbols are less than two frames of a phone-size code, and the receiver does not need to know K + e in advance. A future version can reduce the tail with dense rows over GF(256), as RaptorQ (RFC 6330) does.
+In practice the overhead is small: 47 symbols are less than two frames of a phone-size code, and the receiver does not need to know K + e in advance. A future version can reduce the tail with dense rows over GF(256), as RaptorQ (RFC 6330) does.
 
 Decoding time (reference Rust decoder, Apple M2 Pro, T = 200 bytes): 0.1 ms for K = 100, 0.8 ms for K = 1000, 20 ms for K = 16 384. The JavaScript decoder needs 1.1, 8.4 and 105 ms.
 
 ## Appendix D — Changes from draft 1 (informative)
 
-Draft 1 was dated 2026-10-17. Draft 2 changes no bit on the wire: frames, packets, descriptors and fountain symbols are the same. Frames of a draft-1 sender are valid for a draft-2 receiver.
+Draft 1 was dated 2026-10-17. Draft 2 changes no format: the frame, the header, the packet, the descriptor and the fountain code are the same. Frames of a draft-1 sender are valid for a draft-2 receiver, and the reverse. The reference sender changed its schedule (§10.2), so from the same inputs it makes different frames than in draft 1.
 
 - §6.3: a header is valid only if T ≥ 16 and m ≥ 1. Draft 1 required these from senders only.
 - §8.3, §8.4: receivers discard metadata packets with SBN ≠ 0. The descriptor has complete validity rules: flags bits 1–7 are critical, the name must fit and be UTF-8, the TLV list must be correct, and `L = F` without compression.

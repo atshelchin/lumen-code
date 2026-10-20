@@ -1,6 +1,6 @@
 # 3 · Integration guide
 
-[Guide index](README.md) · [中文](03-integration.zh-CN.md) · Specification sections: §10, §13
+[Guide index](README.md) · [中文](03-integration.zh-CN.md) · Specification sections: §10, §11, §15
 
 ## 3.1 Which implementation to choose
 

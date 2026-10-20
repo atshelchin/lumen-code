@@ -1,6 +1,6 @@
 # 3 · 接入指南
 
-[指南目录](README.zh-CN.md) · [English](03-integration.md) · 规范对应章节：§10、§13
+[指南目录](README.zh-CN.md) · [English](03-integration.md) · 规范对应章节：§10、§11、§15
 
 ## 3.1 选哪个实现
 
@@ -57,20 +57,27 @@ await video.play();
 const canvas = new OffscreenCanvas(video.videoWidth, video.videoHeight);
 const g = canvas.getContext('2d', { willReadFrequently: true });
 const scanner = new Scanner();
-const rx = new Receiver();
+const rx = new Receiver(); // 参考上限；要修改上限，用 new Receiver({ maxSize, maxKept, maxTransfers })
 
 async function tick() {
   g.drawImage(video, 0, 0);
   const res = scanner.scan(g.getImageData(0, 0, canvas.width, canvas.height));
   if (res.ok) for (const cw of res.codewords) if (cw.ok) await rx.push(cw.bytes);
-  const out = await rx.tryFinish(); // { name, bytes } | { error: 'checksum' } | null
+  const out = await rx.tryFinish(); // { name, bytes } | { error: 'checksum' }（传输重新开始） | null
   if (out && out.bytes) return save(out.name, out.bytes);
   setTimeout(tick, 50);
 }
 tick();
 ```
 
-这是最小写法。正式使用时应当把识别放进 Web Worker，并按 [指南 2 §2.4](02-scanner.zh-CN.md) 的方式调度；`src/web/js/scan-worker.js`、`sink-worker.js` 和 `recv-app.js` 是完整的参考。`rx.progress()` 返回 `{ name, size, received, needed, done }`，可以用来画进度条。
+这是最小写法。正式使用时应当把识别放进 Web Worker，并按 [指南 2 §2.4](02-scanner.zh-CN.md) 的方式调度；`src/web/js/scan-worker.js`、`sink-worker.js` 和 `recv-app.js` 是完整的参考。
+
+接收端就是 PROTOCOL §11 的状态机：
+
+- `rx.push(packet)` 返回它对这个数据包做了什么：`'discard'`（丢弃）、`'keep'`（暂存，等文件描述符到达）、`'add'`（加入解码器）、`'accept'`（接受了一个描述符）或 `'refuse'`（描述符所描述的传输超过上限，拒收）。
+- `rx.progress()` 返回最新一个数据包所属传输的 `{ state, name, size, received, needed, done, T }`。`state` 为 `'collecting'`（还没有描述符）、`'receiving'`、`'refused'`（要告诉用户文件太大）或 `'complete'`。
+- `rx.tryFinish()` 只返回一次文件。如果解出的文件没有通过校验（大小或 CRC-32 不对，极少发生），它返回 `{ error: 'checksum' }`，并自动重新开始这次传输；继续扫描即可。
+- 上限（§11.4）：默认每个文件 256 MiB，描述符到达前最多暂存 4096 个数据包，同时最多 4 个传输。收到的文件名来自发送端：绝不能把它当作路径使用（§13）。
 
 ## 3.3 网页：WebAssembly
 
@@ -81,7 +88,7 @@ import { loadWasm, WasmScanner, WasmSender, WasmReceiver } from './core/wasm-eng
 
 await loadWasm('./wasm/lumen.wasm'); // 也可以传入 ArrayBuffer（例如在 Node 里）
 const scanner = new WasmScanner();   // scan() 的返回值与 Scanner 相同
-const rx = new WasmReceiver();       // push() / progress() / tryFinish() 与 Receiver 相同
+const rx = new WasmReceiver();       // push() / progress() / tryFinish() 与 Receiver 相同；用完后调用 free()
 const tx = new WasmSender(prepared, { mode: 1, ecc: 1, X: 90, Y: 160 });
 // 不再使用时：scanner.free()、tx.free() 释放 WASM 内存
 ```
@@ -159,9 +166,11 @@ const uint8_t *rec = lm_scan(sc, rgba, w, h, NULL, 0);
 //   u32 cornerFound, cwOk, cwTotal, cwCount, corrected
 //   u32 nPackets, packetLen
 //   nPackets × { u32 码字序号, packetLen 字节的数据包 }
-for (each packet p) lm_receiver_push(rx, p, packetLen);
+for (each packet p) lm_receiver_push(rx, p, packetLen);  // 返回 0 丢弃，1 暂存，2 加入，3 接受，4 拒收
 
-if (lm_receiver_finish(rx) == 1) {          // 0 未完成，1 完成，2 校验失败
+// lm_receiver_progress(rx)：u32[10] valid, tid, received, needed, blocks, done, T, fileSize,
+//                           state（0 collecting，1 receiving，2 refused，3 complete）, payloadLength
+if (lm_receiver_finish(rx) == 1) {          // 0 未完成，1 完成，2 校验失败：传输重新开始
     const uint8_t *name = lm_receiver_name(rx);  uint32_t nl = lm_receiver_name_len(rx);
     const uint8_t *data = lm_receiver_file(rx);  uint32_t dl = lm_receiver_file_len(rx);
 }
@@ -185,8 +194,12 @@ seq 为 0xFFFFFFFF 表示帧序号未知：所有帧头副本都读不出，识�
 
 ## 3.7 做一个新的兼容实现
 
-1. 先通过 `test/vectors/test-vectors.json` 中的全部向量：CRC、mix32、Rng、RS、布局、帧头、喷泉码参数与符号、数据包、描述符，最后是两个完整的帧；
+1. 通过 `test/vectors/test-vectors.json` 中的全部向量（PROTOCOL §15）。`test/test-vectors.js` 和 `src/rust/tests/vectors.rs` 展示了每组向量的用法：
+   - **编码**：CRC、mix32、Rng、Reed–Solomon 码字、网格布局、帧头比特、由给定数据包生成的帧、数据包、描述符、喷泉码参数与符号、源块划分；
+   - **解码**：必须接受或必须丢弃的帧头、数据包和描述符（每个应丢弃的向量恰好有一处缺陷，并注明了缺陷名称），纠错能力范围内的受损 Reed–Solomon 码字，可解或不可解的喷泉符号集合；
+   - **数据流**（`streams`）：送入一个全新接收端的数据包序列，附带每个数据包对应的 §11.2 动作和每次解码尝试的结果，覆盖状态机、文件校验及其重新开始、各项上限、DEFLATE 边界情况；
 2. 用你的发送端生成帧，交给参考接收端解码（或者反过来）；
-3. 用 `node test/make-raw.js` 生成经过相机模拟的帧，让你的识别器去解。
+3. 用 `node test/make-raw.js` 生成经过相机模拟的帧，让你的识别器去解；
+4. 可选：复现 `test/corpus.js` 中的伪随机语料，把你的各项判定的摘要与向量中 `differential` 一节对比。这相当于在数千个边界情况上与参考解码器逐一对比。
 
-规范中标为"资料性"的部分（识别算法、包顺序、显示方式）可以自由发挥，不影响兼容性。
+发包调度、参数选择、识别算法和显示方式都由你决定（§10.2–§10.4、§11.6），不影响兼容性。如果你想生成与参考发送端完全相同的帧，`referenceSender` 向量给出了参考做法。

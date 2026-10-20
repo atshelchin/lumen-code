@@ -50,7 +50,7 @@ Desktop builds are on the [Releases](https://github.com/atshelchin/lumen-code/re
 ## How it works (short)
 
 1. The file is optionally DEFLATE-compressed and split into source blocks.
-2. A Raptor-style fountain code turns each block into an endless stream of symbols. Any K + 2 or so different symbols rebuild a block of K symbols (on average K + 1.6 to K + 2.4, measured).
+2. A Raptor-style fountain code turns each block into an endless stream of symbols. Any K + 2 or so different symbols rebuild a block of K symbols (on average about 1.6 symbols more than K, measured).
 3. Each symbol becomes a packet with a CRC, then a Reed–Solomon codeword.
 4. Codewords are laid along a Hilbert curve into the grid, so each codeword is a compact patch (a torn camera frame loses only a few codewords).
 5. Three finders, one corner pattern, a lattice of alignment markers and four header copies let the receiver locate the grid under perspective, lens distortion, blur and moiré.
