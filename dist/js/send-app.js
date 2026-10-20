@@ -1,11 +1,15 @@
-import { applyI18n, t } from './i18n.js?v=f4d66cbbe5';
-import { Sender, preparePayload } from './core/transfer.js?v=f4d66cbbe5';
-import { Renderer } from './core/render.js?v=f4d66cbbe5';
-import { MIN_DIM, MAX_DIM, MODES } from './core/layout.js?v=f4d66cbbe5';
-import { loadWasm, WasmSender } from './core/wasm-engine.js?v=f4d66cbbe5';
+import { applyI18n, t } from './i18n.js?v=c5d69ca5e8';
+import { BUILD, buildText } from './version.js?v=c5d69ca5e8';
+import { Sender, preparePayload } from './core/transfer.js?v=c5d69ca5e8';
+import { Renderer } from './core/render.js?v=c5d69ca5e8';
+import { MIN_DIM, MAX_DIM, MODES } from './core/layout.js?v=c5d69ca5e8';
+import { loadWasm, WasmSender } from './core/wasm-engine.js?v=c5d69ca5e8';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
+// the version a user quotes in a report: in the HTML of a build, filled here on the dev server
+for (const el of document.querySelectorAll('[data-build]')) if (!el.textContent) el.textContent = buildText(t('buildLabel'));
+console.info('Lumen Code', BUILD);
 
 const QUIET = 2;
 // The code fills the screen in its own shape; beyond this aspect ratio (ultra-wide monitors)

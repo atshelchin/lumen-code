@@ -1,8 +1,12 @@
-import { applyI18n, t } from './i18n.js?v=f4d66cbbe5';
-import { isJson, formatJson, linkify, safeName } from './text-view.js?v=f4d66cbbe5';
+import { applyI18n, t } from './i18n.js?v=c5d69ca5e8';
+import { isJson, formatJson, linkify, safeName } from './text-view.js?v=c5d69ca5e8';
+import { BUILD, buildText } from './version.js?v=c5d69ca5e8';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
+// the version a user quotes in a report: in the HTML of a build, filled here on the dev server
+for (const el of document.querySelectorAll('[data-build]')) if (!el.textContent) el.textContent = buildText(t('buildLabel'));
+console.info('Lumen Code', BUILD);
 
 const video = $('video');
 const overlay = $('overlay');
@@ -17,7 +21,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js?v=f4d66cbbe5', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=c5d69ca5e8', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -26,7 +30,7 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js?v=f4d66cbbe5', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=c5d69ca5e8', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly
@@ -796,6 +800,7 @@ function renderDoneStats(size, secs) {
     [t('dFrames'), `${s.frames} / ${s.scans}`],
     [t('okM'), s.covTot ? `${Math.round((100 * s.covOk) / s.covTot)}%` : '–'],
     [t('dEngine'), `${engine.toUpperCase()} ${s.msN ? (s.msSum / s.msN).toFixed(1) + ' ms' : ''}`],
+    [t('buildLabel'), buildText('').trim()],
   ];
   const box = $('doneStats');
   box.innerHTML = '';
