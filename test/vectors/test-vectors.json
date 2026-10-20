@@ -1,7 +1,7 @@
 {
  "format": "lumen-code test vectors",
  "version": 2,
- "spec": "Lumen Code v1, draft 2 (docs/PROTOCOL.md)",
+ "spec": "Lumen Code version 1.0 (docs/PROTOCOL.md)",
  "notes": {
   "hex": "byte strings are lowercase hex",
   "bits": "bit strings are 70 characters 0/1, header bit 0 first, as they appear in the cells of the copy (masked)",

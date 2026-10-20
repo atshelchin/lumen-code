@@ -456,6 +456,34 @@ a {
   font-size: 12.5px;
 }
 
+/* photosensitivity warning: visible before any code plays */
+.warn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 14px auto 0;
+  max-width: 460px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 214, 10, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 214, 10, 0.06);
+  color: #e8d48a;
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+}
+.warn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--amber);
+}
+.landing .warn {
+  max-width: none;
+  margin: 28px 0 0;
+}
+
 /* ---------- code display */
 .codewrap {
   position: absolute;

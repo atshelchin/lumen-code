@@ -3,7 +3,7 @@
 | Item | Value |
 |---|---|
 | Protocol | Lumen Code, version 1 |
-| Status | Draft 2 for public review |
+| Status | Final. Version 1.0 is frozen (§14). |
 | Date | 2026-10-20 |
 | Language | ASD-STE100 Simplified Technical English |
 | Chinese version | [PROTOCOL.zh-CN.md](PROTOCOL.zh-CN.md) |
@@ -544,6 +544,7 @@ nsym = max(4, 2 · floor((n · pct + 100) / 200))
 - Use an integer number of device pixels for each cell. Use 3 pixels or more.
 - Put a quiet zone of at least 2 cells of ink around the grid.
 - Use a frame rate that the receiver can capture. The reference sender uses 12 frames per second by default and permits up to 60.
+- The frames change many times per second. Before a code plays, tell the user that it flashes, for people who are sensitive to flashing light (photosensitive epilepsy).
 - Select the cell size from the physical size of the screen. The reference sender uses approximately 0.75 mm for each cell. It also limits the short side to 52 … 150 cells. The grid fills the display area, and the aspect ratio is not more than 2.4.
 
 ## 11 Receiver
@@ -688,6 +689,8 @@ The channel is one way, so there is no negotiation. The sender selects the forma
 
 A flag bit is "critical": a receiver that does not know it cannot use the transfer. A TLV record is "not critical": a receiver that does not know it can still use the transfer.
 
+**Stability.** Version 1.0 is frozen. Its wire format does not change: the frame, the header, the packets, the descriptor and the fountain code stay as this document specifies them. A correction of the text that does not change the wire format is an erratum; it is added to Appendix D with its date. A change on the wire needs a new version number in the header or in the descriptor, and receivers of version 1 discard it (see the table above).
+
 ## 15 Conformance
 
 **Encoder.** For the same inputs, a conforming encoder MUST make the same bytes and cells as the test vectors:
@@ -824,9 +827,17 @@ In practice the overhead is small: 47 symbols are less than two frames of a phon
 
 Decoding time (reference Rust decoder, Apple M2 Pro, T = 200 bytes): 0.1 ms for K = 100, 0.8 ms for K = 1000, 20 ms for K = 16 384. The JavaScript decoder needs 1.1, 8.4 and 105 ms.
 
-## Appendix D — Changes from draft 1 (informative)
+## Appendix D — History (informative)
 
-Draft 1 was dated 2026-10-17. Draft 2 changes no format: the frame, the header, the packet, the descriptor and the fountain code are the same. Frames of a draft-1 sender are valid for a draft-2 receiver, and the reverse. The reference sender changed its schedule (§10.2), so from the same inputs it makes different frames than in draft 1.
+| Version | Date | Change |
+|---|---|---|
+| Draft 1 | 2026-10-17 | First public draft. The desktop app v0.1.0 and v0.1.1 implement it. |
+| Draft 2 | 2026-10-20 | Receiver rules, validity rules, errors, security, extension rules (list below). No change on the wire. |
+| 1.0 | 2026-10-20 | Draft 2, frozen. |
+
+Draft 2 and version 1.0 change no format: the frame, the header, the packet, the descriptor and the fountain code are the same as in draft 1. Frames of a draft-1 sender are valid for a version-1.0 receiver, and the reverse. The reference sender changed its schedule (§10.2), so from the same inputs it makes different frames than in draft 1.
+
+The changes of draft 2:
 
 - §6.3: a header is valid only if T ≥ 16 and m ≥ 1. Draft 1 required these from senders only.
 - §8.3, §8.4: receivers discard metadata packets with SBN ≠ 0. The descriptor has complete validity rules: flags bits 1–7 are critical, the name must fit and be UTF-8, the TLV list must be correct, and `L = F` without compression.

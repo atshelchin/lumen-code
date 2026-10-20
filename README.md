@@ -28,7 +28,10 @@ npm run serve:https    # https://<lan-ip>:8443 for phones (self-signed certifica
 npm run build          # writes dist/, a static site you can deploy as is (npm run serve:dist to check it)
 ```
 
-Open `send.html` on the sending screen, choose a file, and open `recv.html` on the receiving phone. Both pages work on phones and desktops. Nothing is installed and nothing leaves the devices.
+Open `send.html` on the sending screen, choose a file, and open `recv.html` on the receiving phone.
+
+> **Photosensitivity warning:** while sending, the code flashes and changes colour up to 60 times a second. People who are sensitive to flashing light should not look at it.
+ Both pages work on phones and desktops. Nothing is installed and nothing leaves the devices.
 
 - **Sender:** send a file or type/paste text (File | Text tabs). Density (low / auto / high / max), 4 or 8 colours, ECC level, frame rate, engine. Tap the code to hide or show the controls.
 - **Receiver:** text and images open in a full-screen reader (JSON is formatted and syntax-highlighted, links are clickable, adjustable text size); files can be saved or opened. While scanning: progress, speed, cell size in camera pixels, success rate, and a diagnostics line (engine time, camera fps, scans/s, new frames/s, sender fps, capture rate) with hints. After completion the transfer statistics stay available and the camera turns off. Pinch on the image to zoom (when the camera supports it). Every number is explained in [Reading the dashboard](docs/guide/05-dashboard.md).
@@ -98,7 +101,7 @@ The receiver also skips frames it has already decoded (header only, about 8 ms i
 
 ## Status
 
-- Protocol v1 is a draft for public review (draft 2, 2026-10-20). It specifies the wire format and the receiver: validity rules, a transfer state machine, limits, errors, security considerations and extension rules. Draft 2 changed no bit on the wire.
+- Protocol version 1.0 is final and frozen (2026-10-20): its wire format will not change, and the desktop app v0.1.x already speaks it. The specification covers the wire format and the receiver: validity rules, a transfer state machine, limits, errors, security considerations and extension rules.
 - Two independent implementations (JavaScript, Rust) pass the same conformance vectors: encoding, decoding of valid and invalid input, and packet streams through the receiver state machine. On pseudo-random corpora (20 000 headers, 20 000 descriptors, 5 000 damaged DEFLATE streams, 2 000 fountain symbol sets) they make identical decisions.
 - Validation so far: simulation, Chrome with a fake camera stream, and early tests on real phones. Real-device tuning continues; please report camera models and conditions that do not work well.
 - License: [MIT](LICENSE).
