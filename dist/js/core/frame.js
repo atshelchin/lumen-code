@@ -1,8 +1,8 @@
 // Codewords <-> cells, packet and metadata formats.
 
-import { MODES, cellsPerCodeword, packHeader, K_FIXED, K_MARKER } from './layout.js?v=ec975e10e7';
-import { rsEncode, rsDecode } from './rs.js?v=ec975e10e7';
-import { mix32, crc16 } from './util.js?v=ec975e10e7';
+import { MODES, cellsPerCodeword, packHeader, K_FIXED, K_MARKER } from './layout.js?v=219bfe6cf2';
+import { rsEncode, rsDecode } from './rs.js?v=219bfe6cf2';
+import { mix32, crc16 } from './util.js?v=219bfe6cf2';
 
 export const IDX_INK = 8;
 export const IDX_PAPER = 9;

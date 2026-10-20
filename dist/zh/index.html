@@ -22,17 +22,17 @@
     <meta name="theme-color" content="#07090d" />
     <title data-i18n="titleHome">Lumen Code — 用屏幕和相机传文件</title>
     <meta name="description" data-i18n-content="descHome" content="Lumen Code 把文件变成彩色动态码：发送端屏幕播放，手机相机扫描接收。无需网络、无需配对，实测最高 96 KB/s。开放协议，MIT 许可。" />
-    <link rel="stylesheet" href="../css/app.css?v=ec975e10e7" />
+    <link rel="stylesheet" href="../css/app.css?v=219bfe6cf2" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0d14'/%3E%3Crect x='6' y='6' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='6' width='6' height='6' rx='1.5' fill='%23ff3d9a'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23f2f4f8'/%3E%3Crect x='20' y='13' width='6' height='6' rx='1.5' fill='%23ffd60a'/%3E%3Crect x='13' y='20' width='6' height='6' rx='1.5' fill='%2322d8ff'/%3E%3Crect x='20' y='20' width='6' height='6' rx='1.5' fill='%232bdc74'/%3E%3C/svg%3E" />
-    <link rel="modulepreload" href="../js/i18n.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/transfer.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/layout.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/util.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/frame.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/rs.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/fountain.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/inflate.js?v=ec975e10e7" />
-    <link rel="modulepreload" href="../js/core/render.js?v=ec975e10e7" />
+    <link rel="modulepreload" href="../js/i18n.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/transfer.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/layout.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/util.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/frame.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/rs.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/fountain.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/inflate.js?v=219bfe6cf2" />
+    <link rel="modulepreload" href="../js/core/render.js?v=219bfe6cf2" />
   </head>
   <body>
     <main class="landing">
@@ -114,10 +114,10 @@
       <p class="foot"><span data-i18n="privacy">文件只从屏幕传到相机，不经过任何服务器。</span> <span data-i18n="foot">提示：接收端需在 HTTPS 或 localhost 下才能使用相机。</span></p>
     </main>
     <script type="module">
-      import { applyI18n, toggleLang } from '../js/i18n.js?v=ec975e10e7';
-      import { Sender } from '../js/core/transfer.js?v=ec975e10e7';
-      import { Renderer } from '../js/core/render.js?v=ec975e10e7';
-      import { crc32 } from '../js/core/util.js?v=ec975e10e7';
+      import { applyI18n, toggleLang } from '../js/i18n.js?v=219bfe6cf2';
+      import { Sender } from '../js/core/transfer.js?v=219bfe6cf2';
+      import { Renderer } from '../js/core/render.js?v=219bfe6cf2';
+      import { crc32 } from '../js/core/util.js?v=219bfe6cf2';
 
       applyI18n();
       document.getElementById('lang').onclick = toggleLang;
