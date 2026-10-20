@@ -35,7 +35,9 @@ function link(page, from, to) {
   if (from.code === to.code) return file || './';
   return from.dir ? `../${file}` : `${to.dir}${file}`;
 }
-const absolute = (site, page, lang) => `${site}/${lang.dir}${page === 'index.html' ? '' : page}`;
+// The public address of a page. Hosts such as Cloudflare Pages redirect /page.html to /page, so
+// the address search engines should keep is the one without .html.
+const absolute = (site, page, lang) => `${site}/${lang.dir}${page === 'index.html' ? '' : page.replace(/\.html$/, '')}`;
 
 // Runs in <head> before anything is drawn: open the page in the language the visitor chose
 // before. Without a choice, only the English pages follow a Chinese browser (the Chinese pages
@@ -48,7 +50,7 @@ const REDIRECT = `<script>
           if (!want && here === 'en' && (navigator.language || '').toLowerCase().indexOf('zh') === 0) want = 'zh';
           if (want && want !== here) {
             var other = document.querySelector('link[rel="alternate"][hreflang="' + (want === 'zh' ? 'zh-CN' : 'en') + '"]');
-            if (other) location.replace(other.href + location.search + location.hash);
+            if (other) location.replace(new URL(other.getAttribute('data-local'), location.href).href + location.search + location.hash);
           }
         } catch (e) {}
       })();
@@ -88,8 +90,10 @@ function renderPage(tpl, page, lang, { dist, site }) {
   }
 
   // <head>: language versions and the redirect first, then canonical, previews and preloads
-  const alternates = LANGS.map((l) => `<link rel="alternate" hreflang="${l.hreflang}" href="${site ? absolute(site, page, l) : link(page, lang, l)}" />`);
-  alternates.push(`<link rel="alternate" hreflang="x-default" href="${site ? absolute(site, page, LANGS[0]) : link(page, lang, LANGS[0])}" />`);
+  // href: the public address, for search engines; data-local: the same page on this host, for
+  // the redirect and the language button (a copy on another host stays there)
+  const alt = (hreflang, l) => `<link rel="alternate" hreflang="${hreflang}" href="${site ? absolute(site, page, l) : link(page, lang, l)}" data-local="${link(page, lang, l)}" />`;
+  const alternates = [...LANGS.map((l) => alt(l.hreflang, l)), alt('x-default', LANGS[0])];
   const head = [...alternates, REDIRECT];
   h = h.replace(/(<meta name="viewport"[^>]*>)/, `$1\n    ${head.join('\n    ')}`);
 

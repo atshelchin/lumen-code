@@ -26,7 +26,8 @@
 npm run serve          # http://localhost:8080，直接运行源码（localhost 下可用相机）
 npm run serve:https    # https://<局域网IP>:8443，供手机使用（自签名证书）
 npm run build          # 生成 dist/，可直接部署的静态站点（用 npm run serve:dist 检查）
-                       # 加上 -- --site=https://你的域名，可生成 canonical 链接、分享预览和 sitemap.xml
+                       # 站点网址（package.json 的 "homepage"，或 -- --site=https://…）用于 canonical 链接、
+                       # 分享预览和 sitemap.xml；dist/ 复制到任何托管上都能用
 ```
 
 在发送端屏幕打开 `send.html` 并选择文件，在接收端手机打开 `recv.html`。两个页面都同时支持手机和电脑，无需安装，数据不离开设备。

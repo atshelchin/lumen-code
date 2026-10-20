@@ -1,5 +1,5 @@
-import { applyI18n, t } from './i18n.js?v=219bfe6cf2';
-import { isJson, formatJson, linkify, safeName } from './text-view.js?v=219bfe6cf2';
+import { applyI18n, t } from './i18n.js?v=f4d66cbbe5';
+import { isJson, formatJson, linkify, safeName } from './text-view.js?v=f4d66cbbe5';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
@@ -17,7 +17,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js?v=219bfe6cf2', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=f4d66cbbe5', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -26,7 +26,7 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js?v=219bfe6cf2', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=f4d66cbbe5', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly

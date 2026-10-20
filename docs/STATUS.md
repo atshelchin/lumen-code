@@ -255,4 +255,5 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 - **SEO**：每页有各自语言的标题和描述、`<html lang>`、hreflang 互相标注；有站点网址时再加 canonical、Open Graph/Twitter 分享卡片（`src/web/img/social-*.png`，由 `src/tools/social-card.js` 生成）、JSON-LD 和 sitemap.xml。中文页从不把访客自动送走，所以爬虫能读到。
 - **测试**：`test/test-site.js`（325 项：每处文字、占位符、标题、描述、语言标注、每个相对链接都能解析）；浏览器端到端增加中文页真实接收与 7 项语言跳转检查。
 
-待定：网站的正式域名（canonical、分享卡片、sitemap 需要完整网址；在 package.json 的 homepage 或 `--site=` 里设置即可）。
+- **站点网址**：https://lumencode.awesometools.dev（用户提供，写入 package.json 的 homepage）。该站由 Cloudflare 托管并随 main 自动部署；Cloudflare 把 `/send.html` 308 跳转到 `/send`，所以 canonical、hreflang、sitemap 用不带 `.html` 的地址，站内链接仍用 `send.html` 以便任何托管都能用。hreflang 写线上地址，`data-local` 写本站相对地址，语言跳转用后者，复制到别的托管上不会跳回线上站。
+- **404 与缓存**：加了双语 `404.html`（此前不存在的地址返回首页和 200，搜索引擎视作软 404）；加了 `_headers`，带版本戳的 JS、CSS、WASM 缓存一年，回访不再逐个向服务器确认；测试保证每个引用都带版本戳。

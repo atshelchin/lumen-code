@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://lumencode.awesometools.dev/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lumencode.awesometools.dev/" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://lumencode.awesometools.dev/zh/" />
+  </url>
+  <url>
+    <loc>https://lumencode.awesometools.dev/zh/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lumencode.awesometools.dev/" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://lumencode.awesometools.dev/zh/" />
+  </url>
+  <url>
+    <loc>https://lumencode.awesometools.dev/send</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lumencode.awesometools.dev/send" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://lumencode.awesometools.dev/zh/send" />
+  </url>
+  <url>
+    <loc>https://lumencode.awesometools.dev/zh/send</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lumencode.awesometools.dev/send" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://lumencode.awesometools.dev/zh/send" />
+  </url>
+  <url>
+    <loc>https://lumencode.awesometools.dev/recv</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lumencode.awesometools.dev/recv" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://lumencode.awesometools.dev/zh/recv" />
+  </url>
+  <url>
+    <loc>https://lumencode.awesometools.dev/zh/recv</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://lumencode.awesometools.dev/recv" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://lumencode.awesometools.dev/zh/recv" />
+  </url>
+</urlset>

@@ -44,7 +44,11 @@ for (const lang of LANGS) {
     expect(desc && desc[1].length > 40, `${where}: meta description`);
 
     // the language versions name each other
-    for (const hl of ['en', 'zh-CN', 'x-default']) expect(new RegExp(`<link rel="alternate" hreflang="${hl}" href="[^"]+"`).test(h), `${where}: alternate ${hl}`);
+    for (const hl of ['en', 'zh-CN', 'x-default']) {
+      const m = h.match(new RegExp(`<link rel="alternate" hreflang="${hl}" href="[^"]+" data-local="([^"]+)"`));
+      expect(!!m, `${where}: alternate ${hl}`);
+      if (m) expect(fs.existsSync(path.join(dist, lang.dir, m[1].endsWith('/') ? `${m[1]}index.html` : m[1])), `${where}: local ${hl} page ${m[1]} exists`);
+    }
     expect(h.indexOf('hreflang="x-default"') < h.indexOf('location.replace') && h.indexOf('location.replace') < h.indexOf('rel="stylesheet"'), `${where}: the language redirect runs before the stylesheet`);
 
     // every relative reference resolves to a file of the site
@@ -59,6 +63,44 @@ for (const lang of LANGS) {
   }
 }
 expect(fs.existsSync(path.join(dist, 'robots.txt')), 'robots.txt');
+
+// every reference to a script, style or module carries the build's ?v= stamp: _headers lets
+// browsers keep these files for a year, so an unstamped reference could load a stale file
+const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+const stamp = (fs.readFileSync(path.join(dist, 'index.html'), 'utf8').match(/\?v=([0-9a-f]{10})/) || [])[1];
+expect(!!stamp, 'the build stamp is found');
+for (const f of walk(dist).filter((x) => /\.(?:html|js)$/.test(x) && !x.includes(`${path.sep}docs${path.sep}`))) {
+  const src = fs.readFileSync(f, 'utf8');
+  const refs = [
+    ...src.matchAll(/\bfrom\s*['"](\.{1,2}\/[^'"]+)['"]/g),
+    ...src.matchAll(/\bimport\(\s*['"](\.{1,2}\/[^'"]+)['"]/g),
+    ...src.matchAll(/\bnew URL\(\s*['"](\.{1,2}\/[^'"]+)['"]/g),
+    ...src.matchAll(/\s(?:href|src)="([^"]+\.(?:js|css|wasm)(?:\?[^"]*)?)"/g),
+  ].map((m) => m[1]);
+  for (const ref of refs) if (/\.(?:js|css|wasm)/.test(ref) && !/^https?:/.test(ref)) expect(ref.endsWith(`?v=${stamp}`), `${path.relative(dist, f)}: ${ref} carries ?v=${stamp}`);
+}
+
+// with a site URL: canonical, previews, sitemap
+const site = JSON.parse(fs.readFileSync(path.join(dist, '..', 'package.json'), 'utf8')).homepage;
+if (site) {
+  for (const lang of LANGS)
+    for (const page of PAGES) {
+      const h = fs.readFileSync(path.join(dist, lang.dir, page), 'utf8');
+      const url = `${site}/${lang.dir}${page === 'index.html' ? '' : page.replace(/\.html$/, '')}`;
+      const where = `${lang.dir}${page}`;
+      expect(h.includes(`<link rel="canonical" href="${url}" />`), `${where}: canonical ${url}`);
+      expect(h.includes(`<meta property="og:url" content="${url}" />`), `${where}: og:url`);
+      expect(h.includes(`<meta property="og:image" content="${site}/img/social-${lang.code}.png" />`), `${where}: og:image`);
+      expect(new RegExp(`hreflang="zh-CN" href="${site}/zh/`).test(h), `${where}: absolute hreflang`);
+    }
+  const map = fs.readFileSync(path.join(dist, 'sitemap.xml'), 'utf8');
+  expect((map.match(/<loc>/g) || []).length === PAGES.length * LANGS.length, 'sitemap lists every page');
+  expect(!/\.html</.test(map), 'sitemap addresses have no .html');
+  expect(fs.readFileSync(path.join(dist, 'robots.txt'), 'utf8').includes(`Sitemap: ${site}/sitemap.xml`), 'robots.txt names the sitemap');
+  const ld = fs.readFileSync(path.join(dist, 'index.html'), 'utf8').match(/<script type="application\/ld\+json">([^<]+)<\/script>/);
+  expect(ld && JSON.parse(ld[1])['@type'] === 'SoftwareApplication', 'JSON-LD on the home page');
+}
+expect(fs.existsSync(path.join(dist, '404.html')) && fs.existsSync(path.join(dist, '_headers')), '404.html and _headers');
 
 if (failures) {
   console.log(`site: ${failures} of ${checks} checks failed`);

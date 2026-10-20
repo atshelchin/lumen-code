@@ -26,7 +26,8 @@ At the default 12 frames per second, a laptop screen sends roughly 80–125 KB/s
 npm run serve          # http://localhost:8080, straight from the sources (camera works on localhost)
 npm run serve:https    # https://<lan-ip>:8443 for phones (self-signed certificate)
 npm run build          # writes dist/, a static site you can deploy as is (npm run serve:dist to check it)
-                       # add -- --site=https://your.domain for canonical links, link previews and sitemap.xml
+                       # the site address ("homepage" in package.json, or -- --site=https://…) goes into
+                       # canonical links, link previews and sitemap.xml; another copy of dist/ works on any host
 ```
 
 Open `send.html` on the sending screen, choose a file, and open `recv.html` on the receiving phone.

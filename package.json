@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "description": "Lumen Code: high-throughput screen-to-camera file transfer. Zero dependencies.",
+  "homepage": "https://lumencode.awesometools.dev",
   "scripts": {
     "test": "node test/vectors.js --check && node test/test-vectors.js && node test/test-fuzz.js && node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js && node test/test-view.js && node test/test-site.js",
     "test:robustness": "node test/sweep.js && node test/realworld.js && node test/batch.js 30 1",

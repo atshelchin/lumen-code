@@ -323,7 +323,7 @@ export function toggleLang() {
   // a built page: open the same page in the other language
   const other = prerendered && document.querySelector(`link[rel="alternate"][hreflang="${next === 'zh' ? 'zh-CN' : 'en'}"]`);
   if (other) {
-    location.href = other.href;
+    location.href = other.getAttribute('data-local') || other.href;
     return next;
   }
   lang = next;

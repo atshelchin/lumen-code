@@ -1,0 +1,11 @@
+# Cloudflare Pages / Netlify. Every reference to these files carries ?v=<hash of the build>
+# (src/tools/build.js; test/test-site.js checks it), so a new build gets new addresses and the
+# files themselves never change: browsers may keep them.
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+/wasm/*
+  Cache-Control: public, max-age=31536000, immutable
+/img/*
+  Cache-Control: public, max-age=86400
