@@ -1,5 +1,5 @@
 // Reader-view helpers of the demo receiver: JSON detection, formatting, link detection.
-import { isJson, formatJson, linkify } from '../src/web/js/text-view.js';
+import { isJson, formatJson, linkify, safeName } from '../src/web/js/text-view.js';
 
 let failures = 0;
 function check(cond, msg) {
@@ -8,6 +8,12 @@ function check(cond, msg) {
     console.log('FAIL', msg);
   }
 }
+
+// received file names are not paths and show no hidden characters (PROTOCOL §13)
+check(safeName('../../etc/passwd') === '.._.._etc_passwd' && safeName('a\\b:c') === 'a_b_c', 'separators replaced');
+check(safeName('..') === 'file' && safeName('.') === 'file' && safeName('') === 'file' && safeName(null) === 'file', 'empty and dot names');
+check(safeName('invoice\u202Efdp.exe') === 'invoicefdp.exe' && safeName('a\u0000b\nc') === 'abc', 'control and bidi characters removed');
+check(safeName('报告 2026.pdf') === '报告 2026.pdf', 'ordinary names unchanged');
 
 check(isJson('{"a":1}') && isJson(' [1, 2] \n'), 'objects and arrays are JSON');
 check(!isJson('123') && !isJson('"text"') && !isJson('{bad}') && !isJson('') && !isJson('[1,'), 'non-JSON rejected');

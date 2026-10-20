@@ -1,6 +1,6 @@
 # 2 · How the receiver reads a frame
 
-[Guide index](README.md) · [中文](02-scanner.zh-CN.md) · Specification section: §11 (informative) · Code: `src/core/scan.js`, `src/rust/src/scan.rs`
+[Guide index](README.md) · [中文](02-scanner.zh-CN.md) · Specification section: §11 (§11.6 informative) · Code: `src/core/scan.js`, `src/rust/src/scan.rs`
 
 The specification defines only "what a frame looks like", not "how to read it". This guide describes what the reference scanner does, and why. The JS and Rust scanners use the same algorithm. The Rust version is 1.5–2.6 times faster.
 

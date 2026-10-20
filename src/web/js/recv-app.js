@@ -1,5 +1,5 @@
 import { applyI18n, t } from './i18n.js';
-import { isJson, formatJson, linkify } from './text-view.js';
+import { isJson, formatJson, linkify, safeName } from './text-view.js';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
@@ -565,7 +565,7 @@ function updateHud() {
   $('mOk').textContent = covTot ? `${Math.round(okRate * 100)}%` : '–';
 
   if (progress) {
-    $('rxName').textContent = progress.name || t('receiving');
+    $('rxName').textContent = progress.name ? safeName(progress.name) : t('receiving');
     const pct = progress.needed ? Math.min(progress.done ? 100 : 99, (100 * progress.received) / progress.needed) : 0;
     $('rxPct').textContent = `${Math.floor(pct)}%`;
     $('rxBar').style.width = `${pct}%`;
@@ -818,7 +818,7 @@ function renderDoneStats(size, secs) {
 
 let cameraWasOn = false;
 function showDone(name, bytes) {
-  name = name || 'file'; // a descriptor can have no name (PROTOCOL §8.4)
+  name = safeName(name); // a descriptor can also have no name (§8.4)
   finished = true;
   truncated = false;
   running = false;

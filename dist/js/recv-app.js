@@ -1,5 +1,5 @@
-import { applyI18n, t } from './i18n.js?v=be07636865';
-import { isJson, formatJson, linkify } from './text-view.js?v=be07636865';
+import { applyI18n, t } from './i18n.js?v=997cafab84';
+import { isJson, formatJson, linkify, safeName } from './text-view.js?v=997cafab84';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
@@ -17,7 +17,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js?v=be07636865', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=997cafab84', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -26,7 +26,7 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js?v=be07636865', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=997cafab84', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly
@@ -565,7 +565,7 @@ function updateHud() {
   $('mOk').textContent = covTot ? `${Math.round(okRate * 100)}%` : '–';
 
   if (progress) {
-    $('rxName').textContent = progress.name || t('receiving');
+    $('rxName').textContent = progress.name ? safeName(progress.name) : t('receiving');
     const pct = progress.needed ? Math.min(progress.done ? 100 : 99, (100 * progress.received) / progress.needed) : 0;
     $('rxPct').textContent = `${Math.floor(pct)}%`;
     $('rxBar').style.width = `${pct}%`;
@@ -818,7 +818,7 @@ function renderDoneStats(size, secs) {
 
 let cameraWasOn = false;
 function showDone(name, bytes) {
-  name = name || 'file'; // a descriptor can have no name (PROTOCOL §8.4)
+  name = safeName(name); // a descriptor can also have no name (§8.4)
   finished = true;
   truncated = false;
   running = false;

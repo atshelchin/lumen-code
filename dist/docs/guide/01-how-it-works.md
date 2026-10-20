@@ -59,7 +59,7 @@ A design detail of C8: the three bits of the colour index are the on/off states 
 
 > When the receiver has **any** K + 2 or so **distinct** encoding symbols, it can decode all K source symbols.
 
-(Measured: on average K + 1.6 symbols for small blocks and K + 2.4 for the largest; each extra symbol roughly halves the chance that the decode still fails. Specification Appendix C.2 has the full table.)
+(Measured: on average about K + 1.6 symbols, fewer for the smallest blocks and K + 2.4 for the largest; each extra symbol roughly halves the chance that the decode still fails. Specification Appendix C.2 has the full table.)
 
 So the receiver does not care which symbols it gets, which frames are lost, or when it starts scanning. The sender does not need to "play in a loop" either: every frame is new data. The Lumen Code fountain code is in the same family as RaptorQ (an LT code with LDPC/HDPC precoding, decoded with "inactivation" Gaussian elimination). Its parameters and its pseudo-random number generator are fully defined in specification §9, and the two implementations generate bit-identical symbols.
 
@@ -107,7 +107,7 @@ A portrait code on a phone screen, 83×147 cells, C4, default ECC:
 | Quantity | Value | Derivation |
 |---|---|---|
 | Data cells | 11 296 (92.6%) | The rest are patterns, header and alignment markers |
-| Codewords | n = 235, nsym = 38, 12 per frame | §7.2, §10.4 |
+| Codewords | n = 235, nsym = 38, 12 per frame | §7.2, §10.3 |
 | Each symbol | T = 190 bytes | 235 − 38 − 7 |
 | Payload per frame | 2 280 bytes | 12 × 190 |
 | Per second (12 frames) | about 27 KB | Theoretical, assuming every frame is received |

@@ -87,3 +87,13 @@ export function linkify(el, text) {
   }
   el.append(text.slice(last));
 }
+
+// A received name comes from the sender (PROTOCOL §13): never a path, and without control or
+// bidirectional-override characters (which can disguise an extension).
+export function safeName(name) {
+  const clean = (name || '')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .trim();
+  return clean === '' || clean === '.' || clean === '..' ? 'file' : clean;
+}

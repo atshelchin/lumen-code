@@ -96,7 +96,7 @@ fn run(rx: Rx<Msg>, emit: impl Fn(SinkEvent)) {
             let fact = ProgressFact {
                 generation,
                 tid: p.tid,
-                name: p.name.clone(),
+                name: p.name.as_deref().map(crate::format::safe_name),
                 size: p.size,
                 received: p.received,
                 needed: p.needed,
@@ -109,7 +109,7 @@ fn run(rx: Rx<Msg>, emit: impl Fn(SinkEvent)) {
             }
         }
         match receiver.try_finish() {
-            Some(Finish::File { name, bytes }) => emit(SinkEvent::Done { generation, name, bytes }),
+            Some(Finish::File { name, bytes }) => emit(SinkEvent::Done { generation, name: crate::format::safe_name(&name), bytes }),
             Some(Finish::ChecksumError) => emit(SinkEvent::ChecksumError { generation }),
             None => {}
         }

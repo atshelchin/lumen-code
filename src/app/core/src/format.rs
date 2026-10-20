@@ -40,9 +40,38 @@ pub fn grouped(n: u64) -> String {
     out
 }
 
+/// A received file name comes from the sender (PROTOCOL §13): never a path, and without control
+/// or bidirectional-override characters (which can disguise an extension). Empty, `.` and `..`
+/// become "file".
+pub fn safe_name(name: &str) -> String {
+    let hidden = |c: char| c.is_control() || matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+    let clean: String = name
+        .chars()
+        .filter(|&c| !hidden(c))
+        .map(|c| if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') { '_' } else { c })
+        .collect();
+    let clean = clean.trim();
+    if clean.is_empty() || clean == "." || clean == ".." {
+        "file".into()
+    } else {
+        clean.into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn received_names_are_not_paths() {
+        assert_eq!(safe_name("../../etc/passwd"), ".._.._etc_passwd");
+        assert_eq!(safe_name("a\\b:c"), "a_b_c");
+        assert_eq!(safe_name(".."), "file");
+        assert_eq!(safe_name(""), "file");
+        assert_eq!(safe_name("invoice\u{202e}fdp.exe"), "invoicefdp.exe");
+        assert_eq!(safe_name("a\u{0}b\nc"), "abc");
+        assert_eq!(safe_name("报告 2026.pdf"), "报告 2026.pdf");
+    }
 
     #[test]
     fn formats() {
