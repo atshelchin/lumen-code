@@ -43,20 +43,22 @@ fs.copyFileSync(path.join(repo, 'LICENSE'), path.join(dist, 'LICENSE'));
 if (process.argv.includes('--wasm')) {
   execFileSync('sh', [path.join(repo, 'src/tools/build-wasm.sh')], { stdio: 'inherit' });
 }
-// The version shown on the pages: the last commit that changed anything outside dist/ (the
-// sources this build is made from), and "dirty" when the sources have uncommitted changes. So
-// commit the sources first, then build and commit dist/: the pages then name that commit, and a
-// later rebuild of the same sources gives the same files.
+// The version shown on the pages: the last commit that changed a source of this site (the web
+// app, the JS library, the Rust code of the WASM module, the build tools, the docs it copies),
+// and "dirty" when these sources have uncommitted changes. So commit the sources first, then
+// build and commit dist/: the pages then name that commit, and a later rebuild gives the same
+// files (a change to the native apps or the tests does not change the site's version).
+const SOURCES = ['src/web', 'src/core', 'src/rust', 'src/tools', 'docs', ':!docs/STATUS.md', 'LICENSE', 'package.json'];
 const pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
 const build = (() => {
   const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   try {
-    const full = git('log', '-1', '--format=%H', '--', '.', ':!dist');
+    const full = git('log', '-1', '--format=%H', '--', ...SOURCES);
     return {
       commit: full.slice(0, 7),
       full,
-      date: git('log', '-1', '--format=%cs', '--', '.', ':!dist'),
-      dirty: git('status', '--porcelain', '--', '.', ':!dist') !== '',
+      date: git('log', '-1', '--format=%cs', '--', ...SOURCES),
+      dirty: git('status', '--porcelain', '--', ...SOURCES) !== '',
       protocol: '1.0',
     };
   } catch (e) {
