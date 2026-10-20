@@ -1,6 +1,6 @@
-import { applyI18n, t } from './i18n.js?v=c5d69ca5e8';
-import { isJson, formatJson, linkify, safeName } from './text-view.js?v=c5d69ca5e8';
-import { BUILD, buildText } from './version.js?v=c5d69ca5e8';
+import { applyI18n, t } from './i18n.js?v=d5bf8a262c';
+import { isJson, formatJson, linkify, safeName } from './text-view.js?v=d5bf8a262c';
+import { BUILD, buildText } from './version.js?v=d5bf8a262c';
 
 const $ = (id) => document.getElementById(id);
 applyI18n();
@@ -21,7 +21,7 @@ let useBitmap = typeof OffscreenCanvas !== 'undefined' && typeof createImageBitm
 let workerErrors = 0;
 const workers = [];
 for (let i = 0; i < NW; i++) {
-  const w = new Worker(new URL('./scan-worker.js?v=c5d69ca5e8', import.meta.url), { type: 'module' });
+  const w = new Worker(new URL('./scan-worker.js?v=d5bf8a262c', import.meta.url), { type: 'module' });
   w.busy = false;
   w.onmessage = (e) => onResult(w, e.data);
   w.onerror = (e) => {
@@ -30,7 +30,7 @@ for (let i = 0; i < NW; i++) {
   };
   workers.push(w);
 }
-const sink = new Worker(new URL('./sink-worker.js?v=c5d69ca5e8', import.meta.url), { type: 'module' });
+const sink = new Worker(new URL('./sink-worker.js?v=d5bf8a262c', import.meta.url), { type: 'module' });
 sink.onmessage = (e) => onSink(e.data);
 
 // decoding engine: plain JavaScript or the Rust implementation compiled to WebAssembly

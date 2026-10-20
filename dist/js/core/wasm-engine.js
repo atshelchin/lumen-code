@@ -2,12 +2,12 @@
 // this file wraps its C ABI in classes with the same shape as the JS Scanner / Sender /
 // Receiver, so the app can switch engines freely.
 
-import { makeLayout, codewordsPerFrame } from './layout.js?v=c5d69ca5e8';
+import { makeLayout, codewordsPerFrame } from './layout.js?v=d5bf8a262c';
 
 let X = null; // wasm exports
 
 // `src`: URL of lumen.wasm, or its bytes (e.g. in Node).
-export async function loadWasm(src = new URL('../../wasm/lumen.wasm?v=c5d69ca5e8', import.meta.url)) {
+export async function loadWasm(src = new URL('../../wasm/lumen.wasm?v=d5bf8a262c', import.meta.url)) {
   if (X) return X;
   const bytes = src instanceof ArrayBuffer || ArrayBuffer.isView(src) ? src : await (await fetch(src)).arrayBuffer();
   const { instance } = await WebAssembly.instantiate(bytes, {});
