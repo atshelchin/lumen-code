@@ -279,3 +279,14 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 
 1. **部署切换**：线上仍是 Cloudflare Pages 从 main 的 `dist/` 自动部署的旧站。新站是 Worker（`wrangler.jsonc`，名称 `lumen-code`），需要在 Cloudflare 上建 Worker 并把域名 lumencode.awesometools.dev 指过去（或改用 Workers Builds 从仓库构建，根目录 `src/website`）。
 2. **旧站退役**：切换后可删除 `src/web`、`dist/`（保留 `dist/wasm/lumen.wasm` 或移到别处）、`src/tools` 中的旧站构建/预渲染/开发服务器、`test/test-site.js`、`test/browser-e2e.js`，以及根目录对应脚本与 CI 步骤。
+
+## 9 官网首页改版与定价（2026-10-27，用户要求）
+
+用户要求：参考 Keyper 官网（`/Volumes/data/production3/airkeys/website`）优化官网，并定价（先说 $1.99，随后改为 **US$2.99**）。
+
+- **结构**照 Keyper：吸顶导航（原理、速度、应用、定价、常见问题、GitHub、语言）；首屏（标语、两个按钮、价格说明、光敏警告；右侧是协议库实时画出的一帧码，前面叠一张接收端真实截图）；要点胶囊；原理（文件 → 喷泉码 → 彩色帧 → 相机 → 文件，四步）；与动态二维码的对比表和实测数字；六项设计特点；网页/iPhone/Android/桌面四个平台；开放协议；定价；常见问题；收尾按钮；页脚（含版本号）。配色保持 Lumen 自己的深色与青、品红、黄渐变，不照搬 Keyper 的金色。
+- **定价**：网页版免费；自己编译免费（含 GitHub Releases 上的桌面版）；App Store 与 Google Play 上的 iPhone、Android 应用 US$2.99 一次买断，全球同价、两家商店分别购买。应用尚未上架，按钮显示"即将上架"；上架后在 `src/website/src/lib/landing.ts` 的 `STORES` 填链接即可。桌面版仍免费（已经免费发布，是否收费需另行决定）。README 中英文同步写了定价。
+- **文案出处**：数字来自 README、协议和各原生应用 README（iOS 60/120/240 fps、120 Hz、触感；Android 30/60 fps、自控曝光、发热减负；桌面 macOS 签名公证）；不写没有依据的说法。
+- **截图**：`src/website/scripts/screens.ts` 用假摄像头播放一段竖屏、距离适中的录制传输（`test/make-y4m.js` 增加可选的 fill 与文件名参数，默认不变），在接收进度过半时截图，中英文各一张。
+- **顺带修复**：旧首页的全局 `.stats` 样式一直泄漏到发送端底部面板，线上版本面板里的数字是 26 px、上方多出约 56 px 空白、"Grid" 一项被截掉（用旧站 dist 实测确认）。首页样式改为组件内作用域后，面板恢复成设计的紧凑样式（12 px）。另删除 25 个已不再使用的文案键（中英文各 25）。
+- **验证**：svelte-check 0/0；lint 通过；Vitest 7 项（新增：首页中英文结构一致、无空文案、全页只出现一个价格 US$2.99）；Playwright 18 项全过（新增：中英文首页三档定价、US$2.99、两个"即将上架"、截图可访问）。手机与桌面、中英文截图检查过。

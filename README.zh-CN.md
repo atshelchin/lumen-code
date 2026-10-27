@@ -51,6 +51,8 @@ bun run build          # 预渲染页面和 Cloudflare Worker，输出到 .svelt
 
 桌面版安装包在 [Releases](https://github.com/atshelchin/lumen-code/releases) 页面：已签名并经公证的 macOS 镜像，以及 Windows、Linux 压缩包。桌面版在 macOS 上经过测试；Windows、Linux 版（含摄像头接收）是新加入的，尚未在真机上验证。
 
+iPhone 与 Android 应用即将上架 App Store 和 Google Play，定价 US$2.99，一次买断（不订阅、不内购、无广告）。网页版和桌面版继续免费，任何人也都可以从本仓库免费编译所有应用。
+
 各子目录的说明为英文。
 
 ## 在自己的项目里使用

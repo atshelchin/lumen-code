@@ -51,6 +51,8 @@ The same transfer as native apps, on one Rust core shared by all three ([`src/ap
 
 Desktop builds are on the [Releases](https://github.com/atshelchin/lumen-code/releases) page: a signed and notarized macOS image, Windows and Linux archives. The desktop app is tested on macOS; the Windows and Linux builds, webcam included, are new.
 
+The iPhone and Android apps are coming to the App Store and Google Play at US$2.99, paid once (no subscription, no in-app purchases, no ads). The web version and the desktop builds stay free, and anyone can build every app from this repository for free.
+
 ## Use it in your own project
 
 There is no package to install: take the code from this repository (pin a tag or a commit). These steps are written so that a coding agent can follow them too.
