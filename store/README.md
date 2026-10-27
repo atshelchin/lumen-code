@@ -10,7 +10,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
 4. **仓库：上架前必须修的问题。**
    - ~~iOS：加 `PrivacyInfo.xcprivacy`~~ 已完成（UserDefaults 原因 CA92.1；Rust 标准库带入的文件元数据调用，原因 C617.1；不追踪、不收集数据；已核对 Release 包里没有其他需声明的 API）。
    - iOS：首页文案里提到 Android（违反 2.3.10），iOS 上改用不提其他平台的说法。
-   - Android：发布版目前用调试密钥签名，Play 会拒收。按第 2 节第 1 步建上传密钥，并在 `build.gradle.kts` 里读取 `keystore.properties`。
+   - ~~Android：发布版用调试密钥签名~~ 已改：发布版读取 `keystore.properties` 签名，没有时不签名。你只需按第 2 节第 1 步生成上传密钥。
    - 两端：从其他应用“用 Lumen 打开”的文件会直接开始播放，跳过光敏提示，要改成首次播放前必须确认一次。
    - 两端：真机审查发现的问题（控制栏挡住码导致收不到、关闭文字发送后残留的文字可以再次发出、完成页没有关闭按钮等），见下一轮 UI 修改。
 5. **商店材料。** 已写好：`app-store/listing.md`、`google-play/listing.md`（名称、副标题、关键词、简短说明，字数已核对）、`description-en.txt` / `description-zh.txt`（完整说明）、`review-notes.md`（审核说明，提交前把演示视频链接填进去）、`privacy-and-compliance.md`（隐私、分级、合规问卷的答案及依据）。还要做：真机截图（界面简化完成后拍）、Google Play 的 512 图标和 1024×500 宣传图。
@@ -46,7 +46,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
    ```sh
    keytool -genkeypair -keystore lumencode-upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 10000
    ```
-   然后建 `src/android/keystore.properties`（不进 git），写 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`。仓库要相应改 `app/build.gradle.kts`，读取这个文件给 release 签名（参考 Keyper 的 `app-android/app/build.gradle.kts`）。
+   然后建 `src/android/keystore.properties`（已被 git 忽略），写四行：`storeFile=`（.jks 的路径，相对 `src/android` 或绝对路径）、`storePassword=`、`keyAlias=upload`、`keyPassword=`。构建配置已经会读取它；没有这个文件时，发布包不签名（不会用调试密钥签）。
 2. **开发者账号。** play.google.com/console 注册，选“组织”账号，填 D-U-N-S，一次性费用 US$25，完成身份验证。组织账号不需要“12 名测试者连续 14 天封闭测试”这一步（2023 年 11 月后注册的个人账号需要）。
 3. **付款资料。** 设置 → 付款资料：建商家（Payments）资料，填公司银行账户和税务信息。付费应用必须有它。
 4. **新建应用。** 所有应用 → 创建应用：名称、默认语言、类型“应用”，**付费**。注意：免费应用以后不能改成付费，这一步一定选付费。

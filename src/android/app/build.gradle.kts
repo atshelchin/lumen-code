@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,6 +8,13 @@ plugins {
 
 // src/ — the Rust workspaces live next to this project
 val srcRoot: File = rootDir.parentFile
+
+// Release signing comes from the git-ignored keystore.properties next to settings.gradle.kts
+// (storeFile, storePassword, keyAlias, keyPassword; see store/README.md). Without it release
+// builds are left unsigned rather than signed with the debug key, so a debug-signed release
+// can never reach Google Play.
+val keystore = rootProject.file("keystore.properties").takeIf { it.exists() }
+    ?.let { file -> Properties().apply { file.inputStream().use(::load) } }
 
 android {
     namespace = "com.shelchin.lumen"
@@ -20,13 +29,22 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
+    signingConfigs {
+        if (keystore != null) create("release") {
+            storeFile = rootProject.file(keystore.getProperty("storeFile"))
+            storePassword = keystore.getProperty("storePassword")
+            keyAlias = keystore.getProperty("keyAlias")
+            keyPassword = keystore.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("boolean", "SCRIPTS", "true")
         }
         release {
             optimization { enable = false }
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
             buildConfigField("boolean", "SCRIPTS", "false")
         }
         // Release code (compiled ahead of time, no JNI checks: the debug build's interpreter
@@ -34,6 +52,7 @@ android {
         // DebugScript and simpleperf profiling: what to measure on a device.
         create("bench") {
             initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug") // installed on test phones
             isProfileable = true
             buildConfigField("boolean", "SCRIPTS", "true")
             matchingFallbacks += listOf("release")
