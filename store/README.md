@@ -20,7 +20,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
 1. **开发者账号。** 在 developer.apple.com/programs 以公司（Organization）身份注册 Apple Developer Program，填 D-U-N-S，年费 US$99。现有团队 F9W689P9NE 如果已经是 MONDAY LABS LTD 的公司账号，直接用。
 2. **协议、税务、银行。** App Store Connect → 商务（Business）：接受付费 App 协议（Paid Apps Agreement），填公司银行账户和税表（非美国公司一般是 W-8BEN-E）。没完成这一步，付费应用无法上架。
 3. **欧盟交易商身份。** App Store Connect 里按《数字服务法》（DSA）声明交易商身份，公开公司地址、电话和邮箱；不声明就不能在欧盟上架。
-4. **确定名称和 Bundle ID。** Bundle ID 现在是 `com.shelchin.lumencode`，第一次上传后永远不能改，确认是否换成公司的前缀。在 App Store Connect → 我的 App → “+” 新建 App：平台 iOS，名称（“Lumen” 很可能已被占用，可以用 “Lumen Code” 或 “Lumen Code: Screen to Camera”），主要语言，Bundle ID，SKU（例如 `lumencode-ios`）。
+4. **新建 App。** 先在 developer.apple.com → Certificates, IDs & Profiles → Identifiers 注册 Bundle ID `ltd.mondaylabs.lumencode`（Xcode 自动签名也会代为注册）。然后 App Store Connect → 我的 App → “+” 新建 App：平台 iOS，名称 “Lumen Code”（被占用时可加副标题式后缀，如 “Lumen Code: Screen to Camera”），主要语言，Bundle ID 选 `ltd.mondaylabs.lumencode`，SKU 例如 `lumencode-ios`。Bundle ID 第一次上传后不能改。
 5. **只上 iPhone。** 工程已设为仅 iPhone，并关闭了在 Apple 芯片 Mac 和 Vision Pro 上运行 iPhone 版；App Store Connect 的“定价与销售范围”里也确认这两项未勾选。只需要 6.9 英寸 iPhone 截图。
 6. **价格与地区。** 定价与销售范围 → 价格：基准国家选美国，US$2.99，其他地区用苹果自动换算。中国大陆商店要求 ICP 备案号；没有备案就先不选中国大陆。
 7. **App 隐私。** App 隐私 → 数据收集：选“我们不从此 App 中收集数据”。隐私政策网址填 `https://lumencode.link/privacy`。
@@ -50,7 +50,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
 2. **开发者账号。** play.google.com/console 注册，选“组织”账号，填 D-U-N-S，一次性费用 US$25，完成身份验证。组织账号不需要“12 名测试者连续 14 天封闭测试”这一步（2023 年 11 月后注册的个人账号需要）。
 3. **付款资料。** 设置 → 付款资料：建商家（Payments）资料，填公司银行账户和税务信息。付费应用必须有它。
 4. **新建应用。** 所有应用 → 创建应用：名称、默认语言、类型“应用”，**付费**。注意：免费应用以后不能改成付费，这一步一定选付费。
-5. **应用包名。** 现在是 `com.shelchin.lumencode`，第一次上传后不能改，确认是否换成公司的前缀。
+5. **应用包名。** `ltd.mondaylabs.lumencode`，第一次上传后不能改。应用名称 “Lumen Code”。
 6. **应用内容（政策 → 应用内容），逐项填写：**
    - 隐私政策：`https://lumencode.link/privacy`。
    - 应用访问权限：选“部分或全部功能受限”，填写 `review-notes.md` 里的测试说明（接收需要另一块屏幕，用网页发送端或演示视频）。

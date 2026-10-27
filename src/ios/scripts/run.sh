@@ -15,4 +15,4 @@ APP="build/Build/Products/${LUMEN_CONFIG:-Debug}-iphoneos/Lumen.app"
 DEV="$UDID" # devicectl accepts the hardware UDID too
 xcrun devicectl device install app --device "$DEV" "$APP" >/dev/null
 xcrun devicectl device process launch --terminate-existing --device "$DEV" \
-  ${1:+-e "{\"LUMEN_SCRIPT\":\"$1\"}"} com.shelchin.lumencode
+  ${1:+-e "{\"LUMEN_SCRIPT\":\"$1\"}"} ltd.mondaylabs.lumencode

@@ -54,7 +54,7 @@ scripts/build-core.sh      Rust core → jniLibs + generated Kotlin bindings (un
 Debug and bench builds run a script passed as an intent extra. Results go to logcat and to the app's `files/` directory (readable with `run-as` in debug builds):
 
 ```sh
-adb shell am start -n com.shelchin.lumencode/com.shelchin.lumen.MainActivity \
+adb shell am start -n ltd.mondaylabs.lumencode/com.shelchin.lumen.MainActivity \
   --es lumen.script "'nav:receive;camera;wait:1;watch:20'"
 adb logcat -s lumen-watch lumen-bench lumen-script
 ```
@@ -74,6 +74,6 @@ A script also runs in an app that is already open (the activity is `singleTask`)
 To profile, install the bench build and record with simpleperf. The library in `src/app/target/aarch64-linux-android/release/` keeps the symbols that the APK strips:
 
 ```sh
-adb shell simpleperf record --app com.shelchin.lumencode --duration 5 -o /data/local/tmp/perf.data
+adb shell simpleperf record --app ltd.mondaylabs.lumencode --duration 5 -o /data/local/tmp/perf.data
 adb shell simpleperf report -i /data/local/tmp/perf.data --sort comm,symbol
 ```

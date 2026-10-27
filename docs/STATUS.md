@@ -318,3 +318,10 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 新站（src/website）的站点地址改为 https://lumencode.link：canonical、hreflang、Open Graph、JSON-LD、sitemap、robots、隐私政策和服务条款、README 都随之更新。旧静态站（src/web、dist/、根目录 package.json 的 homepage）不改，它仍在 lumencode.awesometools.dev 上，等切换后退役。切换后建议让旧域名 301 跳转到新域名对应页面，保住已有链接和搜索收录。
 
 新站的访问统计改用 Rybbit 站点 b9594b9f1c70（用户提供；服务端配置与旧站相同：页面浏览、URL 参数、外链点击，其余关闭，隐私政策无需改）。端到端测试和截图脚本拦截 `/api/track`，不再把本地和 CI 的访问计入统计；已实测页面会加载脚本、取配置并发出一次 `/api/track`，CSP 无拦截。
+
+## 13 上架准备：标识与名称（2026-10-27，用户决定）
+
+- iOS、Android、桌面的应用标识统一为 `ltd.mondaylabs.lumencode`（公司域名 mondaylabs.ltd 倒写）：iOS Bundle ID、Android applicationId（FileProvider 授权随之变为 `ltd.mondaylabs.lumencode.files`）、macOS 桌面版 CFBundleIdentifier、Linux 的 app_id 与 `.desktop` 文件名（两者现在一致，Wayland 能把窗口和图标对上）。Android 的 Kotlin 包名 `com.shelchin.lumen` 只在代码内部使用，未改。
+- 主屏幕名称 iOS、Android 都改为 “Lumen Code”，与商店名称一致。
+- iOS 只上 iPhone：不支持 iPad，也不在 Apple 芯片 Mac 和 Vision Pro 上提供 iPhone 版。
+- 构建核对：iOS Release 包 Info.plist、Android APK（aapt2 badging）、桌面版构建都已确认新标识和名称。旧标识的测试版在手机上会成为另一个应用；桌面版下次发布后，macOS 会把它当作新应用（相机权限需重新授权）。

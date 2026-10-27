@@ -22,7 +22,7 @@ import java.io.File
 /**
  * Debug builds: drive the app from an intent extra, for device tests without touching it.
  *
- *     adb shell am start -n com.shelchin.lumencode/com.shelchin.lumen.MainActivity \
+ *     adb shell am start -n ltd.mondaylabs.lumencode/com.shelchin.lumen.MainActivity \
  *       --es lumen.script "nav:send;demo:40000;wait:2;tap"
  *
  * Commands as on iOS: nav, lang, tab, text, sendtext, demo, wait, tap, settings, play, camera,

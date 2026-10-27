@@ -12,7 +12,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.shelchin.lumencode"
+        applicationId = "ltd.mondaylabs.lumencode"
         minSdk = 29
         targetSdk = 36
         versionCode = 1

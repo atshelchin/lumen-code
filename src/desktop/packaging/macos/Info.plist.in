@@ -9,7 +9,7 @@
     <key>CFBundleName</key>                  <string>Lumen Code</string>
     <key>CFBundleDisplayName</key>           <string>Lumen Code</string>
     <!-- not the iOS app's id: an iPhone app can run on Apple silicon Macs too -->
-    <key>CFBundleIdentifier</key>            <string>com.shelchin.lumencode.desktop</string>
+    <key>CFBundleIdentifier</key>            <string>ltd.mondaylabs.lumencode</string>
     <key>CFBundleExecutable</key>            <string>lumen</string>
     <key>CFBundleIconFile</key>              <string>AppIcon</string>
     <key>CFBundlePackageType</key>           <string>APPL</string>

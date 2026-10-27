@@ -74,7 +74,7 @@ fn main() {
                     traffic_light_position: cfg!(target_os = "macos").then(|| point(px(14.), px(14.))),
                 }),
                 window_min_size: Some(size(px(560.), px(480.))),
-                app_id: Some("com.shelchin.lumencode".into()),
+                app_id: Some("ltd.mondaylabs.lumencode".into()),
                 focus: true,
                 ..Default::default()
             },
