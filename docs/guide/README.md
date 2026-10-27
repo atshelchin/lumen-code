@@ -2,7 +2,7 @@
 
 [中文](README.zh-CN.md) · [Protocol specification](../PROTOCOL.md) · [Project home](../../README.md)
 
-The protocol specification is written for people who want to build a compatible implementation. It is precise, but tiring to read. These guides are for people who first want to understand how it works. They explain the intuition and the reasons, with figures and numbers, and do not try to be complete down to every byte. Read them first, and the specification becomes much easier.
+The protocol specification is written for people building a compatible implementation: it is precise, but tiring to read. These guides explain how the system works and why, with figures and numbers, without covering every byte. Read them first and the specification becomes much easier.
 
 | # | Guide | For whom | What you will learn |
 |---|---|---|---|
@@ -16,7 +16,7 @@ Suggested reading order: 1 → 5 → 4. Read 3 when you start building, and 2 wh
 
 ## The thirty-second version
 
-- The sender cuts the file into small blocks and uses a **fountain code** to generate a packet stream that never repeats. Each packet gets a CRC and then **Reed–Solomon** ECC, and becomes a **codeword**.
-- Each frame is a grid of coloured cells (2 bits per cell by default) that holds a dozen to several dozen codewords. The grid adapts its width and height to fill the screen, and the cell size follows the physical size of the screen.
-- When the receiver captures any frame, it keeps every codeword it can decode from it. Codewords are independent of each other, so even a half-blurred frame is useful.
-- Whichever frames are lost, the file can be restored once the number of distinct packets received exceeds the number of symbols in the file by two or three. There is no "wait for the next pass to fill in that frame".
+- The sender cuts the file into small blocks and uses a **fountain code** to generate a packet stream that never repeats. Each packet, with a CRC and **Reed–Solomon** ECC added, becomes a **codeword**.
+- Each frame is a grid of coloured cells (2 bits per cell by default) holding a dozen to several dozen codewords. The grid's width and height adapt to fill the screen, and the cell size follows the physical size of the screen.
+- The receiver keeps every codeword it can decode from any frame it captures. Codewords are independent, so even a half-blurred frame is useful.
+- Whichever frames are lost, the file is restored once the receiver has two or three more distinct packets than the file has symbols. It never waits for a missed frame to come round again.

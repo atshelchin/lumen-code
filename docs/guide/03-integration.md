@@ -11,7 +11,7 @@
 | Rust program | `lumen-code` crate (zero dependencies, MSRV 1.73) | `src/rust/` |
 | Native Android / iOS / desktop app | The C ABI of the same crate | `src/rust/include/lumen.h` |
 
-All implementations generate **bit-identical** frames, so you can mix them freely: send from JS and receive on Android, or send from Rust and receive in a browser.
+All implementations generate **bit-identical** frames, so they can be mixed: send from JS and receive on Android, or send from Rust and receive in a browser.
 
 ## 3.2 Web: JavaScript
 
@@ -40,7 +40,7 @@ setInterval(() => {
 }, 1000 / 12); // 12 frames per second
 ```
 
-Make sure the canvas is displayed at **device pixel** size (CSS size = pixel size / devicePixelRatio). Otherwise browser scaling blurs the cell edges. For how to choose X, Y and the cell size, see §3.6.
+Display the canvas at **device pixel** size (CSS size = pixel size / devicePixelRatio); otherwise browser scaling blurs the cell edges. §3.6 covers choosing X, Y and the cell size.
 
 ### Receiving
 
@@ -70,18 +70,18 @@ async function tick() {
 tick();
 ```
 
-This is the minimal version. In real use, put scanning in a Web Worker and schedule it as described in [guide 2 §2.4](02-scanner.md). `src/website/src/lib/recv/scan.worker.ts`, `sink.worker.ts` and `receiver.svelte.ts` are the complete reference.
+This is the minimal version. In real use, run scanning in a Web Worker and schedule it as described in [guide 2 §2.4](02-scanner.md); `src/website/src/lib/recv/scan.worker.ts`, `sink.worker.ts` and `receiver.svelte.ts` are the complete reference.
 
-The receiver is the state machine of PROTOCOL §11:
+The receiver implements the state machine of PROTOCOL §11:
 
 - `rx.push(packet)` returns what it did with the packet: `'discard'`, `'keep'` (held until the file descriptor arrives), `'add'`, `'accept'` (a descriptor) or `'refuse'` (a descriptor of a transfer larger than the limit).
 - `rx.progress()` returns `{ state, name, size, received, needed, done, T }` for the transfer of the newest packet. `state` is `'collecting'` (no descriptor yet), `'receiving'`, `'refused'` (tell the user the file is too large) or `'complete'`.
-- `rx.tryFinish()` returns the file once. If the decoded file fails its check (size or CRC-32, very rare), it returns `{ error: 'checksum' }` and starts the transfer again by itself; keep scanning.
-- Limits (§11.4): by default 256 MiB per file, 4096 packets kept before the descriptor, 4 transfers at a time. The name of a received file comes from the sender: never use it as a path (§13).
+- `rx.tryFinish()` returns the file once. If the decoded file fails its check (size or CRC-32, very rare), it returns `{ error: 'checksum' }` and restarts the transfer itself; keep scanning.
+- Limits (§11.4): by default 256 MiB per file, 4096 packets kept before the descriptor, 4 transfers at a time. The file name comes from the sender, so never use it as a path (§13).
 
 ## 3.3 Web: WebAssembly
 
-`wasm-engine.js` wraps the WASM module in classes with the **same shape** as the JS ones. To switch, change one import line:
+`wasm-engine.js` wraps the WASM module in classes with the **same shape** as the JS ones, so switching takes one changed import line:
 
 ```js
 import { loadWasm, WasmScanner, WasmSender, WasmReceiver } from './core/wasm-engine.js';
@@ -93,7 +93,7 @@ const tx = new WasmSender(prepared, { mode: 1, ecc: 1, X: 90, Y: 160 });
 // when no longer needed: scanner.free(), tx.free() release the WASM memory
 ```
 
-WASM scanning is 1.5–2 times faster than JS, and it clearly reduces heat on phones. Build the module with `npm run build:wasm` (this needs the Rust toolchain and the `wasm32-unknown-unknown` target).
+WASM scanning is 1.5–2 times faster than JS and noticeably reduces heat on phones. Build the module with `npm run build:wasm` (this needs the Rust toolchain and the `wasm32-unknown-unknown` target).
 
 ## 3.4 Rust
 
@@ -129,7 +129,7 @@ for cw in res.codewords.iter().filter(|c| c.ok) {
 if let Some(Finish::File { name, bytes }) = rx.try_finish() { /* done */ }
 ```
 
-The TID should be random (different for each transfer). A random initial seq is also recommended.
+The TID should be random (different for each transfer); a random initial seq is also recommended.
 
 ## 3.5 Native apps: C ABI
 
@@ -140,7 +140,7 @@ cargo build --release --features ffi --target aarch64-apple-ios        # iOS: li
 cargo ndk -t arm64-v8a build --release --features ffi                  # Android: liblumen.so
 ```
 
-Android calls the library through JNI, and iOS through a bridging header. All handles are opaque pointers. Memory that the library returns stays valid until the next call on the same handle.
+Android calls the library through JNI, iOS through a bridging header. All handles are opaque pointers. Memory returned by the library stays valid until the next call on the same handle.
 
 ### Sending
 
@@ -158,7 +158,7 @@ for (;;) {                                  // once every 1/12 s
 lm_sender_free(tx);
 ```
 
-Cell values: 0–7 are indices into the palette of the current colour mode, 8 is ink (10, 13, 20), and 9 is paper (242, 244, 248). The palettes are in specification §5. Draw the cells by the rules in §3.6. `src/core/render.js` is a reference renderer in a rounded "LED" style.
+Cell values: 0–7 are indices into the palette of the current colour mode, 8 is ink (10, 13, 20), and 9 is paper (242, 244, 248). The palettes are in specification §5. Draw the cells following §3.6; `src/core/render.js` is a reference renderer in a rounded "LED" style.
 
 ### Receiving
 
@@ -185,21 +185,21 @@ if (lm_receiver_finish(rx) == 1) {          // 0 not finished, 1 finished, 2 che
 }
 ```
 
-A seq of 0xFFFFFFFF means the frame number is unknown: no header copy was readable, and the scanner reused the last correct header (the data is valid, but cannot be used for frame skipping). `WasmScanner.scan()` in `src/core/wasm-engine.js` is the complete reference for parsing this record (WASM and native code use the same C ABI). The `skip` parameter skips frames that are already decoded. See `lumen.h` for its format.
+A seq of 0xFFFFFFFF means the frame number is unknown: no header copy was readable and the scanner reused the last correct header (the data is valid but cannot be used for frame skipping). `WasmScanner.scan()` in `src/core/wasm-engine.js` is the complete reference for parsing this record, since WASM and native code use the same C ABI. The `skip` parameter skips frames that are already decoded; its format is in `lumen.h`.
 
 ## 3.6 Choosing parameters
 
 | Parameter | Recommendation | Notes |
 |---|---|---|
-| Grid shape | Fill the available screen area, aspect ratio ≤ 2.4 | More cells mean more data per frame; when the code is landscape, the receiver simply turns the phone |
+| Grid shape | Fill the available screen area, aspect ratio ≤ 2.4 | More cells mean more data per frame; for a landscape code the receiver turns the phone |
 | Physical cell size | About 0.75 mm | 52–150 cells on the short side. The "Density" setting of the demo page multiplies this by 0.72 / 1 / 1.3 / 1.65 |
 | Pixels per cell | A whole number of device pixels, ≥ 3 | Fractional sizes make cells uneven in width |
 | Quiet zone | ≥ 2 cells of ink on all sides | Separates the finder patterns from the background |
 | Colour mode | C4 | C8 carries 50% more data, but needs good focus and little moiré |
 | ECC | 16% (Mid) | Use 22% in bad conditions; 10% suits only a very stable fixed setup |
-| FPS | 12 FPS | With the camera at 30 FPS, each sender frame is captured about 2.5 times. Raise it only when the receiver says there is spare capacity |
+| FPS | 12 FPS | With the camera at 30 FPS, each sender frame is captured about 2.5 times. Raise it only when the receiver reports spare capacity |
 
-You can change the grid size, colour mode and ECC level at any time during a transfer (for example, when the window size changes). As long as T (bytes per symbol) stays the same, the receiver continues seamlessly. To change T, you must start a new transfer with a new TID.
+The grid size, colour mode and ECC level can change at any time during a transfer (for example, when the window is resized). As long as T (bytes per symbol) stays the same, the receiver carries on without interruption. Changing T requires a new transfer with a new TID.
 
 ## 3.7 Building a new compatible implementation
 
@@ -209,6 +209,6 @@ You can change the grid size, colour mode and ECC level at any time during a tra
    - **streams**: packet sequences fed to a fresh receiver, with the action of §11.2 for every packet and the result of every decode attempt — the state machine, the file check and its restart, the limits, DEFLATE edge cases.
 2. Generate frames with your sender and decode them with the reference receiver (or the other way around).
 3. Run `node test/make-raw.js` to generate frames that pass through the camera simulation, and let your scanner decode them.
-4. Optionally, reproduce the pseudo-random corpora of `test/corpus.js` and compare the digest of your decisions with the `differential` section of the vectors. This compares thousands of edge cases with the reference decoders.
+4. Optionally, reproduce the pseudo-random corpora of `test/corpus.js` and compare the digest of your decisions with the `differential` section of the vectors. This checks thousands of edge cases against the reference decoders.
 
-The packet schedule, the choice of parameters, the scanning algorithm and the display method are yours to choose (§10.2–§10.4, §11.6). They do not affect compatibility. The `referenceSender` vectors show the reference choices, if you want frames identical to the reference sender.
+The packet schedule, parameter choice, scanning algorithm and display method are up to you (§10.2–§10.4, §11.6) and do not affect compatibility. If you want frames identical to the reference sender, the `referenceSender` vectors show the reference choices.

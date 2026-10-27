@@ -2,7 +2,7 @@
 
 [Guide index](README.md) · [中文](05-dashboard.zh-CN.md)
 
-The demo pages show all the key numbers of a transfer. This guide explains what each number means, its healthy range, and what to adjust when something looks wrong. For the theory behind the speed, see [guide 4](04-performance.md).
+This guide explains the numbers the demo pages show during a transfer: what each one means, its healthy range, and what to adjust when it looks wrong. For the theory behind the speed, see [guide 4](04-performance.md).
 
 ## 5.1 Receiver: while scanning
 
@@ -22,42 +22,42 @@ The demo pages show all the key numbers of a transfer. This guide explains what 
 |---|---|
 | Status at top left: "Looking for a code…" / "Receiving" | Whether a code was detected in the last 0.7 seconds |
 | File name | Shown once the file descriptor arrives (the descriptor appears every 4 frames, and in every frame for small files; its position in the frame changes, so glare on one corner cannot hide it) |
-| Progress % | Distinct symbols received ÷ total source symbols of the file. The fountain code needs two or three symbols more than the total, so progress stays at 99% for a moment, until decoding succeeds and it becomes 100% |
+| Progress % | Distinct symbols received ÷ total source symbols of the file. The fountain code needs two or three symbols more than the total, so progress stays at 99% briefly and turns 100% when decoding succeeds |
 
 ### Four main metrics
 
 | Metric | How it is computed | Healthy | When low |
 |---|---|---|---|
-| **Speed** | New valid symbols in the last 3 seconds × bytes per symbol T. This is the payload speed on the wire (after compression), without duplicate packets | Close to the sender's "Raw rate" × 0.8 | Check the next three metrics and the diagnostic line to find which stage is the problem |
+| **Speed** | New valid symbols in the last 3 seconds × bytes per symbol T. This is the payload speed on the wire (after compression), without duplicate packets | Close to the sender's "Raw rate" × 0.8 | Use the next three metrics and the diagnostic line to find the slow stage |
 | **ETA** | Symbols still missing ÷ current symbol rate | — | — |
 | **Cell** | Average number of pixels that one cell covers in the camera photo, over the last 2.5 seconds | ≥ 4.5 | Below 3.4 the code is unreadable: move closer, or lower the density on the sender. At 3.4–4.5 it is barely readable, and the success rate suffers |
 | **Success** | For the frames first seen in the last 2.5 seconds, the share of their codewords that are decoded. A frame captured several times is counted once, with the results combined | ≥ 90% | See "Tips" below |
 
 ### Diagnostic line
 
-The diagnostic line answers one question: **which stage is holding the speed back?**
+The diagnostic line shows which stage is holding the speed back.
 
 | Field | Meaning | Healthy |
 |---|---|---|
 | `JS 11.0 ms` / `WASM 7.7 ms` | Average time that the current engine takes to scan one photo (in a Worker) | Phone-size code: WASM < 15 ms, JS < 25 ms |
-| `cam 30` | Images per second that the camera actually delivers | Usually 30. Below 20 is common in poor light (auto-exposure makes the shutter time longer) |
-| `scan 19/s` | Scans actually done per second | About 1.5–2 × sender FPS. This is **deliberate**: the same frame is not scanned again while it is still on screen, to save power |
+| `cam 30` | Images per second that the camera actually delivers | Usually 30; often below 20 in poor light (auto-exposure lengthens the shutter time) |
+| `scan 19/s` | Scans actually done per second | About 1.6 × sender FPS. This is deliberate: to save power, a frame is not scanned again while it is still on screen |
 | `new frames 11.6/s` | **Distinct** sender frames obtained per second (told apart by frame sequence number) | Close to the sender FPS |
 | `sender 12/s` | Sender FPS, estimated from the gaps between frame sequence numbers | Equal to the FPS set on the sender |
 | `captured 97%` | New frames ÷ sender frames: the share of the sender's frames that were captured and scanned | ≥ 90% |
 
-How to use it:
+Reading it:
 
 - **Captured high, success high** → all normal. If the scan time is also low, you can raise the sender FPS (the receiver suggests it).
-- **Captured low, engine time high** → the receiver does not have enough compute power, and scanning cannot keep up. Switch to the WASM engine, or lower the sender FPS.
+- **Captured low, engine time high** → scanning cannot keep up for lack of compute power. Switch to the WASM engine, or lower the sender FPS.
 - **Captured low, engine time normal** → the camera FPS is low (check "cam"), or the code often moves out of view.
 - **Captured high, success low** → a photo quality problem: check the "Cell" pixel count, then the tip.
 
-> About the capture rate: dropped frames do **not** need to be sent again. With a fountain code, a missed frame loses only the data of that frame; the other frames are still useful. So lowering the sender FPS is not a way to "fix dropped frames", unless the receiver really cannot keep up with the computation.
+> Dropped frames do not need to be sent again: with a fountain code, a missed frame loses only its own data. Lowering the sender FPS to reduce dropped frames therefore helps only when the receiver cannot keep up with the computation.
 
 ### Tips
 
-The tips are checked in order, and the first one that holds is shown:
+The tips are checked in this order, and the first one that holds is shown:
 
 | Tip | Condition | Advice |
 |---|---|---|
@@ -75,7 +75,7 @@ The tips are checked in order, and the first one that holds is shown:
 
 ## 5.2 Receiver: after completion
 
-When text or an image is received, the result is shown in a full-screen reader view. Other files are shown as a card. The "Details" button expands a summary of the transfer:
+Received text and images open in a full-screen reader view; other files are shown as a card. The "Details" button expands a summary of the transfer:
 
 | Item | Meaning |
 |---|---|
@@ -87,9 +87,9 @@ When text or an image is received, the result is shown in a full-screen reader v
 | Engine | The scan engine used, and its average time |
 | Code | Grid size, number of colours, ECC ratio (nsym / n), average pixels per cell |
 
-The camera turns off by itself after completion (to save power); "Receive another" turns it on again.
+The camera turns off after completion to save power; "Receive another" turns it back on.
 
-Reader view features: JSON is formatted and highlighted automatically (you can switch to "Raw"); line numbers; a line-wrap toggle; font size control; links in the text are clickable. In the "Formatted" view, "Copy" copies the formatted JSON. "Save as file" always saves the original bytes.
+The reader view formats and highlights JSON automatically (switch to "Raw" to see it unformatted) and has line numbers, a line-wrap toggle and font size control; links in the text are clickable. In the "Formatted" view, "Copy" copies the formatted JSON; "Save as file" always saves the original bytes.
 
 ## 5.3 Sender
 
@@ -99,7 +99,7 @@ First row of the control bar:
 |---|---|
 | Raw rate | Payload per frame × FPS. The speed limit if the receiver gets every frame |
 | Per frame | Codewords per frame × payload per codeword T |
-| One pass | Time needed to send every source symbol once. The actual completion time is about this value divided by the capture rate, then divided by the success rate |
+| One pass | Time to send every source symbol once. The actual completion time is about this value ÷ capture rate ÷ success rate |
 | Grid | X × Y cells, bits per cell |
 | JS / WASM x ms | Time to generate one frame (encode + draw the cells), usually far below 1 ms |
 
@@ -111,11 +111,11 @@ Settings:
 | Colours | 4 colours: 2 bits per cell; 8 colours: 3 bits per cell | 4 colours; try 8 colours when conditions are very good |
 | ECC | Low 10% / Mid 16% / High 22% of the bytes are used for RS check bytes | Mid; High when there is a lot of glare or shaking |
 | FPS | Frames shown per second (4–60) | 12; raise it when the receiver reports spare capacity |
-| Engine | Generate frames with JS or with Rust/WASM | Both give bit-identical output; either one is fine |
+| Engine | Generate frames with JS or with Rust/WASM | Output is bit-identical; either is fine |
 
-The code adapts its width and height to fill the screen (aspect ratio up to 2.4) and refills it when the screen is turned. While the control dock is shown it covers the code's two bottom corners; it hides itself after 2.6 s of playing, or with the hide button or a tap on the code.
+The code adapts its width and height to fill the screen (aspect ratio up to 2.4) and refills it when the screen is turned. The control dock, while shown, covers the code's two bottom corners; it hides after 2.6 s of playback, or when you press the hide button or tap the code.
 
-Changing the density, colours or ECC, or a change of screen size, **does not interrupt** the transfer: the symbol size T stays the same, and the receiver continues seamlessly.
+Changing the density, colours or ECC, or resizing the screen, does not interrupt the transfer: the symbol size T stays the same and the receiver carries on.
 
 ## 5.4 Receiver controls
 
@@ -144,7 +144,7 @@ Speed far below the Raw rate?
 ### Two example readings
 
 **Example 1**: `JS 38.0 ms · cam 30 · scan 9/s · new frames 6.8/s · sender 12/s · captured 57%`, Success 95%, Cell 5.0px.
-The photo quality is very good (high success rate, large cells). But each scan takes 38 ms, so only 9 scans run per second, and half of the frames are missed. Switching to WASM fixes it, and the receiver suggests this automatically.
+Photo quality is good (high success rate, large cells), but each scan takes 38 ms, so only 9 scans run per second and 43% of the frames are missed. Switching to WASM fixes it; the receiver suggests this itself.
 
 **Example 2**: `WASM 8.1 ms · cam 30 · scan 20/s · new frames 11.8/s · sender 12/s · captured 98%`, Success 62%, Cell 3.6px.
-There is enough compute power, and almost every frame is captured. But the cells are too small, so only about 60% of the codewords decode. Move a little closer, or lower the density on the sender by one step.
+Compute power is sufficient and almost every frame is captured, but the cells are too small, so only about 60% of the codewords decode. Move a little closer, or lower the density on the sender by one step.
