@@ -58,4 +58,4 @@ LUMEN_SCRIPT="nav:send;demo:3000000;wait:2;fps:60" cargo run --release
 LUMEN_SCRIPT="nav:receive;camera;wait:8;diag" cargo run --release    # prints the receiver's dashboard line
 ```
 
-Commands: `nav:<home|send|receive>`, `lang`, `tab:<file|text>`, `text:<s>`, `sendtext`, `json`, `demo:<bytes>`, `wait:<s>`, `tap`, `fps:<n>`, `settings`, `play`, `camera`, `close`, `diag`, `capture:<n>` / `feed` (decode the app's own frames), `bench:<frames>`. In script mode the sender logs its real frame rate every few seconds.
+Commands: `nav:<home|send|receive>`, `lang`, `tab:<file|text>`, `text:<s>`, `sendtext`, `json`, `demo:<bytes>`, `wait:<s>`, `tap`, `fps:<n>`, `settings`, `play`, `accept` (the photosensitivity warning), `camera`, `close`, `diag`, `capture:<n>` / `feed` (decode the app's own frames), `bench:<frames>`. In script mode the sender logs its real frame rate every few seconds.

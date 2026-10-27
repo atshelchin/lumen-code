@@ -1,6 +1,6 @@
 //! Drive the app from the LUMEN_SCRIPT environment variable, for tests without a mouse (as on
 //! iOS and Android): nav:<screen>, lang, tab:<file|text>, text:<s>, sendtext, demo:<bytes>,
-//! wait:<s>, tap, settings, play, camera, close, json, capture:<n>, feed, bench:<frames>.
+//! wait:<s>, tap, settings, play, accept, camera, close, json, capture:<n>, feed, bench:<frames>.
 
 use crate::app::Root;
 use gpui::{AsyncWindowContext, WeakEntity};
@@ -56,6 +56,7 @@ pub async fn run(this: WeakEntity<Root>, cx: &mut AsyncWindowContext, script: St
             "fps" => rt.dispatch(Event::SetFps { value: arg.parse().unwrap_or(30) }),
             "settings" => rt.dispatch(Event::ToggleSettings),
             "play" => rt.dispatch(Event::TogglePlay),
+            "accept" => rt.dispatch(Event::AcceptFlash),
             "camera" => rt.dispatch(Event::OpenCamera),
             "close" => rt.dispatch(Event::CloseSend),
             "capture" => {

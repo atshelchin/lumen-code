@@ -18,6 +18,10 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
         return stage;
     }
     stage = stage.bg(c(INK));
+    // the text box is gone: keys (Space, Enter, Esc) go to the root again
+    if root.text_area.read(cx).focus_handle.is_focused(window) {
+        root.focus.focus(window, cx);
+    }
     if let (Some(layout), Some(frame)) = (root.layout.clone(), root.frame.clone()) {
         let rt = root.rt.clone();
         let top = title_inset(window);
@@ -42,10 +46,57 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
                 ),
         );
     }
-    if s.dock_visible {
+    if s.flash_ask {
+        // the first code waits, paused, until the warning is read; nothing else is offered
+        stage = stage.child(flash_card(root, title_inset(window)));
+    } else if s.dock_visible {
         stage = stage.child(dock(root));
     }
     stage
+}
+
+/// The photosensitivity warning over the paused first code: play it, or close.
+fn flash_card(root: &Root, top: f32) -> AnyElement {
+    let s = &root.view.send;
+    let (r1, r2) = (root.rt.clone(), root.rt.clone());
+    let card = panel_box()
+        .id("flash")
+        .w(px(440.))
+        .max_w_full()
+        .p(px(24.))
+        .flex()
+        .flex_col()
+        .items_center()
+        .text_center()
+        .child(icon_tile("warn", AMBER, 56.))
+        .child(div().mt(px(14.)).mb(px(8.)).text_size(px(19.)).font_weight(FontWeight::SEMIBOLD).child(root.t("flashTitle")))
+        .child(div().text_size(px(14.)).line_height(px(21.)).text_color(c(MUTED)).child(s.flash_warn.clone()))
+        .child(
+            div()
+                .mt(px(22.))
+                .w_full()
+                .flex()
+                .flex_col()
+                .gap(px(10.))
+                .child(button("flash-play", root.t("flashPlay"), true, true, move |_, _| r1.dispatch(Event::AcceptFlash)))
+                .child(button("flash-close", root.t("close"), false, true, move |_, _| r2.dispatch(Event::CloseSend))),
+        );
+    // a scrim over the code: clicks on it must not reach the code (which toggles the dock)
+    div()
+        .id("flash-scrim")
+        .block_mouse_except_scroll()
+        .absolute()
+        .top(px(top))
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .bg(rgba(0x04060ac0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .p(px(16.))
+        .child(card)
+        .into_any_element()
 }
 
 fn top_bar(root: &Root) -> AnyElement {

@@ -58,6 +58,16 @@ impl TextArea {
         }
     }
 
+    /// Shows the core's text (changed elsewhere); left alone while the input method composes.
+    pub fn set_text(&mut self, text: String, cx: &mut Context<Self>) {
+        if self.marked.is_some() || text == self.content {
+            return;
+        }
+        self.content = text;
+        self.all = false;
+        cx.notify();
+    }
+
     fn edited(&mut self, cx: &mut Context<Self>) {
         (self.on_change)(self.content.clone());
         cx.notify();

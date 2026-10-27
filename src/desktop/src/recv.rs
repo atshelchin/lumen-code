@@ -33,7 +33,9 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
             }
         }
     }
-    if r.phase != RecvPhase::Done {
+    // the way home; a reader result has it in its own header instead
+    let reader = r.phase == RecvPhase::Done && r.done.as_ref().is_some_and(|d| d.reader);
+    if !reader {
         let rt = root.rt.clone();
         let mut bar = div().absolute().top(px(BAR_TOP)).left(px(14.)).flex().items_center().gap(px(10.)).child(
             div()
@@ -295,7 +297,7 @@ fn done(root: &mut Root, d: &DoneView, window: &mut Window, cx: &mut Context<Roo
             .into_any_element();
     }
     let rt = root.rt.clone();
-    let (r1, r2, r3, r4, r5) = (rt.clone(), rt.clone(), rt.clone(), rt.clone(), rt.clone());
+    let (r0, r1, r2, r3, r4, r5) = (rt.clone(), rt.clone(), rt.clone(), rt.clone(), rt.clone(), rt.clone());
     let mut head = div()
         .flex()
         .items_center()
@@ -303,6 +305,19 @@ fn done(root: &mut Root, d: &DoneView, window: &mut Window, cx: &mut Context<Roo
         .px(px(16.))
         .pt(px(BAR_TOP))
         .pb(px(10.))
+        .child(
+            // leaving keeps the result: Receive shows it again until "Receive another"
+            div()
+                .id("home")
+                .flex()
+                .flex_none()
+                .items_center()
+                .gap(px(6.))
+                .cursor_pointer()
+                .child(icon("back", 20., c(TEXT)))
+                .child(brand_mark(6.))
+                .on_click(move |_, _, _| r0.dispatch(Event::Navigate { screen: Screen::Home })),
+        )
         .child(badge(true))
         .child(
             div()

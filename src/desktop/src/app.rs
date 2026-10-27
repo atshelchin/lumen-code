@@ -121,6 +121,13 @@ impl Root {
                 self.layout = None;
                 self.frame = None;
             }
+            // The text box shows the core's text. Its own edits reach the core at once, so the
+            // core differs from the box only after a change made elsewhere (a script); updates
+            // still queued from earlier keystrokes are stale, hence the core's current text.
+            if s.text != self.view.send.text && s.text != self.text_area.read(cx).content {
+                let text = self.rt.view().send.text;
+                self.text_area.update(cx, |t, cx| t.set_text(text, cx));
+            }
             let playing = s.playing && s.geometry.is_some();
             if playing != self.playing {
                 self.playing = playing;
@@ -385,7 +392,14 @@ impl Root {
         }
         let key = ev.keystroke.key.as_str();
         let send = &self.view.send;
-        if self.view.screen == Screen::Send && send.geometry.is_some() {
+        if self.view.screen == Screen::Send && send.flash_ask {
+            // the warning card: Enter or Space plays, Esc closes; nothing else
+            match key {
+                "enter" | "space" => self.dispatch(Event::AcceptFlash),
+                "escape" => self.dispatch(Event::CloseSend),
+                _ => {}
+            }
+        } else if self.view.screen == Screen::Send && send.geometry.is_some() {
             match key {
                 "space" => self.dispatch(Event::TogglePlay),
                 "f" => window.toggle_fullscreen(),
