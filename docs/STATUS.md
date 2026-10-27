@@ -273,6 +273,7 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 - **版本号**：取 `src/website`、`src/core`、`src/rust`、`docs`、LICENSE 的最后一个提交，构建时注入，页面与旧站同位置显示。
 - **验证**：`svelte-check` 0 错误 0 警告；eslint、prettier 通过；Vitest 5 项（词典键与占位符一致、路径、链接拆分、文件名清洗）；Playwright 17 项全过：假摄像头播放 6 万字节传输，WASM/英文与 JS/中文各收完一次并核对 SHA-256；单帧图片收 JSON 消息（格式化、标签按文本显示、原始视图、复制内容、记住选择）与文字消息（链接、单链接打开按钮、再收一次）；首页示例帧、发送端出码、语言跳转 4 项、6 页 HTML 内容、sitemap/robots/404。根目录 `npm test` 仍全过。截图对比旧站，手机与桌面外观一致。CI 增加 `website` 任务。
 - **局域网手机调试**：`bun run dev:https`（自签名证书）。
+- **wrangler dev 的问题**：wrangler 4.153 在一个全新检出目录里第一次启动 `wrangler dev`，约 30 s 后就不再响应（进程还在；不开浏览器也能复现；第二次启动正常）。CI 每次都是全新检出，所以端到端测试改用 `vite preview` 提供同一份预渲染输出；`bun run preview`（wrangler）仍用于本地检查 Workers 行为（如 `/send.html` → `/send` 跳转）。在全新克隆里按 CI 步骤连跑两次，17 项全过。
 
 尚待用户决定（外部操作或大量删除，未做）：
 
