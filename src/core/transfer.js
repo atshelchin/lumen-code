@@ -73,6 +73,10 @@ export async function preparePayload(fileBytes, name) {
 }
 
 export class Sender {
+  /**
+   * @param {{ payload: Uint8Array, meta: object }} prepared  from preparePayload()
+   * @param {{ mode?: number, ecc?: number, X?: number, Y?: number, tid?: number }} [options]
+   */
   constructor(prepared, { mode = 2, ecc = 1, X, Y, tid } = {}) {
     this.payload = prepared.payload;
     this.meta = prepared.meta;

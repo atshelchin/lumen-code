@@ -7,7 +7,8 @@ import { makeLayout, codewordsPerFrame } from './layout.js';
 let X = null; // wasm exports
 
 // `src`: URL of lumen.wasm, or its bytes (e.g. in Node).
-export async function loadWasm(src = new URL('../../wasm/lumen.wasm', import.meta.url)) {
+/** @param {URL | string | BufferSource} [src] */
+export async function loadWasm(src = new URL(/* @vite-ignore */ '../../wasm/lumen.wasm', import.meta.url)) {
   if (X) return X;
   const bytes = src instanceof ArrayBuffer || ArrayBuffer.isView(src) ? src : await (await fetch(src)).arrayBuffer();
   const { instance } = await WebAssembly.instantiate(bytes, {});
@@ -125,6 +126,10 @@ export class WasmScanner {
 
 export class WasmSender {
   // prepared = { payload, meta } from preparePayload (compression stays in JS)
+  /**
+   * @param {{ payload: Uint8Array, meta: object }} prepared  from preparePayload()
+   * @param {{ mode?: number, ecc?: number, X?: number, Y?: number, tid?: number }} [options]
+   */
   constructor(prepared, { mode = 1, ecc = 1, X: x, Y: y, tid } = {}) {
     this.tid = tid ?? (Math.random() * 65536) | 0;
     const name = new TextEncoder().encode(prepared.meta.name ?? '');
