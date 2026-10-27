@@ -176,43 +176,117 @@ test('the first code waits for the photosensitivity warning; later codes play at
 	const ask = page.locator('.flash-ask');
 	await expect(ask).toBeVisible();
 	await expect(ask).toContainText('60');
-	await expect(page.locator('#playBtn')).toHaveAttribute('aria-pressed', 'true'); // paused
+	await expect(page.locator('#playBtn')).toHaveAttribute('data-state', 'paused');
+	await expect(page.locator('#playBtn')).toHaveAttribute('aria-label', 'Play');
 	await page.click('#flashPlay');
 	await expect(ask).toHaveCount(0);
-	await expect(page.locator('#playBtn')).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.locator('#playBtn')).toHaveAttribute('data-state', 'playing');
+	await expect(page.locator('#playBtn')).toHaveAttribute('aria-label', 'Pause');
 	await page.goto('/zh/send?demo=20000');
 	await expect(page.locator('#codewrap')).toBeVisible();
-	await expect(page.locator('#playBtn')).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.locator('#playBtn')).toHaveAttribute('data-state', 'playing');
+	await expect(page.locator('#playBtn')).toHaveAttribute('aria-label', '暂停');
 	await expect(ask).toHaveCount(0);
 });
 
-test('a text send names the text in the dock, never shows it', async ({ page }) => {
+test('a text send names the text in the bar, never shows it', async ({ page }) => {
 	await page.addInitScript(() => localStorage.setItem('lumen.flashOk', '1'));
 	await page.goto('/send');
 	await page.click('#srcTabs [data-v="text"]');
 	await page.fill('#textInput', 'wifi password is hunter2');
 	await page.click('#textSend');
 	await expect(page.locator('#fileName')).toHaveText('Text');
-	await expect(page.locator('.dock')).not.toContainText('hunter2');
+	await expect(page.locator('#bar')).not.toContainText('hunter2');
+	await page.click('#setBtn');
+	await expect(page.locator('#settings')).not.toContainText('hunter2');
 });
 
-test('sender paused: the hide button hides the dock, and it stays hidden while the mouse moves at the bottom', async ({
+test('sender keys: Space pauses and plays, Esc closes the settings and leaves the code', async ({
 	page
 }) => {
-	await page.addInitScript(() => localStorage.setItem('lumen.flashOk', '1'));
 	await page.goto('/send?demo=20000');
-	const dock = page.locator('.dock');
-	await expect(dock).not.toHaveClass(/away/);
-	await page.click('#playBtn');
-	await page.click('#hideBtn');
-	await expect(dock).toHaveClass(/away/);
-	const box = page.viewportSize()!;
-	await page.mouse.move(box.width / 2 + 20, box.height - 30, { steps: 4 }); // down from the button into the bottom edge
-	await page.waitForTimeout(300);
-	await expect(dock).toHaveClass(/away/);
-	await page.mouse.move(box.width / 2, box.height / 2, { steps: 4 }); // up above the dock's area, then down again
-	await page.mouse.move(box.width / 2, box.height - 30, { steps: 4 });
-	await expect(dock).not.toHaveClass(/away/);
+	await page.keyboard.press('Space'); // the warning card: Space means "play"
+	await expect(page.locator('.flash-ask')).toHaveCount(0);
+	const play = page.locator('#playBtn');
+	await expect(play).toHaveAttribute('data-state', 'playing');
+	await page.keyboard.press('Space');
+	await expect(play).toHaveAttribute('data-state', 'paused');
+	await page.click('#setBtn');
+	await expect(page.locator('#settings')).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(page.locator('#settings')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect(page.locator('#codewrap')).toBeVisible();
+});
+
+// Real phones showed it: anything over a corner of the code stops the receiver. The bar and the
+// settings take their own space; the code fits in what is left, whole, with its quiet zone.
+type Box = { x: number; y: number; width: number; height: number };
+const overlap = (a: Box, b: Box) =>
+	a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+for (const [device, viewport, mobile] of [
+	['phone', { width: 390, height: 844 }, true],
+	['phone, landscape', { width: 844, height: 390 }, true],
+	['desktop', { width: 1280, height: 800 }, false]
+] as const) {
+	test.describe(`sender on a ${device}`, () => {
+		test.use({ viewport, isMobile: mobile, hasTouch: mobile });
+		test('the controls never cover the code, settings closed or open', async ({ page }) => {
+			await page.addInitScript(() => localStorage.setItem('lumen.flashOk', '1'));
+			await page.goto('/send?demo=20000');
+			const clear = async () => {
+				const code = await page.locator('#code').boundingBox();
+				const bar = await page.locator('#bar').boundingBox();
+				const open = await page.locator('#settings').count();
+				const settings = open ? await page.locator('#settings').boundingBox() : null;
+				if (!code || !bar || (open && !settings)) return 'not laid out';
+				if (code.x < 0 || code.y < 0 || code.x + code.width > viewport.width)
+					return 'code off screen';
+				if (overlap(code, bar)) return 'bar over the code';
+				if (settings && overlap(code, settings)) return 'settings over the code';
+				return 'clear';
+			};
+			await expect.poll(clear).toBe('clear');
+			const closed = (await page.locator('#code').boundingBox())!;
+			await page.click('#setBtn');
+			await expect(page.locator('#settings')).toBeVisible();
+			await expect.poll(clear).toBe('clear');
+			// the code made room for the settings, and gets it back when they close
+			const area = async () => {
+				const b = (await page.locator('#code').boundingBox())!;
+				return Math.round(b.width * b.height);
+			};
+			expect(await area()).toBeLessThan(closed.width * closed.height);
+			await page.click('#setBtn');
+			await expect(page.locator('#settings')).toHaveCount(0);
+			await expect.poll(clear).toBe('clear');
+			await expect.poll(area).toBe(Math.round(closed.width * closed.height));
+			// one row, no horizontal scroll
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+				viewport.width
+			);
+			const bar = (await page.locator('#bar').boundingBox())!;
+			expect(bar.height).toBeLessThanOrEqual(64); // one row: 44 px buttons and a little padding
+		});
+	});
+}
+
+test('receiver: the engine switch is under Details, folded at first, then remembered', async ({
+	page
+}) => {
+	await page.goto('/recv?engine=wasm');
+	await page.click('#startBtn');
+	await expect(page.locator('#hud')).toBeVisible();
+	await expect(page.locator('#segEngine')).toHaveCount(0);
+	await expect(page.locator('#detailsBtn')).toHaveAttribute('aria-expanded', 'false');
+	await page.click('#detailsBtn');
+	await page.click('#segEngine [data-v="js"]');
+	await expect(page.locator('#segEngine [data-v="js"]')).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('#mCell')).toBeVisible();
+	await expect(page.locator('#mOk')).toBeVisible();
+	await page.goto('/recv');
+	await page.click('#startBtn');
+	await expect(page.locator('#segEngine [data-v="js"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test.describe('languages', () => {

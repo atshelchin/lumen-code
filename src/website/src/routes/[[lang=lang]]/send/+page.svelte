@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { t as tr, path, type Key } from '#lib/i18n';
-	import { fmtBytes } from '#lib/format';
+	import { fmtBytes, fmtTime } from '#lib/format';
 	import { BUILD } from '#lib/build';
 	import { SendController, TEXT_NAME, type Density } from '#lib/send/sender.svelte';
 	import HomeLink from '#lib/ui/HomeLink.svelte';
@@ -16,6 +16,9 @@
 
 	let tx = $state<SendController | null>(null);
 	let canvas = $state<HTMLCanvasElement>();
+	let codeArea = $state<HTMLDivElement>();
+	let isFs = $state(false);
+	let fsOk = $state(false); // iPhone Safari has no fullscreen for pages: no button there
 	let fileInput = $state<HTMLInputElement>();
 	let textArea = $state<HTMLTextAreaElement>();
 	let text = $state('');
@@ -33,14 +36,18 @@
 		c.attach(canvas!);
 		tx = c;
 		console.info('Lumen Code', BUILD);
+		fsOk = !!document.fullscreenEnabled;
 		const sample = setInterval(() => c.sample(), 1000);
+		// the code's area changes with the window, fullscreen and the settings panel
 		let resizeTimer = 0;
-		const onResize = () => {
+		const ro = new ResizeObserver(() => {
 			clearTimeout(resizeTimer);
-			resizeTimer = window.setTimeout(() => c.resized(), 150);
-		};
+			resizeTimer = window.setTimeout(() => c.resized(), 100);
+		});
+		ro.observe(codeArea!);
+		const onFs = () => (isFs = !!document.fullscreenElement);
 		const onVisible = () => document.visibilityState === 'visible' && c.active && c.wake();
-		window.addEventListener('resize', onResize);
+		document.addEventListener('fullscreenchange', onFs);
 		document.addEventListener('visibilitychange', onVisible);
 		// test hook: ?demo=<bytes> starts with random data
 		const demo = new URLSearchParams(location.search).get('demo');
@@ -53,7 +60,9 @@
 		}
 		return () => {
 			clearInterval(sample);
-			window.removeEventListener('resize', onResize);
+			clearTimeout(resizeTimer);
+			ro.disconnect();
+			document.removeEventListener('fullscreenchange', onFs);
 			document.removeEventListener('visibilitychange', onVisible);
 			c.destroy();
 		};
@@ -78,7 +87,7 @@
 		else document.documentElement.requestFullscreen?.().catch(() => {});
 	}
 
-	// ---------- page-wide input: drop, paste, keys, the mouse at the bottom edge
+	// ---------- page-wide input: drop, paste, keys
 	function onDragOver(e: DragEvent) {
 		e.preventDefault();
 		dropOver = true;
@@ -105,30 +114,37 @@
 			text = s;
 		}
 	}
+	// Space: play/pause (on the warning card: play). F: fullscreen. Esc: closes the settings, and
+	// nothing else: closing the code would end the transfer, and a receiver part way through
+	// would lose its progress, a heavy price for a key that people press to "get out" of things
+	// (in fullscreen the browser takes Esc to leave fullscreen anyway).
 	function onKey(e: KeyboardEvent) {
 		if (!tx || !tx.active || (e.target as HTMLElement).tagName === 'TEXTAREA') return;
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		if (e.code === 'Space') {
 			tx.togglePlay();
-			tx.showDock();
 			e.preventDefault();
-		} else if (e.key === 'f') fullscreen();
-		else if (e.key === 'Escape') tx.hideDock();
-		else if (e.key === 'h') tx.toggleDock();
-		else tx.showDock();
-	}
-	// The bottom edge shows a hidden dock, but only after the mouse has been above the dock's area:
-	// right after the hide button the mouse is still there, and the dock must stay hidden.
-	let edgeArmed = false;
-	function onPointerMove(e: PointerEvent) {
-		if (e.pointerType !== 'mouse' || !tx?.active) return;
-		if (!tx.dockAway) edgeArmed = false;
-		else if (e.clientY < window.innerHeight - 220) edgeArmed = true;
-		else if (e.clientY > window.innerHeight - 90 && edgeArmed) tx.showDock();
+		} else if (e.key === 'f' || e.key === 'F') fullscreen();
+		else if (e.key === 'Escape' && tx.settingsOpen) tx.settingsOpen = false;
 	}
 
+	// A long file name loses its middle, never its extension: "holiday-ph…2024.zip".
+	const nameParts = $derived.by((): [string, string] => {
+		if (!tx) return ['', ''];
+		if (tx.isText) return [t('textLabel'), ''];
+		const n = tx.label;
+		const dot = n.lastIndexOf('.');
+		const ext = dot > 0 && n.length - dot <= 8 ? n.slice(dot) : '';
+		const stem = n.slice(0, n.length - ext.length);
+		const keep = Math.min(stem.length, 4);
+		return [stem.slice(0, stem.length - keep), stem.slice(stem.length - keep) + ext];
+	});
+	const passText = (s: number) =>
+		s < 1 ? '< 1 s' : s < 60 ? `≈ ${Math.ceil(s)} s` : `≈ ${fmtTime(s)}`;
+
 	const densities: [Density, Key][] = [
-		['low', 'dLow'],
 		['auto', 'dAuto'],
+		['low', 'dLow'],
 		['high', 'dHigh'],
 		['max', 'dMax']
 	];
@@ -148,7 +164,6 @@
 	ondrop={onDrop}
 	onpaste={onPaste}
 	onkeydown={onKey}
-	onpointermove={onPointerMove}
 />
 
 <div class="stage" id="stage">
@@ -245,9 +260,203 @@
 		</div>
 	{/if}
 
-	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-	<div class="codewrap" class:hidden={!tx?.sending} id="codewrap" onclick={() => tx?.toggleDock()}>
-		<canvas id="code" bind:this={canvas}></canvas>
+	<!-- while sending: the code above, the settings (when open) and the bar below; nothing overlaps -->
+	<div class="send-view" class:hidden={!tx?.sending}>
+		<div class="codewrap" id="codewrap" bind:this={codeArea}>
+			<canvas id="code" bind:this={canvas}></canvas>
+		</div>
+		{#if tx?.sending}
+			{#if tx.settingsOpen}
+				<div class="settings" id="settings" role="group" aria-label={t('settings')}>
+					<div class="fields">
+						<div class="field">
+							<span>{t('density')}</span>
+							<div class="seg" id="segDensity">
+								{#each densities as [v, k] (v)}
+									<button
+										data-v={v}
+										aria-pressed={tx.prefs.density === v}
+										onclick={() => tx?.set('density', v)}>{t(k)}</button
+									>
+								{/each}
+							</div>
+						</div>
+						<div class="field">
+							<span>{t('colors')}</span>
+							<div class="seg" id="segMode">
+								{#each [1, 2] as v (v)}
+									<button
+										data-v={v}
+										aria-pressed={tx.prefs.mode === v}
+										onclick={() => tx?.set('mode', v)}>{v === 1 ? 4 : 8}</button
+									>
+								{/each}
+							</div>
+						</div>
+						<div class="field">
+							<span>{t('ecc')}</span>
+							<div class="seg" id="segEcc">
+								{#each eccs as [v, k] (v)}
+									<button
+										data-v={v}
+										aria-pressed={tx.prefs.ecc === v}
+										onclick={() => tx?.set('ecc', v)}>{t(k)}</button
+									>
+								{/each}
+							</div>
+						</div>
+						<label class="field">
+							<span>{t('speed')}</span>
+							<input
+								type="range"
+								id="fps"
+								min="4"
+								max="60"
+								step="1"
+								value={tx.prefs.fps}
+								oninput={(e) => tx?.setFps(Number((e.target as HTMLInputElement).value))}
+							/><b class="num" id="fpsVal">{tx.prefs.fps}</b>
+						</label>
+						<div class="field">
+							<span>{t('engine')}</span>
+							<div class="seg" id="segEngine">
+								<button
+									data-v="js"
+									aria-pressed={tx.prefs.engine === 'js'}
+									onclick={() => tx?.set('engine', 'js')}>JS</button
+								><button
+									data-v="wasm"
+									aria-pressed={tx.prefs.engine === 'wasm'}
+									onclick={() => tx?.set('engine', 'wasm')}>Rust · WASM</button
+								>
+							</div>
+						</div>
+					</div>
+					<div class="details" id="stats">
+						{#if tx.stats}
+							{@const s = tx.stats}
+							<b>{t('details')}</b>
+							{t('rate')}
+							{fmtBytes(s.rate)}/s · {t('perFrame')}
+							{fmtBytes(s.perFrame)} · {t('grid')}
+							{s.X}×{s.Y} · {s.bpc} bit · {tx.prefs.engine.toUpperCase()}
+							<span id="buildMs">{tx.buildMs ? `${tx.buildMs.toFixed(2)} ms` : '–'}</span>
+						{/if}
+					</div>
+				</div>
+			{/if}
+			<div class="sendbar" id="bar">
+				<button
+					class="btn icon play"
+					id="playBtn"
+					data-state={tx.playing ? 'playing' : 'paused'}
+					title={tx.playing ? t('pause') : t('play')}
+					aria-label={tx.playing ? t('pause') : t('play')}
+					onclick={() => tx?.togglePlay()}
+				>
+					{#if tx.playing}
+						<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+							><rect x="6" y="5" width="4" height="14" rx="1" /><rect
+								x="14"
+								y="5"
+								width="4"
+								height="14"
+								rx="1"
+							/></svg
+						>
+					{:else}
+						<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+							><path
+								d="M7 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 7 5.5Z"
+							/></svg
+						>
+					{/if}
+				</button>
+				<div class="what">
+					<b id="fileName" title={tx.isText ? undefined : tx.label}
+						><span class="head">{nameParts[0]}</span><span class="tail">{nameParts[1]}</span></b
+					>
+					<span class="sub"
+						><span id="fileSize">{fmtBytes(tx.size)}</span>
+						{#if !tx.stats}
+							· {t('preparing')}
+						{:else if !tx.playing}
+							· <span class="paused">{t('paused')}</span>
+						{:else}
+							· <span id="passTime" title={t('passTitle')}>{passText(tx.stats.pass)}</span>
+						{/if}</span
+					>
+				</div>
+				<button
+					class="btn icon ghost"
+					id="setBtn"
+					title={t('settings')}
+					aria-label={t('settings')}
+					aria-expanded={tx.settingsOpen}
+					aria-controls="settings"
+					onclick={() => tx && (tx.settingsOpen = !tx.settingsOpen)}
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						aria-hidden="true"
+						><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle
+							cx="10"
+							cy="17"
+							r="2"
+						/></svg
+					>
+				</button>
+				{#if fsOk}
+					<button
+						class="btn icon ghost"
+						id="fsBtn"
+						title={isFs ? t('exitFullscreen') : t('fullscreen')}
+						aria-label={isFs ? t('exitFullscreen') : t('fullscreen')}
+						onclick={fullscreen}
+					>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"
+						>
+							{#if isFs}
+								<path
+									d="M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4"
+								/>
+							{:else}
+								<path
+									d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"
+								/>
+							{/if}
+						</svg>
+					</button>
+				{/if}
+				<button
+					class="btn icon ghost"
+					id="closeBtn"
+					title={t('closeCode')}
+					aria-label={t('closeCode')}
+					onclick={close}
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg
+					>
+				</button>
+			</div>
+		{/if}
 	</div>
 
 	{#if tx?.flashAsk}
@@ -262,213 +471,13 @@
 				<h2 id="flashTitle">{t('flashTitle')}</h2>
 				<p id="flashText">{t('flashWarn')}</p>
 				<div class="row">
-					<button class="btn" onclick={() => tx?.close()}>{t('closeCode')}</button>
+					<button class="btn" onclick={close}>{t('closeCode')}</button>
 					<!-- svelte-ignore a11y_autofocus -->
 					<button class="btn primary" id="flashPlay" autofocus onclick={() => tx?.acceptFlash()}
 						>{t('flashPlay')}</button
 					>
 				</div>
 			</div>
-		</div>
-	{/if}
-
-	{#if tx?.sending}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="dock panel"
-			class:away={tx.dockAway}
-			id="dock"
-			onpointermove={() => tx?.pokeDock()}
-			onpointerdown={() => tx?.pokeDock()}
-			onpointerenter={() => tx && (tx.dockHovered = true)}
-			onpointerleave={() => tx && (tx.dockHovered = false)}
-		>
-			<div class="row">
-				<button
-					class="btn icon"
-					id="playBtn"
-					title={t('paused')}
-					aria-label={t('paused')}
-					aria-pressed={!tx.playing}
-					onclick={() => tx?.togglePlay()}
-				>
-					{#if tx.playing}
-						<svg viewBox="0 0 24 24" fill="currentColor"
-							><rect x="6" y="5" width="4" height="14" rx="1" /><rect
-								x="14"
-								y="5"
-								width="4"
-								height="14"
-								rx="1"
-							/></svg
-						>
-					{:else}
-						<svg viewBox="0 0 24 24" fill="currentColor"
-							><path
-								d="M7 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 7 5.5Z"
-							/></svg
-						>
-					{/if}
-				</button>
-				<div class="fileinfo grow">
-					<div class="fname">
-						<span class="dot {tx.playing ? 'live' : 'warn'}" id="liveDot"></span><b id="fileName"
-							>{tx.isText ? t('textLabel') : tx.label}</b
-						><span id="fileSize" class="num">{fmtBytes(tx.size)}</span>
-					</div>
-					<div class="stats" id="stats">
-						{#if tx.stats}
-							{@const s = tx.stats}
-							<span>{t('rate')} <b class="num">{fmtBytes(s.rate)}/s</b></span>
-							<span>{t('perFrame')} <b class="num">{fmtBytes(s.perFrame)}</b></span>
-							<span class="wide"
-								>{t('loop')}
-								<b class="num">{s.pass < 1 ? '<1' : s.pass.toFixed(s.pass < 10 ? 1 : 0)} s</b></span
-							>
-							<span class="wide">{t('grid')} <b class="num">{s.X}×{s.Y}</b> · {s.bpc} bit</span>
-							<span class="wide"
-								>{tx.prefs.engine.toUpperCase()}
-								<b class="num" id="buildMs">{tx.buildMs ? `${tx.buildMs.toFixed(2)} ms` : '–'}</b
-								></span
-							>
-						{:else}
-							{t('preparing')}
-						{/if}
-					</div>
-				</div>
-				<button
-					class="btn icon"
-					id="setBtn"
-					title="Settings"
-					aria-label="Settings"
-					aria-expanded={tx.settingsOpen}
-					onclick={() => tx && (tx.settingsOpen = !tx.settingsOpen)}
-				>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle
-							cx="10"
-							cy="17"
-							r="2"
-						/></svg
-					>
-				</button>
-				<button
-					class="btn icon"
-					id="fsBtn"
-					title="Fullscreen"
-					aria-label="Fullscreen"
-					onclick={fullscreen}
-				>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						><path
-							d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"
-						/></svg
-					>
-				</button>
-				<button
-					class="btn icon"
-					id="hideBtn"
-					title={t('hideDock')}
-					aria-label={t('hideDock')}
-					onclick={(e) => {
-						e.stopPropagation();
-						tx?.hideDock();
-					}}
-				>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						stroke-linejoin="round"><path d="m6 9.5 6 6 6-6" /></svg
-					>
-				</button>
-				<button class="btn icon" id="closeBtn" title="Close" aria-label="Close" onclick={close}>
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg
-					>
-				</button>
-			</div>
-			{#if tx.settingsOpen}
-				<div class="settings" id="settings">
-					<div class="field">
-						<span>{t('density')}</span>
-						<div class="seg" id="segDensity">
-							{#each densities as [v, k] (v)}
-								<button
-									data-v={v}
-									aria-pressed={tx.prefs.density === v}
-									onclick={() => tx?.set('density', v)}>{t(k)}</button
-								>
-							{/each}
-						</div>
-					</div>
-					<div class="field">
-						<span>{t('colors')}</span>
-						<div class="seg" id="segMode">
-							{#each [1, 2] as v (v)}
-								<button
-									data-v={v}
-									aria-pressed={tx.prefs.mode === v}
-									onclick={() => tx?.set('mode', v)}>{v === 1 ? 4 : 8}</button
-								>
-							{/each}
-						</div>
-					</div>
-					<div class="field">
-						<span>{t('ecc')}</span>
-						<div class="seg" id="segEcc">
-							{#each eccs as [v, k] (v)}
-								<button
-									data-v={v}
-									aria-pressed={tx.prefs.ecc === v}
-									onclick={() => tx?.set('ecc', v)}>{t(k)}</button
-								>
-							{/each}
-						</div>
-					</div>
-					<div class="field">
-						<span>{t('speed')}</span><input
-							type="range"
-							id="fps"
-							min="4"
-							max="60"
-							step="1"
-							value={tx.prefs.fps}
-							oninput={(e) => tx?.setFps(Number((e.target as HTMLInputElement).value))}
-						/><b class="num" id="fpsVal">{tx.prefs.fps}</b>
-					</div>
-					<div class="field">
-						<span>{t('engine')}</span>
-						<div class="seg" id="segEngine">
-							<button
-								data-v="js"
-								aria-pressed={tx.prefs.engine === 'js'}
-								onclick={() => tx?.set('engine', 'js')}>JS</button
-							><button
-								data-v="wasm"
-								aria-pressed={tx.prefs.engine === 'wasm'}
-								onclick={() => tx?.set('engine', 'wasm')}>Rust · WASM</button
-							>
-						</div>
-					</div>
-				</div>
-			{/if}
 		</div>
 	{/if}
 </div>

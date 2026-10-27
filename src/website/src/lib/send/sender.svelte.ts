@@ -1,4 +1,5 @@
 // The sender: a file or a text becomes frames of the code, drawn on a canvas at a steady rate.
+import { tick } from 'svelte';
 import {
 	Sender,
 	Renderer,
@@ -49,13 +50,14 @@ function mmPerCssPx() {
 	return 0.25; // laptop / desktop
 }
 
-// The code box fills the available screen (any orientation): the more cells, the more data per
-// frame. The receiver turns its phone to match a landscape code.
-function computeGeometry(density: Density) {
+// The code box fills the area it is given (any orientation): the more cells, the more data per
+// frame. The receiver turns its phone to match a landscape code. The area is the space above the
+// control bar (and the settings, when open): nothing may cover the code, not even a corner.
+function computeGeometry(density: Density, areaW: number, areaH: number) {
 	const dpr = window.devicePixelRatio || 1;
 	const pad = 6;
-	const cssW = Math.max(100, window.innerWidth - 2 * pad);
-	const cssH = Math.max(100, window.innerHeight - 2 * pad);
+	const cssW = Math.max(100, areaW - 2 * pad);
+	const cssH = Math.max(100, areaH - 2 * pad);
 	const boxW = Math.min(cssW, cssH * MAX_ASPECT);
 	const boxH = Math.min(cssH, cssW * MAX_ASPECT);
 	const devW = Math.floor(boxW * dpr);
@@ -124,7 +126,7 @@ export class SendController {
 	size = $state(0);
 	stats = $state<SendStats | null>(null);
 	buildMs = $state(0); // mean encode time per frame of the current engine
-	dockAway = $state(false);
+	// Settings open above the bar; the code shrinks to the space left (closed: the largest code).
 	settingsOpen = $state(false);
 	// The first code waits, paused, until the photosensitivity warning is acknowledged.
 	flashAsk = $state(false);
@@ -148,7 +150,7 @@ export class SendController {
 	private buildTimes: number[] = [];
 	private tickTimer = 0;
 	private nextFlipAt = 0;
-	private dockTimer = 0;
+	private geoKey = ''; // the geometry the canvas was last set up for
 	private wakeLock: WakeLockSentinel | null = null;
 	shownFrames = 0;
 
@@ -156,7 +158,6 @@ export class SendController {
 		this.prefs = loadPrefs();
 		const e = new URLSearchParams(location.search).get('engine');
 		if (e) this.prefs.engine = e === 'wasm' ? 'wasm' : 'js';
-		this.settingsOpen = window.innerWidth >= 900;
 	}
 
 	savePrefs() {
@@ -175,9 +176,19 @@ export class SendController {
 		this.maskCanvas = document.createElement('canvas');
 	}
 
+	// The code's area: the canvas's parent, laid out above the bar. Before the first layout
+	// (hidden, zero size) the window is the best guess; the resize that follows corrects it.
+	private geometry() {
+		const area = this.canvas?.parentElement;
+		const w = area?.clientWidth || window.innerWidth;
+		const h = area?.clientHeight || window.innerHeight;
+		return computeGeometry(this.prefs.density, w, h);
+	}
+
 	private setupCanvas() {
 		const canvas = this.canvas!;
-		const geo = computeGeometry(this.prefs.density);
+		const geo = this.geometry();
+		this.geoKey = `${geo.s} ${geo.X} ${geo.Y} ${geo.dpr}`;
 		this.sender.resize(geo.X, geo.Y);
 		const r = (this.renderer = new Renderer(this.sender.layout, this.sender.mode, geo.s, QUIET));
 		canvas.width = r.width;
@@ -255,6 +266,7 @@ export class SendController {
 		this.label = text !== undefined ? text.replace(/\s+/g, ' ').slice(0, 40) : name;
 		this.size = bytes.length;
 		this.stats = null;
+		await tick(); // the bar is laid out: the code is sized to the space above it
 		this.prepared = await preparePayload(bytes, name);
 		if (this.prefs.engine === 'wasm') await loadWasm(wasmUrl);
 		this.newSender();
@@ -263,14 +275,13 @@ export class SendController {
 		this.flashAsk = !ok;
 		this.playing = ok;
 		this.wake();
-		this.showDock();
 		this.schedule();
 	}
 
 	// Both engines emit bit-identical streams, so switching keeps the transfer id and the
 	// receiver keeps its progress.
 	private newSender(keepTid?: number) {
-		const geo = computeGeometry(this.prefs.density);
+		const geo = this.geometry();
 		if (this.sender && this.sender.free) this.sender.free();
 		const Impl = this.prefs.engine === 'wasm' ? WasmSender : Sender;
 		this.sender = new Impl(this.prepared, {
@@ -299,7 +310,7 @@ export class SendController {
 		};
 	}
 
-	/** Called once a second by the page: the encode time shown in the dock. */
+	/** Called once a second by the page: the encode time shown in the settings' details. */
 	sample() {
 		if (this.buildTimes.length)
 			this.buildMs = this.buildTimes.reduce((a, b) => a + b, 0) / this.buildTimes.length;
@@ -346,18 +357,19 @@ export class SendController {
 		this.flashAsk = false;
 		this.playing = true;
 		this.schedule();
-		this.armDockTimer();
 	}
 
 	togglePlay() {
 		if (this.flashAsk) return this.acceptFlash();
 		this.playing = !this.playing;
 		this.schedule();
-		this.armDockTimer();
 	}
 
+	/** The code's area changed size (window, fullscreen, settings): regrid if the code changes. */
 	resized() {
-		if (this.sender) this.setupCanvas();
+		if (!this.sender) return;
+		const geo = this.geometry();
+		if (`${geo.s} ${geo.X} ${geo.Y} ${geo.dpr}` !== this.geoKey) this.setupCanvas();
 	}
 
 	close() {
@@ -374,33 +386,6 @@ export class SendController {
 		return !!this.sender;
 	}
 
-	// ---------- dock visibility
-	// Hidden by: the hide button, a tap/click on the code, H/Esc, or 2.6 s of inactivity while playing.
-	// Shown by: a tap/click on the code, the mouse reaching the bottom edge, or any key.
-	dockHovered = false;
-	hideDock() {
-		clearTimeout(this.dockTimer);
-		this.dockAway = true;
-	}
-	showDock() {
-		this.dockAway = false;
-		this.armDockTimer();
-	}
-	armDockTimer() {
-		clearTimeout(this.dockTimer);
-		this.dockTimer = window.setTimeout(() => {
-			if (this.sender && this.playing && !this.dockHovered) this.hideDock();
-			else if (!this.dockAway) this.armDockTimer();
-		}, 2600);
-	}
-	pokeDock() {
-		if (!this.dockAway) this.armDockTimer();
-	}
-	toggleDock() {
-		if (this.dockAway) this.showDock();
-		else this.hideDock();
-	}
-
 	// keep the screen on
 	async wake() {
 		try {
@@ -415,7 +400,6 @@ export class SendController {
 
 	destroy() {
 		clearTimeout(this.tickTimer);
-		clearTimeout(this.dockTimer);
 		if (this.sender && this.sender.free) this.sender.free();
 		this.sender = null;
 		if (this.wakeLock) this.wakeLock.release().catch(() => {});

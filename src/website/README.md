@@ -27,7 +27,7 @@ bun run test:e2e     # Playwright, Chromium
 | Path                              | What                                                                                 |
 | --------------------------------- | ------------------------------------------------------------------------------------ |
 | `src/routes/[[lang=lang]]/`       | the three pages; `lang` is absent (English) or `zh` (`src/params.ts`)                |
-| `src/lib/send/sender.svelte.ts`   | the sender: encoding, the frame loop, settings, the dock                             |
+| `src/lib/send/sender.svelte.ts`   | the sender: encoding, the frame loop, settings, the code sized above the bar         |
 | `src/lib/recv/receiver.svelte.ts` | the receiver: camera, scan scheduling, workers, dashboard, result                    |
 | `src/lib/recv/*.worker.ts`        | frame decoding (one per core, up to 3) and the protocol receiver                     |
 | `src/lib/i18n.ts`                 | all text, both languages, and the page paths                                         |

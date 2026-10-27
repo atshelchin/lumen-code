@@ -25,6 +25,26 @@
 	let stage = $state<HTMLDivElement>();
 	let preview = $state<HTMLDivElement>();
 	let wide = $state(true);
+	let hudH = $state(0); // the bottom panel's height: the framing guides end above it
+	// the engine, cell size, success rate and diagnostics: folded away unless asked for
+	let details = $state(false);
+	const DETAILS_KEY = 'lumen.recv.details';
+	// "29 KB/s · 12s left", once data arrives
+	const rateLine = $derived(
+		!rx || rx.mSpeed === '–'
+			? ''
+			: rx.mEta === '–'
+				? rx.mSpeed
+				: `${rx.mSpeed} · ${t('timeLeft').replace('{t}', rx.mEta)}`
+	);
+	function toggleDetails() {
+		details = !details;
+		try {
+			localStorage.setItem(DETAILS_KEY, details ? '1' : '0');
+		} catch {
+			/* storage unavailable */
+		}
+	}
 
 	onMount(() => {
 		const c = new ReceiveController(lang);
@@ -32,6 +52,11 @@
 		rx = c;
 		console.info('Lumen Code', BUILD);
 		wide = innerWidth >= 720;
+		try {
+			details = localStorage.getItem(DETAILS_KEY) === '1';
+		} catch {
+			/* storage unavailable */
+		}
 		const onVisible = () => c.visible();
 		const onResize = () => {
 			wide = innerWidth >= 720;
@@ -51,9 +76,7 @@
 	// zoom: pinch on the camera image; ctrl + wheel (trackpad pinch) on desktop
 	function gestures(stage: HTMLElement, c: ReceiveController) {
 		const onImage = (e: Event) =>
-			!(e.target as Element).closest(
-				'.topbar, .recv-bottom, .side-tools, .zoom-chip, .start, .done'
-			);
+			!(e.target as Element).closest('.topbar, .recv-dock, .start, .done');
 		let pinch: { d: number; z: number } | null = null;
 		const spread = (t: TouchList) =>
 			Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
@@ -195,77 +218,120 @@
 
 <Seo {lang} page="recv" title={t('titleRecv')} description={t('descRecv')} />
 
-<div class="stage recv" id="stage" bind:this={stage}>
+<div class="stage recv" id="stage" bind:this={stage} style:--hud-h="{hudH}px">
 	<video id="video" playsinline muted autoplay bind:this={video}></video>
 	<canvas id="overlay" bind:this={overlay}></canvas>
 
+	<!-- where to put the code: shown until a code is found, then the detected outline takes over -->
+	<div
+		class="guides"
+		class:off={!rx || rx.phase !== 'scanning' || rx.found}
+		id="guides"
+		aria-hidden="true"
+	>
+		<i></i><i></i><i></i><i></i>
+	</div>
+
 	<div class="topbar">
 		<HomeLink href={path(lang, '')} title={t('home')} />
-		<span class="chip" id="statusChip"
+		<span class="chip" class:hidden={!rx || rx.phase === 'start'} id="statusChip"
 			><span class="dot" class:live={rx?.found} id="statusDot"></span><b id="statusText"
 				>{rx?.found ? t('receiving') : t('waiting')}</b
 			></span
 		>
 		<span class="spacer"></span>
-		<div class="seg" id="segEngine" title="Engine">
-			{#each ['js', 'wasm'] as const as e (e)}
-				<button
-					data-v={e}
-					aria-pressed={(rx?.engine ?? 'wasm') === e}
-					onclick={() => rx?.setEngine(e)}>{e.toUpperCase()}</button
-				>
-			{/each}
-		</div>
 	</div>
 
-	<div class="side-tools" class:hidden={!rx?.multiCam} id="sideTools">
-		<button
-			class="btn icon"
-			id="switchCam"
-			title={t('openCam')}
-			aria-label={t('openCam')}
-			onclick={() => rx?.switchCamera()}
-		>
-			<svg
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.8"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				><path
-					d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.5-2h5L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5Z"
-				/><path d="M9 12.5a3 3 0 0 1 5.2-2M15 12a3 3 0 0 1-5.2 2" /><path
-					d="M14.5 8.8 14.2 10.6 16 10.4M9.5 15.2l.3-1.8-1.8.2"
-				/></svg
-			>
-		</button>
-	</div>
-
-	<button
-		class="zoom-chip"
-		class:hidden={!rx?.zoom}
-		class:active={!!rx?.zoom && rx.zoomLevel > rx.zoom.min + 0.05}
-		id="zoomChip"
-		title={t('zoomHint')}
-		onclick={() => rx?.zoom && rx.setZoom(rx.zoom.min)}
-		><b class="num" id="zoomVal">{(rx?.zoomLevel || 1).toFixed(1)}×</b></button
+	<div
+		class="recv-dock"
+		class:hidden={rx?.phase === 'start' || !rx}
+		bind:clientHeight={hudH}
+		id="recvDock"
 	>
+		<!-- camera tools sit above the panel, at the edge of the image, never over its middle -->
+		<div class="cam-tools" class:hidden={!rx?.zoom && !rx?.multiCam}>
+			<button
+				class="zoom-chip"
+				class:hidden={!rx?.zoom}
+				class:active={!!rx?.zoom && rx.zoomLevel > rx.zoom.min + 0.05}
+				id="zoomChip"
+				title={t('zoomHint')}
+				onclick={() => rx?.zoom && rx.setZoom(rx.zoom.min)}
+				><b class="num" id="zoomVal">{(rx?.zoomLevel || 1).toFixed(1)}×</b></button
+			>
+			<button
+				class="btn icon"
+				class:hidden={!rx?.multiCam}
+				id="switchCam"
+				title={t('openCam')}
+				aria-label={t('openCam')}
+				onclick={() => rx?.switchCamera()}
+			>
+				<svg
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+					><path
+						d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.5-2h5L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5Z"
+					/><path d="M9 12.5a3 3 0 0 1 5.2-2M15 12a3 3 0 0 1-5.2 2" /><path
+						d="M14.5 8.8 14.2 10.6 16 10.4M9.5 15.2l.3-1.8-1.8.2"
+					/></svg
+				>
+			</button>
+		</div>
 
-	<div class="recv-bottom panel" class:hidden={rx?.phase === 'start' || !rx} id="hud">
-		<div class="recv-title">
-			<span class="name" id="rxName">{rx?.rxName ?? t('waiting')}</span>
-			<span class="pct" id="rxPct">{Math.floor(rx?.pct ?? 0)}%</span>
+		<div class="recv-bottom panel" id="hud">
+			<div class="recv-title">
+				<span class="name" id="rxName">{rx?.rxName ?? t('noData')}</span>
+				<span class="pct" id="rxPct">{Math.floor(rx?.pct ?? 0)}%</span>
+			</div>
+			<div class="progress"><div id="rxBar" style:width="{rx?.pct ?? 0}%"></div></div>
+			<div class="rate-row">
+				<span class="rate" id="mSpeed">{rateLine}</span>
+				<button
+					class="more-btn"
+					id="detailsBtn"
+					aria-expanded={details}
+					aria-controls="recvDetails"
+					onclick={toggleDetails}
+					><span>{t('details')}</span><svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg
+					></button
+				>
+			</div>
+			<div class="tip" class:ok={rx?.tipGood} id="tip">{rx?.tip ?? ''}</div>
+			{#if details}
+				<div class="recv-details" id="recvDetails">
+					<div class="row">
+						<span>{t('engine')}</span>
+						<div class="seg" id="segEngine">
+							{#each ['js', 'wasm'] as const as e (e)}
+								<button
+									data-v={e}
+									aria-pressed={(rx?.engine ?? 'wasm') === e}
+									onclick={() => rx?.setEngine(e)}>{e.toUpperCase()}</button
+								>
+							{/each}
+						</div>
+					</div>
+					<div class="row">
+						<span>{t('cellM')} <b id="mCell">{rx?.mCell ?? '–'}</b></span>
+						<span>{t('okM')} <b id="mOk">{rx?.mOk ?? '–'}</b></span>
+					</div>
+					<div class="diag num" id="diag">{rx?.diag ?? ''}</div>
+				</div>
+			{/if}
 		</div>
-		<div class="progress"><div id="rxBar" style:width="{rx?.pct ?? 0}%"></div></div>
-		<div class="metrics">
-			<div><span>{t('speedM')}</span><b id="mSpeed">{rx?.mSpeed ?? '–'}</b></div>
-			<div><span>{t('etaM')}</span><b id="mEta">{rx?.mEta ?? '–'}</b></div>
-			<div><span>{t('cellM')}</span><b id="mCell">{rx?.mCell ?? '–'}</b></div>
-			<div><span>{t('okM')}</span><b id="mOk">{rx?.mOk ?? '–'}</b></div>
-		</div>
-		<div class="tip" class:ok={rx?.tipGood} id="tip">{rx?.tip ?? ''}</div>
-		<div class="diag num" id="diag">{rx?.diag ?? ''}</div>
 	</div>
 
 	<div class="start" class:hidden={rx && rx.phase !== 'start'} id="start">

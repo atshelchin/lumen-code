@@ -166,7 +166,7 @@ export class ReceiveController {
 		this.t = (key) => tr(lang, key);
 		const mobile = matchMedia('(pointer: coarse)').matches;
 		this.NW = Math.max(1, Math.min(mobile ? 2 : 3, (navigator.hardwareConcurrency || 4) - 1));
-		this.rxName = this.t('waiting');
+		this.rxName = this.t('noData');
 		try {
 			this.engine = localStorage.getItem('lumen.engine') === 'js' ? 'js' : 'wasm'; // WASM: faster, cooler
 			this.reader = JSON.parse(localStorage.getItem('lumen.reader') || '{}') || {};
@@ -877,7 +877,7 @@ export class ReceiveController {
 		this.frameDone.clear();
 		this.resetSession();
 		this.firstPacketAt = 0;
-		this.rxName = this.t('waiting');
+		this.rxName = this.t('noData');
 		this.pct = 0;
 		this.mSpeed = this.mEta = '–';
 		if (this.cameraWasOn) {
