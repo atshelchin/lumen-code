@@ -4,7 +4,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
 
 ## 0 两个商店都要的前提
 
-1. **网站上线。** 两家都要求隐私政策网址能打开，审核员测试接收也要用到网页发送端。先把 `src/website` 部署到 lumencode.link（Cloudflare Worker `lumen-code`），确认这几个地址可访问：`/privacy`、`/terms`、`/send`。
+1. **网站。** 已上线（2026-10-27 核对：`/privacy`、`/terms`、`/send` 都能打开）。两家都要求隐私政策网址能打开，审核员测试接收也会用到网页发送端。
 2. **公司的 D-U-N-S 编号。** 苹果和谷歌的公司账号都要用它核实 MONDAY LABS LTD。没有的话在 dnb.com 或苹果的 D-U-N-S 查询页免费申请，通常一到两周。
 3. **一段演示视频。** 一台设备播放、另一台手机接收、收完打开文件，30–60 秒，上传到能直接打开的地址（YouTube 不公开链接或网站上的文件）。审核员没有第二台设备时靠它判断功能。
 4. **仓库：上架前必须修的问题。**
@@ -21,11 +21,11 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
 2. **协议、税务、银行。** App Store Connect → 商务（Business）：接受付费 App 协议（Paid Apps Agreement），填公司银行账户和税表（非美国公司一般是 W-8BEN-E）。没完成这一步，付费应用无法上架。
 3. **欧盟交易商身份。** App Store Connect 里按《数字服务法》（DSA）声明交易商身份，公开公司地址、电话和邮箱；不声明就不能在欧盟上架。
 4. **确定名称和 Bundle ID。** Bundle ID 现在是 `com.shelchin.lumencode`，第一次上传后永远不能改，确认是否换成公司的前缀。在 App Store Connect → 我的 App → “+” 新建 App：平台 iOS，名称（“Lumen” 很可能已被占用，可以用 “Lumen Code” 或 “Lumen Code: Screen to Camera”），主要语言，Bundle ID，SKU（例如 `lumencode-ios`）。
-5. **iPad 和 Mac。** 当前工程同时支持 iPhone 和 iPad，而且默认会出现在 Apple 芯片 Mac 和 Vision Pro 上。iPad 版需要 13 英寸截图并解决分屏时相机冻结的问题；如果先只上 iPhone，在工程里把设备改为仅 iPhone，并在 App Store Connect 的“定价与销售范围”里关掉 Mac 和 Vision Pro。
+5. **只上 iPhone。** 工程已设为仅 iPhone，并关闭了在 Apple 芯片 Mac 和 Vision Pro 上运行 iPhone 版；App Store Connect 的“定价与销售范围”里也确认这两项未勾选。只需要 6.9 英寸 iPhone 截图。
 6. **价格与地区。** 定价与销售范围 → 价格：基准国家选美国，US$2.99，其他地区用苹果自动换算。中国大陆商店要求 ICP 备案号；没有备案就先不选中国大陆。
 7. **App 隐私。** App 隐私 → 数据收集：选“我们不从此 App 中收集数据”。隐私政策网址填 `https://lumencode.link/privacy`。
 8. **年龄分级。** 所有问题选“无”，得到 4+。“无限制网络访问”选否。
-9. **商店页。** 中英文各一套：副标题、宣传文本、描述（写明需要第二块屏幕和光敏提示）、关键词、支持网址、营销网址；6.9 英寸 iPhone 截图（1320×2868），保留 iPad 时再加 13 英寸 iPad 截图。分类：工具（Utilities）。
+9. **商店页。** 中英文各一套：副标题、宣传文本、描述（写明需要第二块屏幕和光敏提示）、关键词、支持网址、营销网址；6.9 英寸 iPhone 截图（1320×2868）。分类：工具（Utilities）。
 10. **出口合规。** 工程里已设置 `ITSAppUsesNonExemptEncryption = NO`，上传后不会再问。
 11. **打包上传。** 先在仓库根目录确保工作区干净（否则应用里显示的版本带 `+dev`），然后：
     ```sh

@@ -47,11 +47,6 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
         NSCameraUsageDescription: Lumen uses the camera to read the colour code on the sender's screen. Nothing leaves your device.
         NSPhotoLibraryAddUsageDescription: Lumen can save a received image to your photo library.
         LSSupportsOpeningDocumentsInPlace: false
@@ -69,7 +64,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.shelchin.lumencode
         PRODUCT_NAME: Lumen
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        TARGETED_DEVICE_FAMILY: "1,2"
+        # iPhone only: not offered on iPad, or as an iPhone app on Apple silicon Macs and Vision Pro
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
         INFOPLIST_KEY_UIStatusBarHidden: false
 schemes:
   Lumen:
