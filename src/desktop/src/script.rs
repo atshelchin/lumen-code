@@ -1,7 +1,8 @@
 //! Drive the app from the LUMEN_SCRIPT environment variable, for tests without a mouse (as on
 //! iOS and Android): nav:<screen>, lang, tab:<file|text>, text:<s>, sendtext, demo:<bytes>,
 //! wait:<s>, tap, settings, play, accept, camera, close, json, capture:<n>, feed, bench:<frames>,
-//! file:<path>, size:<w>x<h> (window, in points), fullscreen, details (the receive panel's Details).
+//! file:<path>, size:<w>x<h> (window, in points), fullscreen, details (the receive panel's Details),
+//! stats (the result's Details).
 
 use crate::app::Root;
 use gpui::{AsyncWindowContext, WeakEntity};
@@ -75,6 +76,7 @@ pub async fn run(this: WeakEntity<Root>, cx: &mut AsyncWindowContext, script: St
                     cx.notify();
                 });
             }
+            "stats" => rt.dispatch(Event::ToggleStats),
             "close" => rt.dispatch(Event::CloseSend),
             "capture" => {
                 captured.clear();

@@ -356,7 +356,7 @@ fn actions(root: &Root, d: &DoneView) -> AnyElement {
 }
 
 fn badge(small: bool) -> AnyElement {
-    let s = if small { 36. } else { 58. };
+    let s = if small { 36. } else { 64. };
     div()
         .size(px(s))
         .flex_none()
@@ -365,36 +365,189 @@ fn badge(small: bool) -> AnyElement {
         .flex()
         .items_center()
         .justify_center()
-        .child(icon("check", if small { 18. } else { 28. }, c(GREEN)))
+        .child(icon("check", if small { 18. } else { 30. }, c(GREEN)))
+        .into_any_element()
+}
+
+/// The result for a file that is not shown in the reader: one centered column (the mark, the
+/// name, the actions) and a Details disclosure under it with the numbers as a plain list.
+/// The file name as it fits in two lines of `width`: whole when it does, else shortened in the
+/// middle (the start and the extension stay), as GPUI's own middle ellipsis keeps one line only.
+fn two_lines(window: &Window, title: &str, width: f32, size: f32) -> SharedString {
+    let mut style = window.text_style();
+    style.font_family = ".SystemUIFont".into();
+    style.font_weight = FontWeight::SEMIBOLD;
+    let lines = |s: &str| -> usize {
+        window
+            .text_system()
+            .shape_text(SharedString::from(s.to_string()), px(size), &[style.to_run(s.len())], Some(px(width)), None)
+            .map_or(1, |ls| ls.iter().map(|l| l.wrap_boundaries().len() + 1).sum())
+    };
+    if lines(title) <= 2 {
+        return title.to_string().into();
+    }
+    let chars: Vec<char> = title.chars().collect();
+    let cut = |k: usize| -> String {
+        let tail = k * 2 / 5;
+        let head = k - tail;
+        chars[..head].iter().chain(['…'].iter()).chain(chars[chars.len() - tail..].iter()).collect()
+    };
+    // the most characters that still fit
+    let (mut lo, mut hi) = (1, chars.len() - 1);
+    while lo < hi {
+        let mid = (lo + hi + 1) / 2;
+        if lines(&cut(mid)) <= 2 {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    cut(lo).into()
+}
+
+fn file_card(root: &Root, d: &DoneView, window: &Window) -> AnyElement {
+    // the column: 420 at most, inside the 20 pt gutters
+    let col_w = (f32::from(window.viewport_size().width) - 40.).min(420.);
+    let title = two_lines(window, &d.title, col_w - 4., 20.);
+    let rt = root.rt.clone();
+    let save = rt.clone();
+    let mut actions = div().w_full().flex().flex_col().gap(px(10.)).child(
+        button("save", d.save_label.clone(), true, true, move |_, _| save.dispatch(Event::Save)).w_full().min_h(px(48.)),
+    );
+    // the secondary actions share one row, in equal widths (the desktop has no Share)
+    let mut row = div().w_full().flex().gap(px(10.));
+    let mut any = false;
+    if d.link.is_some() {
+        let rt = rt.clone();
+        row = row.child(button("link", root.t("openLink"), false, true, move |_, _| rt.dispatch(Event::OpenLink)).flex_1().min_w_0());
+        any = true;
+    }
+    if d.can_open {
+        let rt = rt.clone();
+        row = row.child(button("open", root.t("open"), false, true, move |_, _| rt.dispatch(Event::OpenFile)).flex_1().min_w_0());
+        any = true;
+    }
+    if any {
+        actions = actions.child(row);
+    }
+    let again = rt.clone();
+    actions = actions.child(
+        div()
+            .id("again")
+            .flex()
+            .items_center()
+            .justify_center()
+            .min_h(px(40.))
+            .rounded(px(10.))
+            .text_size(px(14.))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(c(MUTED))
+            .cursor_pointer()
+            .hover(|st| st.text_color(c(TEXT)).bg(white(0.04)))
+            .child(root.t("again"))
+            .on_click(move |_, _, _| again.dispatch(Event::ReceiveAnother)),
+    );
+    if let Some(n) = &d.note {
+        actions = actions.child(div().text_center().text_size(px(12.5)).text_color(c(if d.note_ok { GREEN } else { RED })).child(n.clone()));
+    }
+
+    let toggle = rt.clone();
+    let open = d.stats_open;
+    let disclosure = div()
+        .id("details")
+        .flex()
+        .items_center()
+        .gap(px(4.))
+        .h(px(32.))
+        .pl(px(12.))
+        .pr(px(8.))
+        .rounded_full()
+        .text_size(px(13.))
+        .text_color(c(MUTED))
+        .cursor_pointer()
+        .hover(|st| st.text_color(c(TEXT)).bg(white(0.04)))
+        .child(root.t("details"))
+        .child(
+            gpui::svg()
+                .path("icons/down.svg")
+                .size(px(16.))
+                .flex_none()
+                .text_color(c(MUTED))
+                .when(open, |el| el.with_transformation(gpui::Transformation::rotate(gpui::radians(std::f32::consts::PI)))),
+        )
+        .on_click(move |_, _, _| toggle.dispatch(Event::ToggleStats));
+    let mut details = div().mt(px(28.)).w_full().flex().flex_col().items_center().child(disclosure);
+    if open {
+        let mut list = div().mt(px(8.)).w_full().flex().flex_col().border_t_1().border_color(line());
+        for m in &d.stats {
+            list = list.child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_start()
+                    .justify_between()
+                    .gap(px(16.))
+                    .py(px(9.))
+                    .border_b_1()
+                    .border_color(line())
+                    .text_size(px(13.))
+                    .line_height(px(19.))
+                    .child(div().flex_none().text_color(c(MUTED)).child(m.label.clone()))
+                    .child(div().min_w_0().text_right().font_family(MONO).text_size(px(12.5)).text_color(c(TEXT)).child(m.value.clone())),
+            );
+        }
+        if let Some(code) = &d.code_line {
+            list = list.child(div().pt(px(10.)).text_size(px(11.5)).line_height(px(17.)).text_color(c(FAINT)).child(code.clone()));
+        }
+        details = details.child(list);
+    }
+
+    let column = div()
+        .w_full()
+        .max_w(px(420.))
+        .flex()
+        .flex_col()
+        .items_center()
+        .child(badge(false))
+        .child(
+            div()
+                .mt(px(18.))
+                .w(px(col_w))
+                .text_center()
+                .text_size(px(20.))
+                .line_height(px(27.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(title),
+        )
+        .child(div().mt(px(6.)).w_full().text_center().text_size(px(13.5)).text_color(c(MUTED)).child(d.sub.clone()))
+        .child(div().mt(px(28.)).w_full().child(actions))
+        .child(details);
+    div()
+        .id("file-card")
+        .absolute()
+        .size_full()
+        .bg(c(BG))
+        .overflow_y_scroll()
+        .child(
+            // below the top bar, centered in what is left; taller than the window, it scrolls
+            div()
+                .min_h_full()
+                .w_full()
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .px(px(20.))
+                .pt(px(BAR_TOP + 48.))
+                .pb(px(36.))
+                .child(column),
+        )
         .into_any_element()
 }
 
 fn done(root: &mut Root, d: &DoneView, window: &mut Window, cx: &mut Context<Root>) -> AnyElement {
     if !d.reader {
-        return div()
-            .absolute()
-            .size_full()
-            .bg(gpui::rgba(0x04060ad9))
-            .flex()
-            .items_center()
-            .justify_center()
-            .p(px(14.))
-            .child(
-                panel_box()
-                    .w(px(460.))
-                    .max_w_full()
-                    .p(px(24.))
-                    .flex()
-                    .flex_col()
-                    .items_center()
-                    .text_center()
-                    .child(badge(false))
-                    .child(div().mt(px(14.)).mb(px(4.)).text_size(px(19.)).font_weight(FontWeight::SEMIBOLD).child(d.title.clone()))
-                    .child(div().text_size(px(13.5)).text_color(c(MUTED)).child(d.sub.clone()))
-                    .child(div().mt(px(16.)).w_full().child(stats_grid(d, 3)))
-                    .child(div().mt(px(18.)).child(actions(root, d))),
-            )
-            .into_any_element();
+        return file_card(root, d, window);
     }
     let rt = root.rt.clone();
     let (r0, r1, r2, r3, r4, r5) = (rt.clone(), rt.clone(), rt.clone(), rt.clone(), rt.clone(), rt.clone());
