@@ -460,7 +460,7 @@ fn done_view(m: &Model, d: &super::DoneState) -> DoneView {
     } else if message {
         what = format!("{} {} · {}", format::grouped(c.chars.unwrap_or(0)), t(l, "chars"), what);
     }
-    let timing = if secs >= 0.5 { format!(" · {:.1}s · {}/s", secs, format::bytes(size / secs)) } else { String::new() };
+    let timing = if secs >= 0.5 { format!(" · {:.1} s · {}/s", secs, format::bytes(size / secs)) } else { String::new() };
     let session = d.stats.as_ref().map(|r| &r.stats.session);
     let metric = |k: &str, value: String| Metric { label: t(l, k).into(), value };
     let wire = d.received as f64 * d.t as f64;

@@ -1150,7 +1150,8 @@ fn bump_content(model: &mut Model) {
 }
 
 fn stats_open(model: &Model) -> bool {
-    model.prefs.reader.stats.unwrap_or(model.viewport.width_px / model.viewport.scale.max(1.0) >= 720.0)
+    // folded until asked for: the result screen leads with the file and what to do with it
+    model.prefs.reader.stats.unwrap_or(false)
 }
 
 #[cfg(test)]
