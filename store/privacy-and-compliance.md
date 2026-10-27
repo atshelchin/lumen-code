@@ -5,7 +5,7 @@ The answers both stores ask for, and why each is true. Check them against the co
 ## App Store Connect
 
 - **App Privacy → Data collection:** "No, we do not collect data from this app." The Swift code has no URLSession, Network or analytics code; the Rust core depends only on crux_core, serde, serde_json and uniffi; the release binary imports no socket functions (checked 2026-10-27).
-- **Privacy manifest** (`src/ios/Lumen/Resources/PrivacyInfo.xcprivacy`, to add before upload): NSPrivacyTracking false, no collected data types, no tracking domains; required-reason APIs: UserDefaults (CA92.1) and file timestamp (C617.1, from Rust's standard library).
+- **Privacy manifest** (`src/ios/Lumen/Resources/PrivacyInfo.xcprivacy`, in the app bundle): NSPrivacyTracking false, no collected data types, no tracking domains; required-reason APIs: UserDefaults (CA92.1) and file timestamp (C617.1, from Rust's standard library).
 - **Export compliance:** `ITSAppUsesNonExemptEncryption = NO` (no encryption; only checksums and Reed–Solomon).
 - **Age rating:** "None" for every question → 4+. Unrestricted web access: No (links open in Safari).
 - **Category:** Utilities; secondary Productivity.

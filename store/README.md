@@ -8,7 +8,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
 2. **公司的 D-U-N-S 编号。** 苹果和谷歌的公司账号都要用它核实 MONDAY LABS LTD。没有的话在 dnb.com 或苹果的 D-U-N-S 查询页免费申请，通常一到两周。
 3. **一段演示视频。** 一台设备播放、另一台手机接收、收完打开文件，30–60 秒，上传到能直接打开的地址（YouTube 不公开链接或网站上的文件）。审核员没有第二台设备时靠它判断功能。
 4. **仓库：上架前必须修的问题。**
-   - iOS：加 `PrivacyInfo.xcprivacy`（UserDefaults 原因 CA92.1；Rust 标准库带入的文件元数据调用，原因 C617.1；不追踪、不收集数据）。缺了它上传会被拒（ITMS-91053）。
+   - ~~iOS：加 `PrivacyInfo.xcprivacy`~~ 已完成（UserDefaults 原因 CA92.1；Rust 标准库带入的文件元数据调用，原因 C617.1；不追踪、不收集数据；已核对 Release 包里没有其他需声明的 API）。
    - iOS：首页文案里提到 Android（违反 2.3.10），iOS 上改用不提其他平台的说法。
    - Android：发布版目前用调试密钥签名，Play 会拒收。按第 2 节第 1 步建上传密钥，并在 `build.gradle.kts` 里读取 `keystore.properties`。
    - 两端：从其他应用“用 Lumen 打开”的文件会直接开始播放，跳过光敏提示，要改成首次播放前必须确认一次。
