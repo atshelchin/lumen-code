@@ -42,6 +42,14 @@ Every page shows `Version <commit> · <date>`, linked to that commit: the last c
 changed the site's sources (`src/website`, `src/core`, `src/rust`, `docs`). `+dev` means the
 build had uncommitted changes. Build from a committed tree for a release.
 
+## Home page
+
+The text of the home page, in both languages, is in `src/lib/landing.ts`, with the app price
+(`PRICE`) and the store links (`STORES`: while they are `null`, the page says "coming soon").
+The phone in the hero is a real screenshot of the receiver: `bun scripts/screens.ts` takes it
+from a running build (`bunx vite preview --port 4173`) with Chrome's fake camera, and writes
+`static/screens/recv-{en,zh}.jpg`.
+
 ## Tests
 
 `e2e/site.e2e.ts` plays a recorded transfer (60 000 random bytes, rendered through the camera

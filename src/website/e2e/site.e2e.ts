@@ -25,6 +25,27 @@ for (const [url, title, text] of pages) {
 	});
 }
 
+test('home page: pricing, the store apps not yet published, the receiver screenshot', async ({
+	page,
+	request
+}) => {
+	for (const [url, soon] of [
+		['/', 'Coming soon'],
+		['/zh', '即将上架']
+	]) {
+		await page.goto(url);
+		const pricing = page.locator('#pricing');
+		await expect(pricing.locator('.plan')).toHaveCount(3);
+		await expect(pricing.locator('.plan.featured .price')).toContainText('US$2.99');
+		await expect(pricing.locator('.store')).toHaveText([
+			`App Store · ${soon}`,
+			`Google Play · ${soon}`
+		]);
+		const shot = await page.locator('img.phone').getAttribute('src');
+		expect((await request.get(shot!)).status()).toBe(200);
+	}
+});
+
 test('sitemap lists every page in both languages; robots points to it', async ({ request }) => {
 	const xml = await (await request.get('/sitemap.xml')).text();
 	expect(xml.match(/<loc>/g)?.length).toBe(6);
