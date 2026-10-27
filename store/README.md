@@ -13,7 +13,7 @@ iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，
    - Android：发布版目前用调试密钥签名，Play 会拒收。按第 2 节第 1 步建上传密钥，并在 `build.gradle.kts` 里读取 `keystore.properties`。
    - 两端：从其他应用“用 Lumen 打开”的文件会直接开始播放，跳过光敏提示，要改成首次播放前必须确认一次。
    - 两端：真机审查发现的问题（控制栏挡住码导致收不到、关闭文字发送后残留的文字可以再次发出、完成页没有关闭按钮等），见下一轮 UI 修改。
-5. **仓库：商店材料。** 照 Keyper 的 `store/` 准备：中英文商店文案、审核说明 `review-notes.md`、隐私与合规答案 `privacy-and-compliance.md`、截图（真机拍摄后加说明文字）、Google Play 的 512 图标和 1024×500 宣传图。
+5. **商店材料。** 已写好：`app-store/listing.md`、`google-play/listing.md`（名称、副标题、关键词、简短说明，字数已核对）、`description-en.txt` / `description-zh.txt`（完整说明）、`review-notes.md`（审核说明，提交前把演示视频链接填进去）、`privacy-and-compliance.md`（隐私、分级、合规问卷的答案及依据）。还要做：真机截图（界面简化完成后拍）、Google Play 的 512 图标和 1024×500 宣传图。
 
 ## 1 App Store
 

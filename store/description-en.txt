@@ -1,0 +1,29 @@
+Lumen Code sends a file from one screen to a phone's camera. The sender plays the file as an animated colour code; the receiver points its camera at the screen and rebuilds the file. There is no network, no Bluetooth, no pairing and no account: the file goes only between the two devices.
+
+USE IT FOR
+- Moving a file or a piece of text between devices of different makes.
+- Computers without a shared network, or that are locked down or air-gapped.
+- Copying something from a screen you can only look at.
+
+HOW IT WORKS
+1. On the device with the file, open Send and choose a file or type text.
+2. On the other phone, open Receive and point the camera at the screen.
+3. Hold steady until the file arrives, then open, save or share it.
+
+Every frame carries new data, so missed or blurred frames only slow the transfer down a little; three of the four corners are enough to read a frame. Text, links and JSON open in a reader; images and other files can be saved or shared.
+
+SPEED
+It depends on the screen and the camera. The fastest transfer measured between two phones running the app reached 96 KB/s; at 50 KB/s, 1 MB takes about 20 seconds. Files up to 256 MB are accepted.
+
+WORKS EVERYWHERE
+The iPhone app, the Android app, the desktop app and the free web version at lumencode.link all use the same open protocol and send to each other.
+
+PRIVACY
+The app makes no network connections and has no account and no analytics. Camera images are processed on the device and never stored or sent.
+
+PHOTOSENSITIVITY WARNING
+While sending, the code flashes and changes colour up to 60 times a second. People who are sensitive to flashing light, for example with photosensitive epilepsy, should not look at it. The app asks you to confirm this before the first code plays.
+
+OPEN SOURCE
+The protocol and all the apps are open source under the MIT License: https://github.com/atshelchin/lumen-code
+Website: https://lumencode.link
