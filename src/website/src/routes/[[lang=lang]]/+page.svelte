@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { t as tr, path, type Key } from '#lib/i18n';
 	import { LANDING, STORES } from '#lib/landing';
+	import { LEGAL } from '#lib/legal';
 	import { REPO } from '#lib/build';
 	import Mark from '#lib/ui/Mark.svelte';
 	import Warn from '#lib/ui/Warn.svelte';
@@ -327,6 +328,10 @@
 				<a href={path(zh ? 'en' : 'zh', '')} hreflang={zh ? 'en' : 'zh-CN'}
 					>{zh ? 'English' : '中文'}</a
 				>
+			</p>
+			<p class="legal-links">
+				<a href={path(lang, 'privacy')}>{LEGAL[lang].privacy.title}</a> ·
+				<a href={path(lang, 'terms')}>{LEGAL[lang].terms.title}</a>
 			</p>
 			<p><BuildLink label={t('buildLabel')} /></p>
 			<p class="quiet">© 2026 Lumen Code</p>

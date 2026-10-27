@@ -3,7 +3,7 @@ import { LANGS, htmlLang, path, type Lang } from '#lib/i18n';
 
 export const prerender = true;
 
-const PAGES = ['', 'send', 'recv'] as const;
+const PAGES = ['', 'send', 'recv', 'privacy', 'terms'] as const;
 
 export function GET() {
 	const abs = (lang: Lang, page: (typeof PAGES)[number]) => `${__SITE__}${path(lang, page)}`;

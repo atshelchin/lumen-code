@@ -2,7 +2,7 @@
 	// <head> of a page: title, description, the language versions, and link previews.
 	// href of an alternate is the public address (for search engines); data-local is the path on
 	// this host, used by the redirect in app.html and by the language button.
-	import { LANGS, htmlLang, path, type Lang } from '#lib/i18n';
+	import { LANGS, htmlLang, path, type Lang, type Page } from '#lib/i18n';
 
 	let {
 		lang,
@@ -12,7 +12,7 @@
 		jsonLd = null
 	}: {
 		lang: Lang;
-		page: '' | 'send' | 'recv';
+		page: Page;
 		title: string;
 		description: string;
 		jsonLd?: object | null;

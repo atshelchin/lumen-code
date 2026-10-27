@@ -9,7 +9,11 @@ const pages = [
 	['/recv', 'Receive a file — Lumen Code', 'Open camera'],
 	['/zh', 'Lumen Code — 用屏幕和相机传文件', '把文件变成'],
 	['/zh/send', '发送文件 — Lumen Code', '选择文件'],
-	['/zh/recv', '接收文件 — Lumen Code', '打开相机']
+	['/zh/recv', '接收文件 — Lumen Code', '打开相机'],
+	['/privacy', 'Privacy Policy — Lumen Code', 'never leave your devices'],
+	['/terms', 'Terms of Service — Lumen Code', 'MIT License'],
+	['/zh/privacy', '隐私政策 — Lumen Code', '不离开你的设备'],
+	['/zh/terms', '服务条款 — Lumen Code', 'MIT 许可证']
 ] as const;
 
 // Search engines and the first paint read the HTML as served: the words must be in it.
@@ -46,9 +50,21 @@ test('home page: pricing, the store apps not yet published, the receiver screens
 	}
 });
 
+test('the home page links the privacy policy and the terms, in its language', async ({ page }) => {
+	await page.goto('/zh');
+	await page.click('footer >> text=隐私政策');
+	await expect(page).toHaveURL(/\/zh\/privacy$/);
+	await expect(page.locator('h1')).toHaveText('隐私政策');
+	await page.click('footer >> text=服务条款');
+	await expect(page).toHaveURL(/\/zh\/terms$/);
+	await page.click('#lang');
+	await expect(page).toHaveURL(/:4173\/terms$/);
+	await expect(page.locator('h1')).toHaveText('Terms of Service');
+});
+
 test('sitemap lists every page in both languages; robots points to it', async ({ request }) => {
 	const xml = await (await request.get('/sitemap.xml')).text();
-	expect(xml.match(/<loc>/g)?.length).toBe(6);
+	expect(xml.match(/<loc>/g)?.length).toBe(10);
 	expect(await (await request.get('/robots.txt')).text()).toContain(
 		'Sitemap: https://lumencode.awesometools.dev/sitemap.xml'
 	);

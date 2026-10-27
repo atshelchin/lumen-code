@@ -250,7 +250,10 @@ export function t(lang: Lang, key: Key): string {
 }
 
 /** The address of a page in a language: '/', '/send', '/zh', '/zh/send'. */
-export function path(lang: Lang, page: '' | 'send' | 'recv'): string {
+/** The site's pages, by their path after the language prefix. */
+export type Page = '' | 'send' | 'recv' | 'privacy' | 'terms';
+
+export function path(lang: Lang, page: Page): string {
 	const p = lang === 'zh' ? `/zh${page ? `/${page}` : ''}` : `/${page}`;
 	return p;
 }
