@@ -133,6 +133,20 @@ for (const [engine, lang] of [
 				.join('');
 		});
 		expect(got).toBe(want);
+		// the file card: the numbers start folded; Save comes first, full width, on a phone's first screen
+		await expect(page.locator('#statsBtn')).toHaveAttribute('aria-expanded', 'false');
+		await expect(page.locator('#doneStats')).toBeHidden();
+		await page.setViewportSize({ width: 390, height: 844 });
+		const save = (await page.locator('#saveBtn').boundingBox())!;
+		const actions = (await page.locator('.file-actions').boundingBox())!;
+		expect(Math.abs(save.width - actions.width)).toBeLessThan(1);
+		expect(save.width).toBeGreaterThan(300);
+		expect(save.y + save.height).toBeLessThanOrEqual(844);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			390
+		);
+		await page.click('#statsBtn');
+		await expect(page.locator('#doneStats')).toBeVisible();
 		await expect(page.locator('#doneStats')).toContainText(engine.toUpperCase());
 		expect(errors).toEqual([]);
 	});

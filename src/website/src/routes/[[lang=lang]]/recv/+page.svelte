@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
 	import { t as tr, path, type Key } from '#lib/i18n';
 	import { BUILD } from '#lib/build';
 	import { formatJson, linkParts } from '#lib/text-view';
@@ -24,7 +25,6 @@
 	let mediaInput = $state<HTMLInputElement>();
 	let stage = $state<HTMLDivElement>();
 	let preview = $state<HTMLDivElement>();
-	let wide = $state(true);
 	let hudH = $state(0); // the bottom panel's height: the framing guides end above it
 	// the engine, cell size, success rate and diagnostics: folded away unless asked for
 	let details = $state(false);
@@ -51,7 +51,6 @@
 		c.attach(video!, overlay!);
 		rx = c;
 		console.info('Lumen Code', BUILD);
-		wide = innerWidth >= 720;
 		try {
 			details = localStorage.getItem(DETAILS_KEY) === '1';
 		} catch {
@@ -59,7 +58,6 @@
 		}
 		const onVisible = () => c.visible();
 		const onResize = () => {
-			wide = innerWidth >= 720;
 			if (c.done) moreHint();
 		};
 		document.addEventListener('visibilitychange', onVisible);
@@ -143,7 +141,7 @@
 			!(pretty && colour) &&
 			(pretty ? (done.lines ?? []).join('\n') : done.text).length > TEXT_DISPLAY_LIMIT
 	);
-	const showStats = $derived(reader.stats ?? wide); // open by default on wide screens, folded on phones
+	const showStats = $derived(reader.stats ?? false); // folded until asked for, on every screen
 	const isLink = $derived(!!done?.text && /^https?:\/\/\S+$/i.test(done.text.trim()));
 	let copied = $state(false);
 	let overflow = $state(false);
@@ -155,7 +153,52 @@
 		rx.saveReader();
 	}
 
-	// Long previews scroll; phones show no scrollbar, so fade the edge (and say so in the small card).
+	async function openStats() {
+		const open = !showStats;
+		setReader({ stats: open });
+		if (!open) return;
+		await tick();
+		document.getElementById('doneStats')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+	}
+
+	// A long file name: at most two lines, cut in the middle so the start and the extension stay.
+	function fitName(full: string): Attachment<HTMLElement> {
+		return (el) => {
+			let width = -1;
+			const fit = () => {
+				if (el.clientWidth === width) return;
+				width = el.clientWidth;
+				const node = el.firstChild;
+				const set = (s: string) => {
+					if (node?.nodeType === Node.TEXT_NODE) node.nodeValue = s;
+					else el.textContent = s;
+				};
+				set(full);
+				const max = 2 * (parseFloat(getComputedStyle(el).lineHeight) || 26) + 2;
+				if (el.scrollHeight <= max) return;
+				const chars = [...full];
+				const cut = (k: number) =>
+					chars.slice(0, k - (k >> 1)).join('') +
+					'…' +
+					chars.slice(chars.length - (k >> 1)).join('');
+				let lo = 2;
+				let hi = chars.length - 1;
+				while (lo < hi) {
+					const mid = (lo + hi + 1) >> 1;
+					set(cut(mid));
+					if (el.scrollHeight <= max) lo = mid;
+					else hi = mid - 1;
+				}
+				set(cut(lo));
+			};
+			fit();
+			const ro = new ResizeObserver(fit);
+			ro.observe(el);
+			return () => ro.disconnect();
+		};
+	}
+
+	// Long previews scroll; phones show no scrollbar, so fade the edge.
 	function moreHint() {
 		const pv = preview;
 		if (!pv) return void (overflow = false);
@@ -163,12 +206,7 @@
 		atEnd = pv.scrollTop + pv.clientHeight >= pv.scrollHeight - 8;
 	}
 	const hint = $derived(
-		[
-			overflow && done && !(done.image || done.text !== null) ? t('scrollHint') : '',
-			truncated ? t('truncatedHint').replace('{n}', TEXT_DISPLAY_LIMIT.toLocaleString()) : ''
-		]
-			.filter(Boolean)
-			.join(' · ')
+		truncated ? t('truncatedHint').replace('{n}', TEXT_DISPLAY_LIMIT.toLocaleString()) : ''
 	);
 	$effect(() => {
 		// a new result or another view: back to the top
@@ -382,13 +420,64 @@
 		</div>
 	</div>
 
-	{#if done}
-		<div
-			class="done"
-			class:reader={done.image || done.text !== null}
-			class:show-stats={showStats}
-			id="done"
-		>
+	{#if done && !done.image && done.text === null}
+		<!-- a file without a preview: what arrived, how to keep it; the numbers folded below -->
+		<div class="done file" id="done">
+			<div class="done-top"><HomeLink href={path(lang, '')} title={t('home')} /></div>
+			<div class="file-card">
+				<div class="badge" aria-hidden="true">
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.2"
+						stroke-linecap="round"
+						stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg
+					>
+				</div>
+				<h2 id="doneName" title={done.name} {@attach fitName(done.title)}>{done.title}</h2>
+				<div class="sub" id="doneSub">{done.sub}</div>
+				<div class="file-actions">
+					<a class="btn primary" id="saveBtn" href={done.url} download={done.name}>{t('save')}</a>
+					<div class="pair">
+						<a class="btn" id="openBtn" target="_blank" rel="noopener" href={done.url}
+							>{t('open')}</a
+						>
+					</div>
+					<button class="btn quiet" id="againBtn" onclick={() => rx?.again()}>{t('again')}</button>
+				</div>
+				<button
+					class="disclose"
+					id="statsBtn"
+					aria-expanded={showStats}
+					aria-controls="doneStats"
+					onclick={openStats}
+					><span>{t('details')}</span><svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg
+					></button
+				>
+				<div class="file-stats" id="doneStats" hidden={!showStats}>
+					<dl>
+						{#each done.stats as [k, v] (k)}
+							<div>
+								<dt>{k}</dt>
+								<dd>{v}</dd>
+							</div>
+						{/each}
+					</dl>
+					{#if done.code}<div class="code">{done.code}</div>{/if}
+				</div>
+			</div>
+		</div>
+	{:else if done}
+		<!-- text, JSON or an image: the reader fills the screen -->
+		<div class="done reader" class:show-stats={showStats} id="done">
 			<div class="panel">
 				<div class="done-head">
 					<div class="badge">

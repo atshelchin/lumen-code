@@ -858,7 +858,7 @@ input[type='range'] {
 	backdrop-filter: blur(10px);
 	-webkit-backdrop-filter: blur(10px);
 }
-/* card (files without a preview): never exceeds the screen */
+/* the result panel: base for the reader below; never exceeds the screen */
 .done .panel {
 	width: min(460px, 100%);
 	max-height: 100%;
@@ -973,6 +973,189 @@ input[type='range'] {
 	justify-content: center;
 	margin-top: 18px;
 	flex-wrap: wrap;
+}
+
+/* ---------- a received file without a preview: one calm centred column, the numbers folded */
+.done.file {
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: flex-start;
+	padding: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+.done-top {
+	flex: none;
+	display: flex;
+	align-items: center;
+	padding: max(12px, env(safe-area-inset-top)) 14px 10px;
+}
+/* auto margins centre it below the top bar, and let it scroll from the top when taller */
+.file-card {
+	margin: auto;
+	width: min(420px, 100%);
+	padding: 8px 20px max(56px, env(safe-area-inset-bottom));
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+.done.file .badge {
+	width: 64px;
+	height: 64px;
+	margin: 0 0 18px;
+}
+.done.file .badge svg {
+	width: 30px;
+	height: 30px;
+}
+.done.file h2 {
+	width: 100%;
+	max-height: 52px;
+	margin: 0 0 6px;
+	overflow: hidden;
+	font-size: 19px;
+	font-weight: 650;
+	line-height: 26px;
+	word-break: normal;
+	overflow-wrap: anywhere;
+}
+.done.file .sub {
+	font-size: 14px;
+	font-variant-numeric: tabular-nums;
+}
+.file-actions {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 28px;
+}
+.file-actions .btn {
+	width: 100%;
+	min-width: 0;
+}
+.file-actions #saveBtn {
+	min-height: 50px;
+	font-size: 16px;
+}
+/* secondary actions share one row at equal widths */
+.file-actions .pair {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
+	gap: 10px;
+}
+.btn.quiet {
+	background: transparent;
+	border-color: transparent;
+	color: var(--muted);
+}
+.btn.quiet:hover {
+	background: rgba(255, 255, 255, 0.05);
+	color: var(--text);
+}
+.disclose {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-height: 36px;
+	margin-top: 22px;
+	padding: 0 10px 0 14px;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 13.5px;
+	cursor: pointer;
+}
+.disclose:hover {
+	color: var(--text);
+}
+.disclose svg {
+	width: 16px;
+	height: 16px;
+	transition: transform 0.2s;
+}
+.disclose[aria-expanded='true'] svg {
+	transform: rotate(180deg);
+}
+/* one row per number: label left, value right, never cut off */
+.file-stats {
+	width: 100%;
+	margin-top: 6px;
+	text-align: left;
+}
+.file-stats dl {
+	margin: 0;
+	border-top: 1px solid var(--line);
+}
+.file-stats dl > div {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 10px 2px;
+	border-bottom: 1px solid var(--line);
+	font-size: 13.5px;
+}
+.file-stats dt {
+	flex: none;
+	color: var(--muted);
+}
+.file-stats dd {
+	min-width: 0;
+	margin: 0;
+	font-family: var(--mono);
+	font-size: 13px;
+	text-align: right;
+	overflow-wrap: anywhere;
+}
+.file-stats .code {
+	margin-top: 12px;
+	padding: 0 2px;
+	color: var(--faint);
+	font-family: var(--mono);
+	font-size: 11.5px;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+/* a phone on its side: tighter, so Save stays on the first screen */
+@media (max-height: 500px) {
+	.file-card {
+		padding-bottom: max(20px, env(safe-area-inset-bottom));
+	}
+	.done.file .badge {
+		width: 48px;
+		height: 48px;
+		margin-bottom: 10px;
+	}
+	.done.file .badge svg {
+		width: 24px;
+		height: 24px;
+	}
+	.file-actions {
+		gap: 8px;
+		margin-top: 16px;
+	}
+	.file-actions #saveBtn {
+		min-height: 46px;
+	}
+	.disclose {
+		margin-top: 6px;
+	}
+}
+/* ...and wide enough that the column clears the back button: the top bar floats over the side */
+@media (max-height: 500px) and (min-width: 600px) {
+	.done-top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.file-card {
+		padding-top: max(16px, env(safe-area-inset-top));
+	}
 }
 
 /* ---------- reader: received text or image fills the screen */
@@ -1272,10 +1455,10 @@ input[type='range'] {
 	-webkit-backdrop-filter: none;
 	background: rgba(12, 16, 23, 0.86);
 }
-.stage .done:not(.reader) {
+.stage .done.file {
 	backdrop-filter: none;
 	-webkit-backdrop-filter: none;
-	background: rgba(4, 6, 10, 0.9);
+	background: var(--bg);
 }
 
 /* the photosensitivity warning before the first code plays (over the paused code) */

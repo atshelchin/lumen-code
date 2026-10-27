@@ -835,7 +835,8 @@ export class ReceiveController {
 		const image = (MIME[ext] || '').startsWith('image/');
 		const secs = this.firstPacketAt ? (performance.now() - this.firstPacketAt) / 1000 : 0;
 		const { stats, code } = this.doneStats(bytes.length, secs);
-		const timing = secs >= 0.5 ? ` · ${secs.toFixed(1)}s · ${fmtBytes(bytes.length / secs)}/s` : '';
+		const timing =
+			secs >= 0.5 ? ` · ${secs.toFixed(1)} s · ${fmtBytes(bytes.length / secs)}/s` : '';
 		const lines = json ? formatJson(text!, { html: text!.length <= HIGHLIGHT_LIMIT }) : null;
 		let what = fmtBytes(bytes.length);
 		if (json) what = `JSON · ${lines!.length.toLocaleString()} ${t('lines')} · ${what}`;
