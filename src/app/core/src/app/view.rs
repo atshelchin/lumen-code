@@ -45,7 +45,11 @@ pub struct SendView {
     pub drop_hint: String,
     /// Photosensitivity warning, shown before a code plays (PROTOCOL §10.4).
     pub flash_warn: String,
-    /// Dock: file name, or "Text: first words…"
+    /// The code is ready but waits, paused, until the warning is acknowledged (`AcceptFlash`).
+    pub flash_ask: bool,
+    /// The text on the Text tab; the field shows this, so what is shown is what is sent.
+    pub text: String,
+    /// Dock: the file name, or just "Text" (never the text itself).
     pub title: String,
     pub size: String,
     pub stats: Vec<Stat>,
@@ -171,11 +175,8 @@ fn send_view(m: &Model) -> SendView {
     let (title, size) = match &s.source {
         Some(src) => {
             let title = match &src.text {
-                Some(text) => {
-                    let flat: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-                    let head: String = flat.chars().take(40).collect();
-                    format!("{}: {}", t(l, "textLabel"), head)
-                }
+                // never the text itself: the screen is meant to be filmed (passwords, links)
+                Some(_) => t(l, "textLabel").to_string(),
                 None => src.name.clone(),
             };
             (title, format::bytes(src.size as f64))
@@ -215,6 +216,8 @@ fn send_view(m: &Model) -> SendView {
         drop_desc: t(l, if mobile { "dropDescMobile" } else { "dropDesc" }).into(),
         drop_hint: t(l, if mobile { "dropHintMobile" } else { "dropHint" }).into(),
         flash_warn: t(l, "flashWarn").into(),
+        flash_ask: s.phase == SendPhase::Ready && !m.prefs.flash_ok,
+        text: s.text.clone(),
         title,
         size,
         stats,
@@ -297,6 +300,9 @@ fn recv_view(m: &Model) -> RecvView {
     let ok_rate = if cov_tot > 0 { cov_ok as f64 / cov_tot as f64 } else { 0.0 };
     let mut speed = "–".to_string();
     let mut eta = "–".to_string();
+    // data is arriving: then the transfer is going well, whatever share of each frame is read
+    let moving = r.prog_hist.len() >= 2
+        && r.prog_hist.back().zip(r.prog_hist.front()).is_some_and(|(b, f)| b.1 > f.1 && now - b.0 < 2500.0);
     if let Some(p) = &r.progress {
         v.name = p.name.clone().unwrap_or_else(|| t(l, "receiving").into());
         let done = r.phase == RecvPhase::Done;
@@ -357,13 +363,13 @@ fn recv_view(m: &Model) -> RecvView {
         (t(l, "recvTooLarge").replace("{size}", &format::bytes(size as f64)).replace("{max}", &format::bytes(max)), false)
     } else if !found {
         (t(l, "tipSearch").to_string(), false)
-    } else if cell_n > 0 && cell < 3.4 {
+    } else if !moving && cell_n > 0 && cell < 3.4 {
         let landscape_code = last.and_then(|x| x.header).is_some_and(|h| h.x as f64 > h.y as f64 * 1.2);
         let k = if landscape_code && last.is_some_and(portrait) { "tipLandscape" } else { "tipCloser" };
         (t(l, k).to_string(), false)
-    } else if cov_tot > 0 && ok_rate < 0.9 && last.is_some_and(|x| skew(x) > 1.08) {
+    } else if !moving && cov_tot > 0 && ok_rate < 0.9 && last.is_some_and(|x| skew(x) > 1.08) {
         (t(l, "tipParallel").to_string(), false)
-    } else if cov_tot > 0 && ok_rate < 0.5 {
+    } else if !moving && cov_tot > 0 && ok_rate < 0.5 {
         (t(l, if cell < 4.5 { "tipSteady" } else { "tipColor" }).to_string(), false)
     } else if m.thermal >= 2 && r.camera.on && r.camera.max_fps > 60 && r.camera.fps <= 60 {
         (t(l, "tipHot").to_string(), false)
@@ -389,7 +395,7 @@ fn recv_view(m: &Model) -> RecvView {
 
     if let Some(x) = last.filter(|x| x.ok && now - x.at < FOUND_MS && r.phase == RecvPhase::Scanning) {
         if let Some(points) = x.corners {
-            let tone = if x.frame_rate > 0.8 {
+            let tone = if moving || x.frame_rate > 0.8 {
                 Tone::Good
             } else if x.frame_rate > 0.3 {
                 Tone::Fair

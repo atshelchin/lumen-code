@@ -91,7 +91,12 @@ fn sending_a_file_shows_a_code_and_keeps_the_screen_on() {
     let v = &h.last.send;
     let g = v.geometry.expect("geometry");
     assert!(g.y > g.x, "portrait code on a portrait phone");
-    assert!(v.playing && v.dock_visible);
+    // the first code waits, paused, for the photosensitivity warning to be read
+    assert!(!v.playing && v.flash_ask && v.dock_visible);
+    h.send(Event::AcceptFlash);
+    assert!(h.last.send.playing && !h.last.send.flash_ask);
+    assert!(h.ops.iter().any(|op| matches!(op, ShellOp::SavePrefs { json } if json.contains("\"flashOk\":true"))));
+    let v = &h.last.send;
     assert_eq!(v.title, "photo.bin");
     assert_eq!(v.stats.len(), 5);
     assert!(h.ops.contains(&ShellOp::KeepAwake { on: true }));
@@ -143,7 +148,17 @@ fn text_round_trip_through_rendered_frames() {
     assert!(tx.last.send.can_send_text);
     tx.send(Event::SendText);
     tx.wait_for("sender ready", |v| v.send.phase == SendPhase::Ready);
-    assert!(tx.last.send.title.starts_with("文本: {\"hello\""));
+    // the dock names a text, never shows it (the screen is filmed); the field keeps it
+    assert_eq!(tx.last.send.title, "文本");
+    assert_eq!(tx.last.send.text, text);
+    tx.send(Event::AcceptFlash);
+    assert!(tx.last.send.playing);
+    // a second code plays at once: the warning was read
+    tx.send(Event::CloseSend);
+    assert_eq!(tx.last.send.text, text, "closing keeps the text, and the field shows it");
+    tx.send(Event::SendText);
+    tx.wait_for("sender ready again", |v| v.send.phase == SendPhase::Ready);
+    assert!(tx.last.send.playing && !tx.last.send.flash_ask);
 
     // receiver: frames rendered at 3 px per cell, decoded as stills
     let mut rx = Harness::new(Platform::Ios);
@@ -308,4 +323,28 @@ fn camera_mode_follows_the_sender_and_the_heat() {
     let stats = LiveStats { sender_fps: 8.0, last_found_at: at, cell: 6.0, cell_n: 5, heat_limited: true, ..Default::default() };
     h.send(Event::Scanned(Box::new(ScanReport { at, ok: true, stats, ..Default::default() })));
     assert_eq!(h.last.recv.tip, crate::i18n::t(Lang::Zh, "tipHotScan"));
+}
+
+/// While data keeps arriving the receiver says so: a green outline and no warning, even when
+/// each scan reads only part of a frame. The warnings come back once progress stalls.
+#[test]
+fn receive_feedback_follows_progress() {
+    use crate::engine::recv::{LiveStats, ScanReport};
+    use crate::engine::sink::ProgressFact;
+    let now = 10_000.0;
+    let mut m = Model { screen: Screen::Receive, now, ..Model::default() };
+    m.recv.phase = RecvPhase::Scanning;
+    let stats = LiveStats { last_found_at: now - 100.0, cov_ok: 20, cov_tot: 100, cell: 5.0, cell_n: 5, ..LiveStats::default() };
+    m.recv.last = Some(ScanReport { ok: true, at: now - 100.0, corners: Some([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]), frame_rate: 0.2, stats, ..ScanReport::default() });
+    m.recv.progress = Some(ProgressFact { received: 40, needed: Some(100), t: 200, ..ProgressFact::default() });
+
+    m.recv.prog_hist = [(now - 2000.0, 10), (now - 500.0, 40)].into_iter().collect();
+    let v = view::view(&m).recv;
+    assert_eq!(v.tip, crate::i18n::t(Lang::En, "tipGood"));
+    assert_eq!(v.overlay.expect("outline").tone, view::Tone::Good);
+
+    m.recv.prog_hist = [(now - 6000.0, 10), (now - 5000.0, 40)].into_iter().collect();
+    let v = view::view(&m).recv;
+    assert_eq!(v.tip, crate::i18n::t(Lang::En, "tipColor"), "stalled: the hint is back");
+    assert_eq!(v.overlay.expect("outline").tone, view::Tone::Poor);
 }

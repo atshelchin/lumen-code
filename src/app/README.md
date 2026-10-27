@@ -46,7 +46,7 @@ plan: scan this frame? ──► crop + scale the region around the code ──�
 ## Build and test
 
 ```sh
-cargo test --release                          # 20 tests: app logic, camera pipeline, rolling shutter
+cargo test --release                          # 21 tests: app logic, camera pipeline, rolling shutter
 cargo run --release --example bench           # self-test: synthetic camera frames through the engine
 ```
 

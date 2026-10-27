@@ -112,11 +112,14 @@ pub struct Prefs {
     pub fps: u32,
     pub source: SourceTab,
     pub reader: ReaderPrefs,
+    /// The photosensitivity warning was acknowledged; until then a code waits, paused.
+    #[serde(default)]
+    pub flash_ok: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { lang: None, density: Density::Auto, mode: 1, ecc: 1, fps: 12, source: SourceTab::File, reader: ReaderPrefs::default() }
+        Prefs { lang: None, density: Density::Auto, mode: 1, ecc: 1, fps: 12, source: SourceTab::File, reader: ReaderPrefs::default(), flash_ok: false }
     }
 }
 
@@ -192,6 +195,8 @@ pub enum Event {
     SetEcc { value: u8 },
     SetFps { value: u32 },
     TogglePlay,
+    /// The photosensitivity warning was read: play, and don't ask again.
+    AcceptFlash,
     ToggleSettings,
     /// A tap on the code: toggles the dock.
     TapCode,
@@ -557,6 +562,15 @@ fn update(event: Event, model: &mut Model) -> Cmd {
             model.prefs.fps = v;
             Command::all([save_prefs(model), haptic(HapticKind::Selection), poke_dock(model)])
         }
+        Event::TogglePlay | Event::AcceptFlash if !model.prefs.flash_ok => {
+            if model.send.phase != SendPhase::Ready {
+                return Command::done();
+            }
+            model.prefs.flash_ok = true;
+            model.send.playing = true;
+            Command::all([save_prefs(model), haptic(HapticKind::Light), show_dock(model)])
+        }
+        Event::AcceptFlash => Command::done(),
         Event::TogglePlay => {
             if model.send.phase != SendPhase::Ready {
                 return Command::done();
@@ -660,7 +674,7 @@ fn update(event: Event, model: &mut Model) -> Cmd {
             }
             match kind {
                 TimerKind::Dock => {
-                    if attempt == model.send.dock_attempt && model.send.playing && model.send.phase == SendPhase::Ready {
+                    if attempt == model.send.dock_attempt && model.send.playing && model.send.phase == SendPhase::Ready && model.send.settings_open != Some(true) {
                         model.send.dock_visible = false;
                     }
                     Command::done()
@@ -753,6 +767,10 @@ fn navigate(model: &mut Model, screen: Screen) -> Cmd {
 }
 
 fn leave_receive(model: &mut Model) -> Cmd {
+    // a received file is kept until "receive another": leaving must not lose it
+    if model.recv.phase == RecvPhase::Done {
+        return Command::done();
+    }
     let mut cmds = Vec::new();
     let cam = &mut model.recv.camera;
     if cam.on || cam.starting {
@@ -809,7 +827,9 @@ fn engine_answer(model: &mut Model, step: Step, attempt: u64, out: EngineOutput)
             model.send.frame_rev += 1;
             model.send.phase = SendPhase::Ready;
             if first {
-                model.send.playing = true;
+                // every path to a playing code (pick, text, a file opened from another app)
+                // passes here: the first time, the code waits for the warning to be read
+                model.send.playing = model.prefs.flash_ok;
                 Command::all([haptic(HapticKind::Medium), show_dock(model)])
             } else {
                 Command::done()
