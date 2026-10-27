@@ -1,14 +1,14 @@
 # Lumen Code website
 
 The web app at <https://lumencode.awesometools.dev>: the home page, the sender and the receiver,
-in English (at the root) and Chinese (under `/zh`). SvelteKit with Svelte 5, built for Cloudflare
-Workers. Every page is prerendered, so the words, titles and language links are in the HTML as
-served (for the first paint and for search engines); the code only adds the moving parts.
+in English (at the root) and Chinese (under `/zh`). It is built with SvelteKit and Svelte 5 for
+Cloudflare Workers. Every page is prerendered, so the text, titles and language links are in the
+served HTML for the first paint and for search engines; scripts only add the moving parts.
 
-The protocol itself is not here: the pages use the zero-dependency JavaScript library in
+The protocol is not implemented here: the pages use the zero-dependency JavaScript library in
 [`src/core`](../core) and the Rust engine compiled to WebAssembly (`dist/wasm/lumen.wasm`, built
-from [`src/rust`](../rust) by `npm run build:wasm` at the repository root). Only this app has
-dependencies.
+from [`src/rust`](../rust) by `npm run build:wasm` at the repository root). Those two libraries have no dependencies;
+this app does.
 
 ```sh
 bun install
@@ -39,15 +39,15 @@ bun run test:e2e     # Playwright, Chromium
 ## Version
 
 Every page shows `Version <commit> · <date>`, linked to that commit: the last commit that
-changed the site's sources (`src/website`, `src/core`, `src/rust`, `docs`). `+dev` means the
-build had uncommitted changes. Build from a committed tree for a release.
+changed the site's sources (`src/website`, `src/core`, `src/rust`, `docs`). A `+dev` suffix
+means the build had uncommitted changes, so build releases from a committed tree.
 
 ## Home page
 
 The text of the home page, in both languages, is in `src/lib/landing.ts`, with the app price
 (`PRICE`) and the store links (`STORES`: while they are `null`, the page says "coming soon").
-The phone in the hero is a real screenshot of the receiver: `bun scripts/screens.ts` takes it
-from a running build (`bunx vite preview --port 4173`) with Chrome's fake camera, and writes
+The phone in the hero is a real screenshot of the receiver. `bun scripts/screens.ts` takes it
+from a running build (`bunx vite preview --port 4173`) using Chrome's fake camera and writes
 `static/screens/recv-{en,zh}.jpg`.
 
 ## Tests
@@ -55,4 +55,4 @@ from a running build (`bunx vite preview --port 4173`) with Chrome's fake camera
 `e2e/site.e2e.ts` plays a recorded transfer (60 000 random bytes, rendered through the camera
 simulator of `test/camera.js`; `e2e/setup.ts` makes it once at `test/out/cam.y4m`) as Chrome's
 webcam and checks that both engines, in both languages, deliver the file byte for byte.
-`e2e/messages.e2e.ts` loads one-frame images of text messages to check the reader view.
+`e2e/messages.e2e.ts` loads single-frame images of text messages to check the reader view.

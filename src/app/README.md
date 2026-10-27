@@ -1,8 +1,8 @@
 # Lumen Code app core
 
-The part of the iOS, Android and desktop apps that is not platform code: every decision, every string on screen, and the real-time work of sending and receiving. The apps ([iOS](../ios/README.md), [Android](../android/README.md), [desktop](../desktop/README.md)) are thin shells: they show the view model this core produces and perform the operations it asks for.
+Everything in the iOS, Android and desktop apps that is not platform code: all decisions, every string on screen, and the real-time sending and receiving. The apps ([iOS](../ios/README.md), [Android](../android/README.md), [desktop](../desktop/README.md)) are thin shells that show the view model this core produces and perform the operations it asks for.
 
-The wire protocol itself is the zero-dependency [`lumen-code` crate](../rust/README.md); this workspace builds the app on top of it.
+The wire protocol is the zero-dependency [`lumen-code` crate](../rust/README.md); this workspace builds the app on top of it.
 
 ## Layout
 
@@ -27,7 +27,7 @@ The core is a [Crux](https://github.com/redbadger/crux) app driven by `runtime::
 2. The core answers with **updates**: `{"view": {…}, "requests": [{"id": 7, "op": {"type": "camera_start", "device": 0}}]}`. The shell shows the view model and performs each operation: keep the screen on, haptics, camera start / mode / exposure, file pickers, save / share, clipboard. Operations with an `id` other than 0 expect an answer (`resolve(id, json)`).
 3. Camera frames go to `camera_frame` as raw plane addresses (zero copy): the core reads them during the call and decides itself whether to scan.
 
-Static labels come once per language from `lumen_labels(lang)`; text that changes with state arrives already translated in the view model. Views are coalesced to 20 per second (10 when the device is hot), so a shell can apply every update it receives.
+Static labels are fetched once per language with `lumen_labels(lang)`; text that changes with state arrives already translated in the view model. Views are coalesced to 20 per second (10 when the device is hot), so a shell can apply every update it receives.
 
 ## Receiving
 
@@ -37,16 +37,16 @@ plan: scan this frame? ──► crop + scale the region around the code ──�
        (pacing, heat)       (prepare_yuv, on the camera thread)        finish: statistics, pacing, region
 ```
 
-- **Pacing.** Normally scans lock to the sender's frame rate (a capture right after each new sender frame). When captures are torn — the sensor reads its rows over a good part of a sender frame (rolling shutter, reported by Android), or the camera is barely faster than the sender — every capture is scanned and none is skipped, because each one holds data no other capture has.
-- **Searching.** Without a code in view: 15 scans/s for the first two seconds, then 5/s, then 2/s after ten seconds; half resolution except every third search.
+- **Pacing.** Normally scans are locked to the sender's frame rate: the capture right after each new sender frame is scanned. When captures are torn, because the sensor reads its rows over a large part of a sender frame (rolling shutter, reported by Android) or the camera is barely faster than the sender, every capture is scanned, since each one holds data no other capture has.
+- **Searching.** With no code in view the core scans 15 times a second for the first two seconds, then 5 times, and 2 times after ten seconds. Searches run at half resolution, except every third one.
 - **Tracking.** The last code position narrows the finder search to four windows (10 cells around each corner) and the frame to a region of interest at about 6 camera pixels per cell.
 - **Camera mode.** The core asks for 60/120/240 fps when the sender plays fast enough and the camera offers it (`camera_mode`), 4K only for cells under about 4 pixels, and an exposure limit of a sixth of the sender's frame period (`camera_exposure`) so one capture holds one frame.
-- **Heat.** `Thermal { level }` (0–3) from the shell gives the scanners a time budget: 1.5, 0.8 or 0.4 seconds of scanning per second. A phone that scans in 12 ms is barely slowed; one that needs 60 ms is. Hot phones also give up the camera modes above 60 fps, and the dashboard says when the budget turns frames away.
+- **Heat.** `Thermal { level }` (0–3) from the shell sets a time budget for the scanners: 1.5, 0.8 or 0.4 seconds of scanning per second. This barely slows a phone that scans a frame in 12 ms but does slow one that needs 60 ms. Hot phones also give up the camera modes above 60 fps, and the dashboard shows when the budget turns frames away.
 
 ## Build and test
 
 ```sh
-cargo test --release                          # 19 tests: app logic, camera pipeline, rolling shutter
+cargo test --release                          # 20 tests: app logic, camera pipeline, rolling shutter
 cargo run --release --example bench           # self-test: synthetic camera frames through the engine
 ```
 
@@ -54,7 +54,7 @@ The shells build the `lumen-ffi` library themselves (`src/ios/scripts/build-core
 
 ## Tools
 
-The shells' debug builds can save raw camera frames (`grab`, the `frame-N.nv12` format: a 16-byte header with width, height and strides, then NV12). These examples work on them:
+The shells' debug builds can save raw camera frames with `grab`, in the `frame-N.nv12` format: a 16-byte header with width, height and strides, followed by NV12 data. These examples work on them:
 
 | Example | What it does |
 |---|---|

@@ -1,6 +1,6 @@
 # Lumen Code for Android
 
-A Jetpack Compose shell over the [shared Rust core](../app/README.md): it shows the core's view model, performs the operations the core asks for, and feeds it camera frames. Everything else (what to show, when to scan, every string) is decided in Rust and is the same on iOS and the desktop.
+A Jetpack Compose shell over the [shared Rust core](../app/README.md). It shows the core's view model, performs the operations the core asks for and passes it camera frames. Everything else (what to show, when to scan, every string) is decided in Rust and is the same on iOS and the desktop.
 
 ## Requirements
 
@@ -12,7 +12,7 @@ A Jetpack Compose shell over the [shared Rust core](../app/README.md): it shows 
   ```
 - A device with Android 10 (API 29) or later
 
-Gradle builds the Rust core itself (task `cargoBuild` runs `scripts/build-core.sh`, up to date when nothing under `src/app` or `src/rust` changed). Pass `-PlumenSkipRust` to skip it when only Kotlin changed.
+Gradle builds the Rust core: the `cargoBuild` task runs `scripts/build-core.sh` and is up to date when nothing under `src/app` or `src/rust` has changed. Pass `-PlumenSkipRust` to skip it when only Kotlin changed.
 
 ## Build and run
 
@@ -24,9 +24,9 @@ Gradle builds the Rust core itself (task `cargoBuild` runs `scripts/build-core.s
 
 | Build type | Use |
 |---|---|
-| `debug` | development. Debuggable: ART interprets much of the UI and checks every JNI call, so the interface and every call into Rust are several times slower than in release. Do not judge performance with it. |
-| `bench` | release code (compiled ahead of time, no JNI checks), profileable with simpleperf, with the test hooks below. |
-| `release` | the app. Still signed with the debug key: set up a release signing config before publishing. |
+| `debug` | Development. The build is debuggable, so ART interprets much of the UI and checks every JNI call; the interface and every call into Rust run several times slower than in release. Do not judge performance with it. |
+| `bench` | Release code (compiled ahead of time, no JNI checks), profileable with simpleperf, with the test hooks below. |
+| `release` | The app. It is still signed with the debug key; set up a release signing config before publishing. |
 
 ## Layout
 
@@ -44,14 +44,14 @@ scripts/build-core.sh      Rust core → jniLibs + generated Kotlin bindings (un
 
 ## What the shell does
 
-- **Sending.** The code is a one-pixel-per-cell bitmap scaled with nearest-neighbour filtering under a static mask. Frames are built on a background thread into a ring of three bitmaps, so the render thread never draws one being written, and flip on the vsync closest to the schedule. While a code plays the screen stays on at full brightness and asks for the panel's fastest refresh rate.
-- **Receiving.** CameraX `ImageAnalysis` in YUV_420_888 at 1080p; the core reads the planes in place through their addresses. The app runs its own exposure: a phone screen is a light source showing a new picture every few milliseconds, and auto exposure (1/50 s was measured) clips its colours and blends consecutive frames. The exposure stays under the core's limit (a sixth of the sender's frame period) and the gain follows the brightest pixels of the code. Autofocus is triggered on the code when it appears. The sensor's rolling-shutter readout goes to the core, which then scans every capture. The camera's frame rate follows the core (30 or 60 fps, when the camera offers 60 outside video recording).
-- **Heat.** Three sources, the most cautious wins: the thermal status, the thermal headroom forecast, and the battery temperature (44 / 47 / 50 °C), because some vendors report neither of the first two. The core scans less as the level rises.
-- **Interface cost.** While scanning, the screen refreshes its numbers at most 8 times a second and the code's outline redraws only when it moves; both matter on slow or throttled phones.
+- **Sending.** The code is a one-pixel-per-cell bitmap scaled with nearest-neighbour filtering under a static mask. Frames are built on a background thread into a ring of three bitmaps, so the render thread never draws a bitmap that is still being written, and each frame is shown on the vsync closest to its scheduled time. While a code plays, the screen stays on at full brightness and requests the panel's fastest refresh rate.
+- **Receiving.** CameraX `ImageAnalysis` delivers YUV_420_888 at 1080p, and the core reads the planes in place through their addresses. The app sets exposure itself: a phone screen is a light source showing a new picture every few milliseconds, and auto exposure (measured at 1/50 s) clips its colours and blends consecutive frames. Exposure time stays under the core's limit (a sixth of the sender's frame period) and the gain follows the brightest pixels of the code. Autofocus is triggered on the code when it appears. The sensor's rolling-shutter readout is reported to the core, which then scans every capture. The core sets the frame rate: 30 fps, or 60 fps when the camera offers 60 outside video recording.
+- **Heat.** The most cautious of three sources wins: the thermal status, the thermal headroom forecast and the battery temperature (44 / 47 / 50 °C), since some vendors report neither of the first two. The core scans less as the level rises.
+- **Interface cost.** While scanning, the on-screen numbers refresh at most 8 times a second and the code's outline is redrawn only when it moves. Both matter on slow or throttled phones.
 
 ## Device tests without touching the phone
 
-Debug and bench builds run a script passed as an intent extra; results go to logcat and the app's `files/` directory (readable with `run-as` in debug builds):
+Debug and bench builds run a script passed as an intent extra. Results go to logcat and to the app's `files/` directory (readable with `run-as` in debug builds):
 
 ```sh
 adb shell am start -n com.shelchin.lumencode/com.shelchin.lumen.MainActivity \
@@ -69,9 +69,9 @@ adb logcat -s lumen-watch lumen-bench lumen-script
 | `flips:<s>` | the sender's real frame rate and the display's refresh rate |
 | `cammode:<fps>`, `formats`, `dump` | force a camera rate, list the camera's frame-rate ranges, write the view model |
 
-The script runs in the running app as well (the activity is `singleTask`), so `watch` and `grab` work in the middle of a transfer.
+A script also runs in an app that is already open (the activity is `singleTask`), so `watch` and `grab` work in the middle of a transfer.
 
-To profile, install the bench build and record with simpleperf; the library in `src/app/target/aarch64-linux-android/release/` keeps the symbols the APK strips:
+To profile, install the bench build and record with simpleperf. The library in `src/app/target/aarch64-linux-android/release/` keeps the symbols that the APK strips:
 
 ```sh
 adb shell simpleperf record --app com.shelchin.lumencode --duration 5 -o /data/local/tmp/perf.data

@@ -1,6 +1,6 @@
 # Lumen Code for iOS
 
-A SwiftUI shell over the [shared Rust core](../app/README.md): it shows the core's view model, performs the operations the core asks for, and feeds it camera frames. Everything else (what to show, when to scan, every string) is decided in Rust and is the same on Android and the desktop.
+A SwiftUI shell over the [shared Rust core](../app/README.md). It shows the core's view model, performs the operations the core asks for and passes it camera frames. Everything else (what to show, when to scan, every string) is decided in Rust and is the same on Android and the desktop.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ A SwiftUI shell over the [shared Rust core](../app/README.md): it shows the core
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`): the Xcode project is generated from `project.yml` and not committed
 - Rust with the iOS targets: `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
 
-Signing uses the team in `project.yml` (`DEVELOPMENT_TEAM`); change it to yours.
+Signing uses the team set in `project.yml` (`DEVELOPMENT_TEAM`); change it to yours.
 
 ## Build and run
 
@@ -19,7 +19,7 @@ LUMEN_SKIP_CORE=1 LUMEN_DEVICE=<udid> scripts/run.sh    # reuse the last core bu
 scripts/sim.sh              # build, install and launch on the booted simulator (no camera there)
 ```
 
-Or run `scripts/build-core.sh` and `xcodegen generate`, then open `Lumen.xcodeproj`. Xcode never rebuilds the Rust core: run `build-core.sh` after changing it.
+Or run `scripts/build-core.sh` and `xcodegen generate`, then open `Lumen.xcodeproj`. Xcode does not rebuild the Rust core, so run `build-core.sh` again after changing it.
 
 ## Layout
 
@@ -36,14 +36,14 @@ scripts/                     build-core.sh, run.sh, sim.sh
 
 ## What the shell does
 
-- **Sending.** The code is a `CALayer` holding a one-pixel-per-cell image, scaled with nearest-neighbour filtering under a static mask, so a frame change touches a few thousand pixels. A display link up to 120 Hz (`CADisableMinimumFrameDurationOnPhone`) flips frames on time; the next frame is built on a background queue. The screen stays on at full brightness while a code plays.
-- **Receiving.** `AVCaptureVideoDataOutput` in 4:2:0 full-range Y'CbCr at 1080p; the core reads both planes in place. Half a stop of negative exposure bias (a screen is a light source), stabilisation off, continuous autofocus restricted to near range. On request from the core the camera switches to 60/120/240 fps (unbinned formats only) or 4K. `AVCaptureDevice.RotationCoordinator` keeps the preview upright.
-- **Heat.** `ProcessInfo.thermalState` goes to the core, which scans less and drops the fast camera modes as the phone warms.
-- **Feedback.** Haptics for lock-on, progress quarters, completion and errors; the received file opens in a reader, Quick Look, the share sheet or Files.
+- **Sending.** The code is a `CALayer` holding a one-pixel-per-cell image, scaled with nearest-neighbour filtering under a static mask, so a frame change touches only a few thousand pixels. A display link running at up to 120 Hz (`CADisableMinimumFrameDurationOnPhone`) shows each frame at its scheduled time, and the next frame is built on a background queue. While a code plays, the screen stays on at full brightness.
+- **Receiving.** `AVCaptureVideoDataOutput` delivers 4:2:0 full-range Y'CbCr at 1080p, and the core reads both planes in place. Exposure bias is half a stop negative because a screen is a light source; stabilisation is off and continuous autofocus is restricted to near range. When the core asks, the camera switches to 60/120/240 fps (unbinned formats only) or 4K. `AVCaptureDevice.RotationCoordinator` keeps the preview upright.
+- **Heat.** `ProcessInfo.thermalState` is passed to the core, which scans less and drops the fast camera modes as the phone warms up.
+- **Feedback.** Haptics mark lock-on, each quarter of progress, completion and errors. The received file opens in a reader, Quick Look, the share sheet or Files.
 
 ## Device tests without touching the phone
 
-Debug builds read a script from the `LUMEN_SCRIPT` launch variable (`scripts/run.sh "<script>"` sets it):
+Debug builds read a script from the `LUMEN_SCRIPT` launch variable, which `scripts/run.sh "<script>"` sets:
 
 ```sh
 scripts/run.sh "nav:send;demo:40000;wait:2;snap:send;tap;wait:0.5;snap:dock"
