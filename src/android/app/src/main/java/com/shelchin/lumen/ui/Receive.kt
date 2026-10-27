@@ -111,7 +111,7 @@ fun ReceiveScreen(model: AppModel, v: ViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                HomeButton { model.dispatch(Ev.navigate("home")) }
+                HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
                 if (r.phase == "scanning") Chip {
                     StatusDot(r.live)
                     Label(r.status, size = 13.sp, weight = FontWeight.SemiBold, lines = 1)
@@ -210,15 +210,20 @@ private fun StartPane(model: AppModel, r: RecvVM) {
                 IconTile(Icons.viewfinder, Lumen.pink)
                 Label(model.t("recvStartTitle"), size = 24.sp, weight = FontWeight.Bold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
                 Text(model.t("recvStartDesc"), color = Lumen.muted, fontSize = 15.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 22.dp))
+                // permission denied: asking again does nothing, so Settings is the way forward
+                val denied = r.canOpenSettings
+                if (denied) r.error?.let {
+                    Text(it, color = Lumen.red, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 16.dp))
+                }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    LumenButton(model.t("openCam"), primary = true, enabled = !r.cameraStarting, leading = if (r.cameraStarting) {
-                        { CircularProgressIndicator(color = Lumen.ink, strokeWidth = 2.dp, modifier = Modifier.size(16.dp)) }
+                    if (denied) LumenButton(model.t("openSettings"), primary = true) { model.dispatch(Ev.openSettings) }
+                    LumenButton(model.t("openCam"), primary = !denied, enabled = !r.cameraStarting, leading = if (r.cameraStarting) {
+                        { CircularProgressIndicator(color = if (denied) Lumen.text else Lumen.ink, strokeWidth = 2.dp, modifier = Modifier.size(16.dp)) }
                     } else null) { model.dispatch(Ev.openCamera) }
                     LumenButton(model.t("fromImage")) { model.dispatch(Ev.pickImage) }
                 }
-                r.error?.let {
+                if (!denied) r.error?.let {
                     Text(it, color = Lumen.red, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
-                    if (r.canOpenSettings) Box(Modifier.padding(top = 10.dp)) { LumenButton(model.t("openSettings")) { model.dispatch(Ev.openSettings) } }
                 }
                 r.note?.let { Text(it, color = Lumen.amber, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp)) }
                 Row(

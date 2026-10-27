@@ -131,16 +131,22 @@ private fun Actions(model: AppModel, d: DoneVM) {
 
 @Composable
 private fun Card(model: AppModel, d: DoneVM) {
-    Box(Modifier.fillMaxSize().background(Color(0xD904060A)).windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(14.dp).widthIn(max = 460.dp).panel().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Badge(small = false)
-            Text(d.title, color = Lumen.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
-            Text(d.sub, color = Lumen.muted, fontSize = 13.5.sp, textAlign = TextAlign.Center)
-            Stats(d, Modifier.padding(top = 16.dp))
-            Box(Modifier.padding(top = 18.dp)) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Actions(model, d) } }
+    Column(Modifier.fillMaxSize().background(Color(0xD904060A)).windowInsetsPadding(WindowInsets.safeDrawing)) {
+        // home keeps the file: it is here again until "receive another"
+        Box(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(14.dp).widthIn(max = 460.dp).panel().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Badge(small = false)
+                Text(d.title, color = Lumen.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
+                Text(d.sub, color = Lumen.muted, fontSize = 13.5.sp, textAlign = TextAlign.Center)
+                Stats(d, Modifier.padding(top = 16.dp))
+                Box(Modifier.padding(top = 18.dp)) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Actions(model, d) } }
+            }
         }
     }
 }
@@ -148,7 +154,9 @@ private fun Card(model: AppModel, d: DoneVM) {
 @Composable
 private fun Reader(model: AppModel, d: DoneVM) {
     Column(Modifier.fillMaxSize().background(Lumen.bg).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // home keeps the file: it is here again until "receive another"
+            HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
             Badge(small = true)
             Column(Modifier.weight(1f)) {
                 Label(d.title, size = 16.sp, weight = FontWeight.SemiBold, lines = 1)

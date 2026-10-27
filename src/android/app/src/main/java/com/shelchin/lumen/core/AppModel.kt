@@ -47,6 +47,17 @@ class AppModel(private val activity: MainActivity) {
      */
     var overlay by mutableStateOf<OverlayVM?>(null)
         private set
+    /**
+     * Why the last file shared or picked could not be sent (unreadable, or over the receiver's
+     * limit), shown on the send screen. The shell keeps it because the core's `SourceFailed`
+     * cannot be sent over the event bridge (it is runtime-only); cleared by the next action.
+     */
+    var sendNote by mutableStateOf<String?>(null)
+        private set
+
+    /** Events that are not a person acting. */
+    private val quietEvents = setOf("viewport", "thermal", "app_active", "dock_activity", "start")
+
     private var latest: ViewModel? = null
     private var shownAt = 0L
     private var showPending = false
@@ -206,10 +217,32 @@ class AppModel(private val activity: MainActivity) {
     fun t(key: String): String = labels[key] ?: key
 
     fun dispatch(event: Event) {
+        // a person acted: an earlier file failure is old news
+        if (sendNote != null && event["type"]?.jsonPrimitive?.content !in quietEvents) sendNote = null
         try {
             core.dispatch(event.toString())
         } catch (e: Exception) {
             Log.w("lumen", "rejected event $event: $e")
+        }
+    }
+
+    /**
+     * Dispatches and shows the resulting view at once, not on the next main-thread turn: a text
+     * field bound to the view must see its own edit before the next keystroke, or it would
+     * snap back to an older text (and lose the cursor) while typing quickly.
+     */
+    fun dispatchNow(event: Event) {
+        dispatch(event)
+        runCatching { accept(WireJson.decodeFromString(ViewModel.serializer(), core.view())) }
+    }
+
+    private fun failSource(tooLarge: Boolean) {
+        main.post {
+            val v = view
+            if (v != null && v.screen == "send" && v.send.phase != "pick") dispatch(Ev.closeSend)
+            dispatch(Ev.navigate("send"))
+            sendNote = if (tooLarge) t("tooLarge").replace("{n}", Files.MAX_LABEL) else t("readFailed")
+            haptics.play("error")
         }
     }
 
@@ -284,8 +317,20 @@ class AppModel(private val activity: MainActivity) {
                         answer(id, finished(false, cancelled = true))
                     } else {
                         io.execute {
-                            val ok = Files.load(activity, uri) { name, bytes -> core.loadFile(name, bytes) }
-                            main.post { answer(id, finished(ok)) }
+                            val result = Files.load(activity, uri) { name, bytes -> core.loadFile(name, bytes) }
+                            main.post {
+                                when (result) {
+                                    Files.Load.OK -> answer(id, finished(true))
+                                    // the core says "could not be read" itself
+                                    Files.Load.FAILED -> answer(id, finished(false))
+                                    // the core has no answer for "too large" without the bytes:
+                                    // the shell says it, and the pick counts as cancelled
+                                    Files.Load.TOO_LARGE -> {
+                                        answer(id, finished(false, cancelled = true))
+                                        failSource(tooLarge = true)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -339,6 +384,13 @@ class AppModel(private val activity: MainActivity) {
 
     /** A file shared to Lumen from another app. */
     fun open(uri: Uri) {
-        io.execute { Files.load(activity, uri) { name, bytes -> core.loadFile(name, bytes) } }
+        sendNote = null
+        io.execute {
+            when (Files.load(activity, uri) { name, bytes -> core.loadFile(name, bytes) }) {
+                Files.Load.OK -> {}
+                Files.Load.FAILED -> failSource(tooLarge = false)
+                Files.Load.TOO_LARGE -> failSource(tooLarge = true)
+            }
+        }
     }
 }

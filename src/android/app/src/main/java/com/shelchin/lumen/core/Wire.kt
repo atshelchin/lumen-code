@@ -66,6 +66,10 @@ data class SendVM(
     val dropDesc: String,
     val dropHint: String,
     val flashWarn: String = "",
+    /** The code is ready but paused until the photosensitivity warning is accepted (`AcceptFlash`). */
+    val flashAsk: Boolean = false,
+    /** The Text tab's text: the field shows this, so what is shown is what is sent. */
+    val text: String = "",
     val title: String,
     val size: String,
     val stats: List<StatVM>,
@@ -154,6 +158,7 @@ object Ev {
     fun ecc(v: Int) = buildJsonObject { put("type", "set_ecc"); put("value", v) }
     fun fps(v: Int) = buildJsonObject { put("type", "set_fps"); put("value", v) }
     val togglePlay = e("toggle_play")
+    val acceptFlash = e("accept_flash")
     val toggleSettings = e("toggle_settings")
     val tapCode = e("tap_code")
     val hideDock = e("hide_dock")

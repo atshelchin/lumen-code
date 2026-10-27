@@ -86,13 +86,9 @@ class MainActivity : ComponentActivity() {
             model.dispatch(Ev.navigate("send"))
             model.dispatch(Ev.sourceTab("text"))
             model.dispatch(Ev.textChanged(text))
-            pendingText = text
         }
         intent?.getStringExtra("lumen.script")?.let { DebugScript.run(this, model, it) }
     }
-
-    /** Text shared from another app, for the text box to pick up. */
-    var pendingText: String? = null
 
     fun withCameraPermission(then: (Boolean) -> Unit) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {

@@ -70,12 +70,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelchin.lumen.BuildConfig
-import com.shelchin.lumen.MainActivity
 import com.shelchin.lumen.core.AppModel
 import com.shelchin.lumen.core.Ev
 import com.shelchin.lumen.core.GeometryVM
@@ -117,16 +121,65 @@ fun SendScreen(model: AppModel, v: ViewModel) {
         }
         if (s.phase == "pick") {
             Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 10.dp, vertical = 8.dp)) {
-                HomeButton { model.dispatch(Ev.navigate("home")) }
+                HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
             }
         } else {
+            // the warning stands alone: no dock over or under it
             AnimatedVisibility(
-                visible = s.dockVisible,
+                visible = s.dockVisible && !s.flashAsk,
                 enter = fadeIn() + slideInVertically { it / 6 },
                 exit = fadeOut() + slideOutVertically { it / 6 },
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
                 Dock(model, s)
+            }
+            if (s.flashAsk && s.phase == "ready") FlashCard(model, s)
+        }
+    }
+}
+
+/**
+ * The photosensitivity warning over the paused code, before the first code plays. The code
+ * waits until it is accepted; closing returns to the pick screen.
+ */
+@Composable
+private fun FlashCard(model: AppModel, s: SendVM) {
+    val title = model.t("flashTitle")
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            // touches stay on the card: the code underneath must not toggle its dock
+            .pointerInput(Unit) { detectTapGestures { } }
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .panel(opaque = true, radius = 20.dp)
+                .border(1.dp, Lumen.amber.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                .semantics { paneTitle = title }
+                .padding(horizontal = 22.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            IconTile(Icons.warn, Lumen.amber, size = 52.dp)
+            Text(
+                title, color = Lumen.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 14.dp).semantics { heading() },
+            )
+            Text(
+                s.flashWarn, color = Lumen.warnText, fontSize = 15.sp, lineHeight = 22.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            LumenButton(model.t("flashPlay"), primary = true, lines = 3, modifier = Modifier.padding(top = 22.dp).fillMaxWidth()) {
+                model.dispatch(Ev.acceptFlash)
+            }
+            LumenButton(model.t("close"), lines = 2, modifier = Modifier.padding(top = 10.dp).fillMaxWidth()) {
+                model.dispatch(Ev.closeSend)
             }
         }
     }
@@ -257,8 +310,8 @@ fun sentFrames(): Long = CodeFrames.flips.get()
 
 @Composable
 private fun PickCard(model: AppModel, s: SendVM) {
-    val activity = LocalContext.current as MainActivity
-    var text by remember { mutableStateOf(activity.pendingText ?: "") }
+    // the core holds the text: what the field shows is what "Send text" sends
+    val text = s.text
     var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
     val clipboard = LocalClipboardManager.current
@@ -305,7 +358,7 @@ private fun PickCard(model: AppModel, s: SendVM) {
                     if (text.isEmpty()) Label(model.t("textPh"), size = 15.sp, color = Lumen.faint)
                     BasicTextField(
                         value = text,
-                        onValueChange = { text = it; model.dispatch(Ev.textChanged(it)) },
+                        onValueChange = { model.dispatchNow(Ev.textChanged(it)) },
                         textStyle = TextStyle(color = Lumen.text, fontSize = 15.sp, lineHeight = 22.sp),
                         cursorBrush = SolidColor(Lumen.cyan),
                         modifier = Modifier.fillMaxWidth().heightIn(min = 162.dp).onFocusChanged { focused = it.isFocused },
@@ -316,11 +369,11 @@ private fun PickCard(model: AppModel, s: SendVM) {
                     Spacer(Modifier.weight(1f))
                     if (text.isEmpty()) {
                         Label(model.t("paste"), size = 12.sp, color = Lumen.cyan, weight = FontWeight.SemiBold, modifier = Modifier.clickable {
-                            clipboard.getText()?.text?.let { text = it; model.dispatch(Ev.textChanged(it)) }
+                            clipboard.getText()?.text?.let { model.dispatchNow(Ev.textChanged(it)) }
                         })
                     } else {
                         Label(model.t("clear"), size = 12.sp, color = Lumen.muted, weight = FontWeight.SemiBold, modifier = Modifier.clickable {
-                            text = ""; model.dispatch(Ev.textChanged(""))
+                            model.dispatchNow(Ev.textChanged(""))
                         })
                     }
                 }
@@ -329,7 +382,12 @@ private fun PickCard(model: AppModel, s: SendVM) {
                     model.dispatch(Ev.sendText)
                 }
             }
-            s.error?.let { Label(it, size = 13.sp, color = Lumen.red, modifier = Modifier.padding(top = 14.dp)) }
+            (model.sendNote ?: s.error)?.let {
+                Text(
+                    it, color = Lumen.red, fontSize = 13.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 14.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
             Text(s.dropHint, color = Lumen.faint, fontSize = 12.5.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
             // photosensitivity warning, before any code plays
             Row(

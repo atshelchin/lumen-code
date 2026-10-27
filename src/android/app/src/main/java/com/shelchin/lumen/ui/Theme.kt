@@ -43,6 +43,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,6 +111,8 @@ fun LumenButton(
     enabled: Boolean = true,
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
+    /** More than one only where a long label must stay whole at large font sizes. */
+    lines: Int = 1,
     onClick: () -> Unit,
 ) {
     val src = remember { MutableInteractionSource() }
@@ -113,14 +126,14 @@ fun LumenButton(
             .clip(shape)
             .background(if (primary) (if (pressed) Color.White else Lumen.paper) else Color.White.copy(alpha = if (pressed) 0.1f else 0.04f))
             .then(if (primary) Modifier else Modifier.border(1.dp, Lumen.line2, shape))
-            .clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
+            .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
             .defaultMinSize(minHeight = 44.dp)
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
     ) {
         leading?.invoke()
-        Text(label, color = if (primary) Lumen.ink else Lumen.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(label, color = if (primary) Lumen.ink else Lumen.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = lines, textAlign = TextAlign.Center)
     }
 }
 
@@ -168,6 +181,7 @@ fun <T> Segmented(items: List<Pair<T, String>>, selected: T, minWidth: Dp = 0.dp
             .clip(outer)
             .background(Color.White.copy(alpha = 0.05f))
             .border(1.dp, Lumen.line, outer)
+            .selectableGroup()
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -178,7 +192,7 @@ fun <T> Segmented(items: List<Pair<T, String>>, selected: T, minWidth: Dp = 0.dp
                     .defaultMinSize(minWidth = minWidth, minHeight = 32.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) Color.White.copy(alpha = 0.12f) else Color.Transparent)
-                    .clickable { if (!on) pick(value) }
+                    .selectable(selected = on, role = Role.RadioButton) { if (!on) pick(value) }
                     .padding(horizontal = 11.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -210,9 +224,20 @@ fun LumenSlider(value: Float, range: ClosedFloatingPointRange<Float>, step: Floa
         val v = (Math.round(raw / step) * step).coerceIn(range.start, range.endInclusive)
         if (v != current) change(v)
     }
+    val steps = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
     Canvas(
         modifier
             .height(32.dp)
+            // TalkBack: read as a value in a range, adjusted with volume keys / swipes
+            .semantics {
+                progressBarRangeInfo = ProgressBarRangeInfo(value, range, steps)
+                stateDescription = if (step >= 1f) value.roundToInt().toString() else value.toString()
+                setProgress { target ->
+                    val v = (Math.round(target / step) * step).coerceIn(range.start, range.endInclusive)
+                    if (v != current) change(v)
+                    true
+                }
+            }
             .pointerInput(range) { detectTapGestures { pick(it.x, size.width.toFloat()) } }
             .pointerInput(range) { detectHorizontalDragGestures { ch, _ -> pick(ch.position.x, size.width.toFloat()) } },
     ) {
@@ -247,9 +272,14 @@ fun IconTile(icon: ImageVector, tint: Color = Lumen.cyan, size: Dp = 64.dp) {
 
 /** "‹ mark" — back to the home screen. */
 @Composable
-fun HomeButton(onClick: () -> Unit) {
+fun HomeButton(description: String, onClick: () -> Unit) {
     Row(
-        Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(4.dp),
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = description }
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {

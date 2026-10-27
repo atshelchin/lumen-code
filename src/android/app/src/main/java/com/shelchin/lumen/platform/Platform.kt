@@ -98,16 +98,70 @@ class DeviceControl(private val activity: Activity) {
 object Files {
     class Rgba(val width: Int, val height: Int, val rgba: ByteArray)
 
-    /** Reads a document (name + bytes) and hands it over. */
-    fun load(context: Context, uri: Uri, use: (String, ByteArray) -> Unit): Boolean = runCatching {
+    /** The largest file a receiver accepts (the core's `MAX_FILE`), and how the core writes it. */
+    const val MAX_FILE = 256L * 1024 * 1024
+    const val MAX_LABEL = "256.0 MB"
+
+    enum class Load { OK, TOO_LARGE, FAILED }
+
+    /**
+     * Reads a document (name + bytes) and hands it over. The size is checked before reading
+     * (from the provider, then while reading, since a provider may not know it): a file over
+     * [MAX_FILE] is never read whole.
+     */
+    fun load(context: Context, uri: Uri, use: (String, ByteArray) -> Unit): Load = try {
         var name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-            if (c.moveToFirst()) c.getString(0)?.let { name = it }
+        var size = -1L
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                c.getString(0)?.let { name = it }
+                if (!c.isNull(1)) size = c.getLong(1)
+            }
         }
-        val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-        use(name, bytes)
-        true
-    }.getOrDefault(false)
+        // a provider that does not report a size may still be backed by a file
+        if (size < 0) size = runCatching { context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } }.getOrNull() ?: -1L
+        if (size > MAX_FILE) {
+            Load.TOO_LARGE
+        } else {
+            val bytes = context.contentResolver.openInputStream(uri)!!.use { readAtMost(it, MAX_FILE, size) }
+            if (bytes == null) Load.TOO_LARGE else { use(name, bytes); Load.OK }
+        }
+    } catch (e: Throwable) { // OutOfMemoryError included
+        android.util.Log.w("lumen", "could not read $uri: $e")
+        Load.FAILED
+    }
+
+    /** The stream's bytes, or null when there are more than `max`. `hint`: the size the provider reported, or -1. */
+    private fun readAtMost(input: java.io.InputStream, max: Long, hint: Long): ByteArray? {
+        var total = 0L
+        val out = java.io.ByteArrayOutputStream(64 * 1024)
+        if (hint in 0..max) {
+            // the usual case: read straight into an array of the reported size (no copy)
+            val arr = ByteArray(hint.toInt())
+            var off = 0
+            while (off < arr.size) {
+                val n = input.read(arr, off, arr.size - off)
+                if (n < 0) return arr.copyOf(off)
+                off += n
+            }
+            val more = input.read()
+            if (more < 0) return arr
+            // the provider reported too little: go on below
+            out.write(arr, 0, off)
+            out.write(more)
+            total = off + 1L
+        }
+        val buf = ByteArray(64 * 1024)
+        while (true) {
+            if (total > max) return null
+            val n = input.read(buf)
+            if (n < 0) break
+            total += n
+            if (total > max) return null
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
+    }
 
     /** Decodes and downsamples an image to tightly packed RGBA. */
     fun decodeImage(context: Context, uri: Uri, maxSide: Int): Rgba? = runCatching {
