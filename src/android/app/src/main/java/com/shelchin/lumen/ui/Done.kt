@@ -67,6 +67,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.collapse
+import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.semantics.traversalIndex
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelchin.lumen.core.AppModel
@@ -76,17 +97,17 @@ import uniffi.lumen_ffi.JsonLine
 import uniffi.lumen_ffi.JsonSpanKind
 import uniffi.lumen_ffi.ReaderContent
 
-/** The result: text and images fill the screen (reader); other files get a card. */
+/** The result: text and images fill the screen (reader); other files get a centred summary. */
 @Composable
 fun DoneScreen(model: AppModel, d: DoneVM) {
     if (d.reader) Reader(model, d) else Card(model, d)
 }
 
+/** The reader's small success mark, beside the name. */
 @Composable
-private fun Badge(small: Boolean) {
-    val s = if (small) 36.dp else 58.dp
-    Box(Modifier.size(s).clip(CircleShape).background(Lumen.green.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-        Icon(Icons.check, null, tint = Lumen.green, modifier = Modifier.size(if (small) 18.dp else 28.dp))
+private fun Badge() {
+    Box(Modifier.size(36.dp).clip(CircleShape).background(Lumen.green.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+        Icon(Icons.check, null, tint = Lumen.green, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -129,26 +150,236 @@ private fun Actions(model: AppModel, d: DoneVM) {
     d.note?.let { Label(it, size = 12.5.sp, color = if (d.noteOk) Lumen.green else Lumen.red, modifier = Modifier.padding(top = 8.dp)) }
 }
 
+/**
+ * Other files: one calm centred column under the top bar. A success mark, the name and one line
+ * of numbers, then what to do with the file; the transfer's details fold away below.
+ */
 @Composable
 private fun Card(model: AppModel, d: DoneVM) {
-    Column(Modifier.fillMaxSize().background(Color(0xD904060A)).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        // home keeps the file: it is here again until "receive another"
-        Box(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xD904060A))
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .semantics { isTraversalGroup = true },
+    ) {
+        // home keeps the file: it is here again until "receive another".
+        // TalkBack reads the result first, the way out after it.
+        Box(Modifier.padding(horizontal = 10.dp, vertical = 8.dp).semantics { traversalIndex = 1f }) {
             HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
         }
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()).padding(14.dp).widthIn(max = 460.dp).panel().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Badge(small = false)
-                Text(d.title, color = Lumen.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
-                Text(d.sub, color = Lumen.muted, fontSize = 13.5.sp, textAlign = TextAlign.Center)
-                Stats(d, Modifier.padding(top = 16.dp))
-                Box(Modifier.padding(top = 18.dp)) { Column(horizontalAlignment = Alignment.CenterHorizontally) { Actions(model, d) } }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val viewport = maxHeight
+            // a phone on its side: one column would push the actions below the screen, so the
+            // file stays on the left and what to do with it goes on the right
+            val sideBySide = maxWidth > maxHeight && maxHeight < 480.dp
+            if (sideBySide) {
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).widthIn(max = 420.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        CardHeader(d, mark = 52.dp)
+                    }
+                    Column(
+                        Modifier.weight(1f).widthIn(max = 420.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Spacer(Modifier.height(12.dp))
+                        CardActions(model, d)
+                        Spacer(Modifier.height(8.dp))
+                        Details(model, d)
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            } else {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    Column(
+                        Modifier.fillMaxWidth().heightIn(min = viewport).padding(horizontal = 16.dp, vertical = 24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Column(Modifier.widthIn(max = 420.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CardHeader(d, mark = 64.dp)
+                            Spacer(Modifier.height(24.dp))
+                            CardActions(model, d)
+                            Spacer(Modifier.height(16.dp))
+                            Details(model, d)
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+/** The check mark, the file name (two lines, shortened in the middle) and size · time · speed. */
+@Composable
+private fun CardHeader(d: DoneVM, mark: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(mark).clip(CircleShape).background(Lumen.green.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+        Icon(Icons.check, null, tint = Lumen.green, modifier = Modifier.size(mark * 0.47f))
+    }
+    Spacer(Modifier.height(16.dp))
+    MiddleEllipsis(
+        d.title,
+        TextStyle(color = Lumen.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, lineHeight = 26.sp),
+        maxLines = 2,
+        modifier = Modifier.fillMaxWidth().semantics { heading() },
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(d.sub, color = Lumen.muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun CardActions(model: AppModel, d: DoneVM) {
+    val tall = Modifier.heightIn(min = 48.dp)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LumenButton(d.saveLabel, primary = true, lines = 2, modifier = tall.fillMaxWidth()) { model.dispatch(Ev.save) }
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LumenButton(model.t("share"), lines = 2, modifier = tall.weight(1f).fillMaxHeight()) { model.dispatch(Ev.share) }
+            if (d.canOpen) LumenButton(model.t("open"), lines = 2, modifier = tall.weight(1f).fillMaxHeight()) { model.dispatch(Ev.openFile) }
+        }
+        QuietButton(model.t("again"), Modifier.fillMaxWidth()) { model.dispatch(Ev.receiveAnother) }
+    }
+    d.note?.let {
+        Text(
+            it, color = if (d.noteOk) Lumen.green else Lumen.red, fontSize = 13.sp, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+}
+
+/** A text-style button: no fill, no border, for the action that leaves the result. */
+@Composable
+private fun QuietButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    Box(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (pressed) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+            .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onClick)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = if (pressed) Lumen.text else Lumen.muted, fontSize = 15.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+    }
+}
+
+/** "Details": folded by default; open, one full-width row per number and the code's settings under them. */
+@Composable
+private fun Details(model: AppModel, d: DoneVM) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button, onClick = { model.dispatch(Ev.toggleStats) })
+                .semantics(mergeDescendants = true) {
+                    // TalkBack says "expanded" / "collapsed" from these
+                    if (d.statsOpen) collapse { model.dispatch(Ev.toggleStats); true } else expand { model.dispatch(Ev.toggleStats); true }
+                }
+                .heightIn(min = 48.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(model.t("details"), color = Lumen.muted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            // grows with the label at large font sizes
+            val icon = with(LocalDensity.current) { 18.sp.toDp() }
+            Icon(Icons.chevronDown, null, tint = Lumen.muted, modifier = Modifier.size(icon).rotate(if (d.statsOpen) 180f else 0f))
+        }
+        // opened by a tap: scroll the rows into view (not when the result opens with them shown)
+        val reveal = remember { BringIntoViewRequester() }
+        var wasOpen by remember { mutableStateOf(d.statsOpen) }
+        LaunchedEffect(d.statsOpen) {
+            if (d.statsOpen && !wasOpen) reveal.bringIntoView()
+            wasOpen = d.statsOpen
+        }
+        if (!d.statsOpen) return@Column
+        Column(Modifier.fillMaxWidth().bringIntoViewRequester(reveal).padding(top = 8.dp)) {
+            for ((i, m) in d.stats.withIndex()) {
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Lumen.line))
+                MetricRow(m.label, m.value)
+            }
+            d.codeLine?.let {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Lumen.line))
+                Text(it, color = Lumen.faint, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            }
+        }
+    }
+}
+
+/**
+ * One number: label left, value flush right on the same line when both fit; otherwise the value
+ * goes under the label (still flush right) and wraps. Nothing is cut off.
+ */
+@Composable
+private fun MetricRow(label: String, value: String) {
+    Layout(
+        content = {
+            Text(label, color = Lumen.muted, fontSize = 14.sp)
+            Text(value, style = mono(14.sp, FontWeight.Medium), color = Lumen.text, textAlign = TextAlign.End)
+        },
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}.padding(vertical = 12.dp),
+    ) { (l, v), c ->
+        val w = c.maxWidth
+        val gap = 16.dp.roundToPx()
+        val loose = Constraints(maxWidth = w)
+        val lp = l.measure(loose)
+        val vp = v.measure(loose)
+        if (lp.width + gap + vp.width <= w) {
+            // same line, first baselines aligned
+            val lb = lp[FirstBaseline]
+            val vb = vp[FirstBaseline]
+            val top = maxOf(lb, vb)
+            val h = maxOf(top - lb + lp.height, top - vb + vp.height)
+            layout(w, h) {
+                lp.place(0, top - lb)
+                vp.place(w - vp.width, top - vb)
+            }
+        } else {
+            val between = 4.dp.roundToPx()
+            layout(w, lp.height + between + vp.height) {
+                lp.place(0, 0)
+                vp.place(w - vp.width, lp.height + between)
+            }
+        }
+    }
+}
+
+/**
+ * Text that keeps its start and its end (a file name and its extension) and drops the middle
+ * when it needs more than [maxLines] lines. TalkBack reads the whole text.
+ */
+@Composable
+private fun MiddleEllipsis(text: String, style: TextStyle, maxLines: Int, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier) {
+        val width = constraints.maxWidth
+        val shown = remember(text, style, width, maxLines) {
+            val c = Constraints(maxWidth = width)
+            fun fits(s: String) = !measurer.measure(s, style, maxLines = maxLines, constraints = c).hasVisualOverflow
+            if (fits(text)) text else {
+                // the longest cut that fits: keep `n` characters, a little more of the start
+                var lo = 0
+                var hi = text.length
+                while (lo < hi) {
+                    val n = (lo + hi + 1) / 2
+                    if (fits(cut(text, n))) lo = n else hi = n - 1
+                }
+                cut(text, lo)
+            }
+        }
+        Text(shown, style = style, maxLines = maxLines, modifier = Modifier.fillMaxWidth().semantics { contentDescription = text })
+    }
+}
+
+private fun cut(s: String, keep: Int): String {
+    val head = (keep + 1) / 2
+    return s.take(head).trimEnd() + "…" + s.takeLast(keep - head).trimStart()
 }
 
 @Composable
@@ -157,7 +388,7 @@ private fun Reader(model: AppModel, d: DoneVM) {
         Row(Modifier.padding(start = 6.dp, end = 16.dp, top = 4.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             // home keeps the file: it is here again until "receive another"
             HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
-            Badge(small = true)
+            Badge()
             Column(Modifier.weight(1f)) {
                 Label(d.title, size = 16.sp, weight = FontWeight.SemiBold, lines = 1)
                 Label(d.sub, size = 12.5.sp, color = Lumen.muted, lines = 1)

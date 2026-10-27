@@ -61,7 +61,7 @@ adb logcat -s lumen-watch lumen-bench lumen-script
 
 | Command | Effect |
 |---|---|
-| `nav`, `lang`, `tab`, `text`, `sendtext`, `demo:<bytes>`, `json`, `image`, `tap`, `settings`, `play`, `camera`, `close`, `event:<json>` | drive the app as a person would |
+| `nav`, `lang`, `tab`, `text`, `sendtext`, `demo:<bytes>[:<name>]`, `json`, `image`, `tap`, `settings`, `play`, `camera`, `close`, `event:<json>` | drive the app as a person would |
 | `watch:<s>` | each second: exposure, ISO, rolling-shutter skew, focus, heat, view updates, the receiver's dashboard line (tag `lumen-watch`) |
 | `grab:<n>` | the next n camera frames to `files/frame-N.nv12`, for the [analysis tools](../app/README.md#tools) |
 | `replay:<dir>` | replays the frames in `files/<dir>` through the engine inside the app (tag `lumen-bench`) |

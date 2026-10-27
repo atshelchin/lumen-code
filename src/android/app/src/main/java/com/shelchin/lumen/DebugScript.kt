@@ -49,10 +49,12 @@ object DebugScript {
                     "text" -> model.dispatch(Ev.textChanged(arg))
                     "sendtext" -> model.dispatch(Ev.sendText)
                     "demo" -> {
-                        val n = arg.toIntOrNull() ?: 20000
+                        // demo:<bytes>[:<file name>]
+                        val parts = arg.split(':', limit = 2)
+                        val n = parts[0].toIntOrNull() ?: 20000
                         var x = 0x9e3779b9.toInt()
                         val bytes = ByteArray(n) { x = x xor (x shl 13); x = x xor (x ushr 17); x = x xor (x shl 5); x.toByte() }
-                        model.core.loadFile("demo-$n.bin", bytes)
+                        model.core.loadFile(parts.getOrNull(1) ?: "demo-$n.bin", bytes)
                     }
                     "wait" -> delay(((arg.toDoubleOrNull() ?: 1.0) * 1000).toLong())
                     "tap" -> model.dispatch(Ev.tapCode)
