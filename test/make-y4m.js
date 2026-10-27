@@ -1,18 +1,19 @@
 // Renders a whole transfer through the camera simulator into a .y4m video that Chrome
 // can use as a fake webcam (--use-file-for-fake-video-capture).
-// usage: node test/make-y4m.js out.y4m bytes [mode] [X] [Y] [cellPx] [camW] [camH]
+// usage: node test/make-y4m.js out.y4m bytes [mode] [X] [Y] [cellPx] [camW] [camH] [fill] [name]
+//   fill: share of the camera image the code covers (0.88); name: the file name sent
 import { openSync, writeSync, closeSync, writeFileSync } from 'node:fs';
 import { Sender, preparePayload } from '../src/core/transfer.js';
 import { Renderer } from '../src/core/render.js';
 import { simulateCamera } from './camera.js';
 import { Rng } from '../src/core/util.js';
 
-const [out = 'test/out/cam.y4m', size = '50000', mode = '2', X = '100', Y = '170', s = '8', cw = '1280', ch = '720'] = process.argv.slice(2);
+const [out = 'test/out/cam.y4m', size = '50000', mode = '2', X = '100', Y = '170', s = '8', cw = '1280', ch = '720', fill = '0.88', name = 'camera-test.bin'] = process.argv.slice(2);
 const W = Number(cw), H = Number(ch);
 const rng = new Rng(7);
 const file = new Uint8Array(Number(size)).map(() => rng.next() & 255);
 writeFileSync(out + '.src', file);
-const prepared = await preparePayload(file, 'camera-test.bin');
+const prepared = await preparePayload(file, name);
 const sender = new Sender(prepared, { mode: Number(mode), X: Number(X), Y: Number(Y) });
 const frames = Math.ceil((sender.K * 1.25) / sender.perFrame) + 2;
 const fd = openSync(out, 'w');
@@ -32,7 +33,7 @@ for (let f = 0; f < frames; f++) {
       src.set(prev.subarray(0, Math.floor(r.height * 0.45) * r.width * 4));
     }
     const img = simulateCamera({ width: r.width, height: r.height, data: src }, {
-      camW: W, camH: H, fill: 0.88, blur: 0.9, noise: 3, rot: 0.05 + 0.01 * rep, tilt: [0.06, -0.04], k1: -0.03,
+      camW: W, camH: H, fill: Number(fill), blur: 0.9, noise: 3, rot: 0.05 + 0.01 * rep, tilt: [0.06, -0.04], k1: -0.03,
       cross: [0.88, 0.1, 0.04, 0.08, 0.86, 0.08, 0.03, 0.12, 0.88], gains: [1.06, 1, 0.9], black: 12, vignette: 0.25, subsample: 1, seed: f * 3 + rep + 1,
     });
     const d = img.data;
