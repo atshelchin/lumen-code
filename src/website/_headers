@@ -1,0 +1,10 @@
+# Security headers for every page (Cloudflare reads this file; the adapter merges in its own
+# caching rules for /_app/immutable/). The Content-Security-Policy itself is a <meta> tag that
+# SvelteKit writes into each page (vite.config.ts); frame-ancestors only works as a header.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()

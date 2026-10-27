@@ -303,10 +303,6 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
   - 商店购买由苹果、谷歌处理。
   - 统计配置在服务端可改，改了要同步本页。
 - **服务条款**：MIT 开源不受限制；正当使用；内容自负；光敏风险；US$2.99 一次买断、退款按商店规定；按现状提供、不担保；责任以所付金额为限（法律另有规定的除外）；变更；联系方式。
-- **待用户确认**（写入时做的假设）：
-  - 运营者写作 "Shelchin"；
-  - 联系邮箱沿用 Keyper 官网的 hi@shelchin.com；
-  - 未写适用法律与管辖地；
-  - 统计数据保存期限未写。
-  - 这是工程上按事实起草的文本，不是法律意见，正式上架前建议请专业人士过目。
-- **验证**：svelte-check 0/0、lint 通过；Vitest 10 项（新增：两种语言的章节结构一致、条款价格与定价一致、行内链接解析）；Playwright 23 项全过（新增 4 页内容、首页页脚 → 隐私 → 条款 → 切换语言）。
+- **按 Keyper 官网补齐**（用户要求“写你知道的，并参考 Keyper”）：运营者 MONDAY LABS LTD，联系邮箱 hello@mondaylabs.ltd，页脚 © 2026 MONDAY LABS LTD；加“邮件”一节、App Store 适用 Apple 标准 EULA、销售报告与崩溃报告的具体内容。Keyper 同样没写适用法律和统计保存期限，这里也不写。
+- **安全策略**（照 Keyper）：页面带 CSP（`vite.config.ts`，hash 模式；app.html 里语言跳转脚本的哈希在构建时算出），统计脚本只能从 tj.appsdata.org 加载那一个文件、只能把数据发回该服务器；另允许 WebAssembly、同源 Worker、blob:（显示和保存收到的文件）。`_headers`：HSTS、nosniff、Referrer-Policy、禁止被嵌入框架、Permissions-Policy（只允许本站用相机）。新增端到端测试：首页、隐私页、发送、接收都没有 CSP 违规。
+- **验证**：svelte-check 0/0、lint 通过；Vitest 10 项（新增：两种语言的章节结构一致、条款价格与定价一致、行内链接解析）；Playwright 24 项全过（新增 4 页内容、首页页脚 → 隐私 → 条款 → 切换语言、CSP 无违规）。

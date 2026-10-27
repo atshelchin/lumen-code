@@ -2,7 +2,7 @@
 	// The privacy policy and the terms of service: one readable column, both languages.
 	import { goto } from '$app/navigation';
 	import { path, t, type Lang } from '#lib/i18n';
-	import { LEGAL, UPDATED, inline } from '#lib/legal';
+	import { COMPANY, LEGAL, UPDATED, inline } from '#lib/legal';
 	import Mark from './Mark.svelte';
 	import Seo from './Seo.svelte';
 	import BuildLink from './BuildLink.svelte';
@@ -76,7 +76,7 @@
 		<a href={path(lang, 'terms')} aria-current={page === 'terms' ? 'page' : undefined}
 			>{L.terms.title}</a
 		>
-		<span class="quiet"><BuildLink label={t(lang, 'buildLabel')} /> · © 2026 Lumen Code</span>
+		<span class="quiet"><BuildLink label={t(lang, 'buildLabel')} /> · © 2026 {COMPANY}</span>
 	</footer>
 </div>
 

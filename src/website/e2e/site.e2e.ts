@@ -62,6 +62,29 @@ test('the home page links the privacy policy and the terms, in its language', as
 	await expect(page.locator('h1')).toHaveText('Terms of Service');
 });
 
+test('the content security policy: no violations while sending and receiving', async ({ page }) => {
+	const violations: string[] = [];
+	await page.exposeFunction('cspViolation', (v: string) => violations.push(v));
+	await page.addInitScript(() =>
+		document.addEventListener('securitypolicyviolation', (e) =>
+			(window as unknown as { cspViolation(v: string): void }).cspViolation(
+				`${e.violatedDirective} ${e.blockedURI}`
+			)
+		)
+	);
+	for (const url of ['/', '/zh/privacy', '/send?demo=20000', '/recv']) {
+		await page.goto(url);
+		await page.waitForTimeout(800);
+	}
+	const csp = await page
+		.locator('meta[http-equiv="content-security-policy"]')
+		.getAttribute('content');
+	expect(csp).toContain(
+		"script-src 'self' 'wasm-unsafe-eval' https://tj.appsdata.org/api/script.js"
+	);
+	expect(violations).toEqual([]);
+});
+
 test('sitemap lists every page in both languages; robots points to it', async ({ request }) => {
 	const xml = await (await request.get('/sitemap.xml')).text();
 	expect(xml.match(/<loc>/g)?.length).toBe(10);

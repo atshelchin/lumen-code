@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { t as tr, path, type Key } from '#lib/i18n';
 	import { LANDING, STORES } from '#lib/landing';
-	import { LEGAL } from '#lib/legal';
+	import { COMPANY, LEGAL } from '#lib/legal';
 	import { REPO } from '#lib/build';
 	import Mark from '#lib/ui/Mark.svelte';
 	import Warn from '#lib/ui/Warn.svelte';
@@ -334,7 +334,7 @@
 				<a href={path(lang, 'terms')}>{LEGAL[lang].terms.title}</a>
 			</p>
 			<p><BuildLink label={t('buildLabel')} /></p>
-			<p class="quiet">© 2026 Lumen Code</p>
+			<p class="quiet">© 2026 {COMPANY}</p>
 		</div>
 	</footer>
 </div>
