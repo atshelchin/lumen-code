@@ -109,18 +109,18 @@ fn sending_a_file_shows_a_code_and_keeps_the_screen_on() {
     assert_eq!((mw as usize, mh as usize), (g.width_px, g.height_px));
     assert_eq!(mask.len(), g.width_px * g.height_px * 4);
 
-    // the dock hides itself while playing
-    h.wait_for("dock hidden", |v| !v.send.dock_visible);
+    // the control bar is permanent (the code is laid out above it); settings start closed
+    assert!(!h.last.send.settings_open);
+    h.drain(Duration::from_millis(DOCK_IDLE_MS as u64 + 400));
+    assert!(h.last.send.dock_visible, "no auto-hide");
     h.send(Event::TapCode);
-    assert!(h.last.send.dock_visible);
-
-    // paused: the dock shows, stays, and can still be hidden to see the whole code
+    assert!(h.last.send.dock_visible, "tapping the code does not hide it");
+    // the bar's line: time per pass while playing, "paused" when paused; details for settings
+    assert!(h.last.send.subtitle.contains('≈'), "{}", h.last.send.subtitle);
+    assert!(h.last.send.details.contains('×'), "{}", h.last.send.details);
     h.send(Event::TogglePlay);
     assert!(!h.last.send.playing && h.last.send.dock_visible);
-    h.send(Event::HideDock);
-    assert!(!h.last.send.dock_visible, "hide works while paused");
-    h.send(Event::TapCode);
-    assert!(h.last.send.dock_visible);
+    assert_eq!(h.last.send.subtitle, crate::i18n::t(Lang::Zh, "paused"));
     h.send(Event::TogglePlay);
 
     // turning the phone keeps the stream, with a landscape grid
@@ -334,12 +334,15 @@ fn receive_feedback_follows_progress() {
     let now = 10_000.0;
     let mut m = Model { screen: Screen::Receive, now, ..Model::default() };
     m.recv.phase = RecvPhase::Scanning;
+    let v = view::view(&m).recv;
+    assert_eq!((v.name.as_str(), v.line.as_str()), (crate::i18n::t(Lang::En, "noData"), ""));
     let stats = LiveStats { last_found_at: now - 100.0, cov_ok: 20, cov_tot: 100, cell: 5.0, cell_n: 5, ..LiveStats::default() };
     m.recv.last = Some(ScanReport { ok: true, at: now - 100.0, corners: Some([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]), frame_rate: 0.2, stats, ..ScanReport::default() });
     m.recv.progress = Some(ProgressFact { received: 40, needed: Some(100), t: 200, ..ProgressFact::default() });
 
     m.recv.prog_hist = [(now - 2000.0, 10), (now - 500.0, 40)].into_iter().collect();
     let v = view::view(&m).recv;
+    assert!(v.line.contains("/s · ") && v.line.ends_with(" left"), "{}", v.line);
     assert_eq!(v.tip, crate::i18n::t(Lang::En, "tipGood"));
     assert_eq!(v.overlay.expect("outline").tone, view::Tone::Good);
 

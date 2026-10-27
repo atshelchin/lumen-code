@@ -49,8 +49,12 @@ pub struct SendView {
     pub flash_ask: bool,
     /// The text on the Text tab; the field shows this, so what is shown is what is sent.
     pub text: String,
-    /// Dock: the file name, or just "Text" (never the text itself).
+    /// Bar: the file name, or just "Text" (never the text itself).
     pub title: String,
+    /// Bar, under the title: size and time per pass ("78 KB · ≈ 3 s"), or "Paused".
+    pub subtitle: String,
+    /// Settings panel: raw rate, per frame, grid, bits per cell, engine time, in one line.
+    pub details: String,
     pub size: String,
     pub stats: Vec<Stat>,
     pub playing: bool,
@@ -150,6 +154,9 @@ pub struct RecvView {
     pub pct: String,
     /// 0…1
     pub progress: f32,
+    /// Under the progress bar: "32 KB/s · 2s left" (empty until data arrives).
+    pub line: String,
+    /// Speed, time left, cell size, success: for the Details area.
     pub metrics: Vec<Metric>,
     pub tip: String,
     pub tip_ok: bool,
@@ -184,6 +191,9 @@ fn send_view(m: &Model) -> SendView {
         None => (String::new(), String::new()),
     };
     let mut stats = Vec::new();
+    // under the name in the bar: size and time per pass (or "Paused"); details in settings
+    let mut subtitle = size.clone();
+    let mut details = String::new();
     if s.phase == SendPhase::Preparing {
         stats.push(Stat { label: t(l, "preparing").into(), value: String::new(), wide: false });
     }
@@ -193,7 +203,7 @@ fn send_view(m: &Model) -> SendView {
         let rate = per * fps;
         let pass = if rate > 0.0 { info.payload_len as f64 / rate } else { 0.0 };
         let pass = if pass < 1.0 {
-            "<1 s".to_string()
+            "< 1 s".to_string()
         } else if pass < 10.0 {
             format!("{pass:.1} s")
         } else {
@@ -202,10 +212,23 @@ fn send_view(m: &Model) -> SendView {
         let stat = |k: &str, v: String, wide| Stat { label: t(l, k).into(), value: v, wide };
         stats.push(stat("rate", format!("{}/s", format::bytes(rate)), false));
         stats.push(stat("perFrame", format::bytes(per), false));
-        stats.push(stat("loop", pass, true));
+        stats.push(stat("loop", pass.clone(), true));
         stats.push(Stat { label: t(l, "grid").into(), value: format!("{}×{} · {} bit", info.x, info.y, info.bpc), wide: true });
         let ms = if s.build_ms > 0.0 { format!("{:.2} ms", s.build_ms) } else { "–".into() };
-        stats.push(Stat { label: "Rust".into(), value: ms, wide: true });
+        stats.push(Stat { label: "Rust".into(), value: ms.clone(), wide: true });
+        details = format!(
+            "{} {}/s · {} {} · {} {}×{} · {} bit · Rust {}",
+            t(l, "rate"),
+            format::bytes(rate),
+            t(l, "perFrame"),
+            format::bytes(per),
+            t(l, "grid"),
+            info.x,
+            info.y,
+            info.bpc,
+            ms
+        );
+        subtitle = if s.playing { format!("{size} · ≈ {pass}") } else { t(l, "paused").to_string() };
     }
     let mobile = m.platform.mobile();
     SendView {
@@ -220,6 +243,8 @@ fn send_view(m: &Model) -> SendView {
         text: s.text.clone(),
         title,
         size,
+        subtitle,
+        details,
         stats,
         playing: s.playing,
         fps: m.prefs.fps,
@@ -268,7 +293,7 @@ fn recv_view(m: &Model) -> RecvView {
         camera_starting: r.camera.starting,
         live: found,
         status: t(l, if found { "receiving" } else { "waiting" }).into(),
-        name: t(l, "waiting").into(),
+        name: t(l, "noData").into(),
         pct: "0%".into(),
         can_switch: r.camera.on && r.camera.devices > 1,
         note: r.note.map(|k| t(l, k).to_string()),
@@ -328,6 +353,12 @@ fn recv_view(m: &Model) -> RecvView {
         }
     }
     let metric = |k: &str, value: String| Metric { label: t(l, k).into(), value };
+    // the panel's one line under the progress bar; cell and success go under Details
+    v.line = match (speed.as_str(), eta.as_str()) {
+        ("–", _) => String::new(),
+        (sp, "–") => sp.to_string(),
+        (sp, e) => format!("{sp} · {}", t(l, "timeLeft").replace("{t}", e)),
+    };
     v.metrics = vec![
         metric("speedM", speed),
         metric("etaM", eta),

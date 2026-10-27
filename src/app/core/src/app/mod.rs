@@ -583,20 +583,9 @@ fn update(event: Event, model: &mut Model) -> Cmd {
             model.send.settings_open = Some(open);
             poke_dock(model)
         }
-        Event::TapCode => {
-            if model.send.dock_visible {
-                model.send.dock_visible = false;
-                model.send.dock_attempt += 1;
-                Command::done()
-            } else {
-                show_dock(model)
-            }
-        }
-        Event::HideDock => {
-            model.send.dock_visible = false;
-            model.send.dock_attempt += 1;
-            Command::done()
-        }
+        // The control bar is permanent and never covers the code (the shell lays the code out
+        // above it), so there is nothing to hide; these events remain for older shells.
+        Event::TapCode | Event::HideDock => Command::done(),
         Event::ShowDock => show_dock(model),
         Event::DockActivity => poke_dock(model),
         Event::CloseSend => close_send(model),
@@ -792,7 +781,7 @@ fn leave_receive(model: &mut Model) -> Cmd {
 // ---------------------------------------------------------------------- send
 
 fn settings_open(model: &Model) -> bool {
-    model.send.settings_open.unwrap_or(!model.platform.mobile())
+    model.send.settings_open.unwrap_or(false)
 }
 
 fn source_loaded(model: &mut Model, name: String, size: u64, text: Option<String>) -> Cmd {
@@ -886,12 +875,9 @@ fn show_dock(model: &mut Model) -> Cmd {
     poke_dock(model)
 }
 
-fn poke_dock(model: &mut Model) -> Cmd {
-    if !model.send.dock_visible || model.send.phase != SendPhase::Ready {
-        return Command::done();
-    }
-    model.send.dock_attempt += 1;
-    timer(TimerKind::Dock, model.send.dock_attempt, DOCK_IDLE_MS)
+/// The bar no longer hides itself; kept as the one place to change if that ever returns.
+fn poke_dock(_model: &mut Model) -> Cmd {
+    Command::done()
 }
 
 // ---------------------------------------------------------------------- receive
