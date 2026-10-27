@@ -5,6 +5,7 @@ import UIKit
 /// The result: text and images fill the screen (reader); other files get a card.
 struct DoneScreen: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.verticalSizeClass) private var vSize
     let done: DoneVM
 
     var body: some View {
@@ -71,25 +72,131 @@ struct DoneScreen: View {
 
     // MARK: card
 
+    /// Any other file: one calm centred column (mark, name, size and time, actions), the
+    /// numbers folded away under Details.
     private var card: some View {
-        ZStack {
-            Color(red: 4 / 255, green: 6 / 255, blue: 10 / 255).opacity(0.85).ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    badge.padding(.bottom, 14)
-                    Text(done.title).font(.system(size: 19, weight: .semibold)).foregroundStyle(Theme.text).multilineTextAlignment(.center).padding(.bottom, 4)
-                    Text(done.sub).font(.system(size: 13.5)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
-                    stats.padding(.top, 16)
-                    actions.padding(.top, 18)
-                    note.padding(.top, 10)
+        GeometryReader { geo in
+            // in portrait the column starts below the top bar (home button); in landscape the
+            // button sits beside the centred column, so the column may use the full height
+            let compact = vSize == .compact
+            let top: CGFloat = compact ? 8 : 60
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        cardHead(compact: compact)
+                        cardActions.padding(.top, compact ? 16 : 24)
+                        if let n = done.note {
+                            Text(n)
+                                .font(.footnote)
+                                .foregroundStyle(done.noteOk ? Theme.green : Theme.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.top, 8)
+                        }
+                        details.padding(.top, compact ? 8 : 16)
+                        Color.clear.frame(height: 0).id("end")
+                    }
+                    .frame(maxWidth: 420)
+                    .padding(.horizontal, 24)
+                    .padding(.top, top)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity, minHeight: geo.size.height)
                 }
-                .padding(24)
-                .frame(maxWidth: 460)
-                .panel()
-                .padding(14)
-                .frame(maxWidth: .infinity, minHeight: UIScreen.main.bounds.height * 0.8)
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+                .onChange(of: done.statsOpen) { _, open in
+                    // opened below the fold (landscape): bring the numbers into view
+                    guard open else { return }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(60))
+                        withAnimation(.easeOut(duration: 0.25)) { scroll.scrollTo("end", anchor: .bottom) }
+                    }
+                }
             }
-            .scrollIndicators(.hidden)
+        }
+        .background(Theme.bg.ignoresSafeArea())
+        .animation(.easeOut(duration: 0.2), value: done.statsOpen)
+    }
+
+    private func cardHead(compact: Bool) -> some View {
+        VStack(spacing: 0) {
+            Image(systemName: "checkmark")
+                .font(.system(size: compact ? 22 : 26, weight: .bold))
+                .foregroundStyle(Theme.green)
+                .frame(width: compact ? 52 : 64, height: compact ? 52 : 64)
+                .background(Circle().fill(Theme.green.opacity(0.14)))
+                .accessibilityHidden(true)
+                .padding(.bottom, 16)
+            Text(done.title)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Theme.text)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, 4)
+            Text(done.sub)
+                .font(.subheadline)
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var cardActions: some View {
+        VStack(spacing: 12) {
+            Button { model.dispatch(Ev.save) } label: { Text(done.saveLabel).frame(maxWidth: .infinity) }
+                .buttonStyle(DoneButtonStyle(primary: true))
+            HStack(spacing: 12) {
+                Button { model.dispatch(Ev.share) } label: { Text(model.t("share")).frame(maxWidth: .infinity) }
+                    .buttonStyle(DoneButtonStyle())
+                if done.canOpen {
+                    Button { model.dispatch(Ev.openFile) } label: { Text(model.t("open")).frame(maxWidth: .infinity) }
+                        .buttonStyle(DoneButtonStyle())
+                }
+            }
+            Button { model.dispatch(Ev.receiveAnother) } label: { Text(model.t("again")).frame(maxWidth: .infinity) }
+                .buttonStyle(DoneButtonStyle(quiet: true))
+        }
+    }
+
+    /// "Details ⌄" and, when open, one row per number: label left, value right, never cut.
+    private var details: some View {
+        VStack(spacing: 0) {
+            Button { model.dispatch(Ev.toggleStats) } label: {
+                HStack(spacing: 6) {
+                    Text(model.t("details"))
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(done.statsOpen ? 180 : 0))
+                }
+                .font(.subheadline)
+                .foregroundStyle(Theme.muted)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(done.statsOpen ? .isSelected : [])
+            if done.statsOpen {
+                VStack(spacing: 0) {
+                    ForEach(done.stats, id: \.self) { m in
+                        Rectangle().fill(Theme.line).frame(height: 1)
+                        DetailRow(label: m.label, value: m.value)
+                    }
+                    Rectangle().fill(Theme.line).frame(height: 1)
+                    if let code = done.codeLine {
+                        Text(code)
+                            .font(.caption)
+                            .foregroundStyle(Theme.faint)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 12)
+                    }
+                }
+                .padding(.top, 8)
+                .transition(.opacity)
+            }
         }
     }
 
@@ -162,6 +269,65 @@ struct DoneScreen: View {
             .padding(.bottom, 6)
         }
         .background(Theme.bg.ignoresSafeArea())
+    }
+}
+
+/// One Details row: label and value on a line when they fit, the value under the label when not.
+private struct DetailRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                labelText.fixedSize()
+                Spacer(minLength: 0)
+                valueText.fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                labelText.fixedSize(horizontal: false, vertical: true)
+                valueText
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var labelText: some View { Text(label).font(.subheadline).foregroundStyle(Theme.muted) }
+    private var valueText: some View { Text(value).font(.system(.subheadline, design: .monospaced)).foregroundStyle(Theme.text) }
+}
+
+/// The result card's buttons: Dynamic Type, at least 48 pt tall (44 for the quiet one).
+private struct DoneButtonStyle: ButtonStyle {
+    var primary = false
+    var quiet = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.horizontal, 16)
+            .frame(minHeight: quiet ? 44 : 50)
+            .foregroundStyle(primary ? Theme.ink : (quiet ? Theme.muted : Theme.text))
+            .background {
+                if !quiet {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(primary ? (configuration.isPressed ? Color.white : Theme.paper) : Color.white.opacity(configuration.isPressed ? 0.1 : 0.05))
+                }
+            }
+            .overlay {
+                if !primary && !quiet {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.line2, lineWidth: 1)
+                }
+            }
+            .contentShape(Rectangle())
+            .opacity(quiet && configuration.isPressed ? 0.6 : 1)
+            .scaleEffect(configuration.isPressed && !quiet ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
