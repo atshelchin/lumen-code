@@ -646,7 +646,7 @@ export class ReceiveController {
 					: d.stats.cwCount
 						? (d.okIdx || []).length / d.stats.cwCount
 						: 0;
-		const color = rate > 0.8 ? '#2bdc74' : rate > 0.3 ? '#ffd60a' : '#ff5468';
+		const color = this.moving() || rate > 0.8 ? '#2bdc74' : rate > 0.3 ? '#ffd60a' : '#ff5468';
 		octx.lineWidth = 3;
 		octx.strokeStyle = color;
 		octx.lineJoin = 'round';
@@ -659,10 +659,19 @@ export class ReceiveController {
 	}
 
 	// ---------- HUD
+	// Data is arriving: then the transfer is going well, whatever share of each frame is read.
+	private moving() {
+		const h = this.progHist;
+		return (
+			h.length >= 2 && h[h.length - 1][1] > h[0][1] && performance.now() - h[h.length - 1][0] < 2500
+		);
+	}
+
 	updateHud() {
 		const t = this.t;
 		const now = performance.now();
 		const found = now - this.lastFoundAt < 700;
+		const moving = this.moving();
 		this.found = found;
 
 		let cell = 0;
@@ -745,11 +754,11 @@ export class ReceiveController {
 				.replace('{size}', fmtBytes(Math.max(progress.size, progress.payloadLength)))
 				.replace('{max}', fmtBytes(MAX_SIZE));
 		else if (!found) msg = t('tipSearch');
-		else if (cellN && cell < 3.4) {
+		else if (!moving && cellN && cell < 3.4) {
 			const h = this.lastResult && this.lastResult.header;
 			const portrait = this.video.videoHeight > this.video.videoWidth;
 			msg = h && h.X > h.Y * 1.2 && portrait ? t('tipLandscape') : t('tipCloser');
-		} else if (covTot && okRate < 0.5) msg = cell < 4.5 ? t('tipSteady') : t('tipColor');
+		} else if (!moving && covTot && okRate < 0.5) msg = cell < 4.5 ? t('tipSteady') : t('tipColor');
 		else if (this.engine === 'js' && senderFps && captured < 0.8 && load > 0.8) msg = t('tipWasm');
 		else if (
 			senderFps &&

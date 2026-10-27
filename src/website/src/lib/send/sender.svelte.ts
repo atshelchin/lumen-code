@@ -98,6 +98,14 @@ export interface SendStats {
 	bpc: number;
 }
 
+function flashOk(): boolean {
+	try {
+		return localStorage.getItem('lumen.flashOk') === '1';
+	} catch {
+		return false;
+	}
+}
+
 export class SendController {
 	// ---------- what the page shows
 	prefs = $state<Prefs>({
@@ -118,6 +126,8 @@ export class SendController {
 	buildMs = $state(0); // mean encode time per frame of the current engine
 	dockAway = $state(false);
 	settingsOpen = $state(false);
+	// The first code waits, paused, until the photosensitivity warning is acknowledged.
+	flashAsk = $state(false);
 
 	// ---------- engine and drawing
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -249,7 +259,9 @@ export class SendController {
 		if (this.prefs.engine === 'wasm') await loadWasm(wasmUrl);
 		this.newSender();
 		this.preparing = false;
-		this.playing = true;
+		const ok = flashOk();
+		this.flashAsk = !ok;
+		this.playing = ok;
 		this.wake();
 		this.showDock();
 		this.schedule();
@@ -325,7 +337,20 @@ export class SendController {
 		this.savePrefs();
 	}
 
+	acceptFlash() {
+		try {
+			localStorage.setItem('lumen.flashOk', '1');
+		} catch {
+			/* storage unavailable: ask again next time */
+		}
+		this.flashAsk = false;
+		this.playing = true;
+		this.schedule();
+		this.armDockTimer();
+	}
+
 	togglePlay() {
+		if (this.flashAsk) return this.acceptFlash();
 		this.playing = !this.playing;
 		this.schedule();
 		this.armDockTimer();
@@ -341,6 +366,7 @@ export class SendController {
 		this.sender = null;
 		this.prepared = null;
 		this.sending = false;
+		this.flashAsk = false;
 		this.stats = null;
 	}
 

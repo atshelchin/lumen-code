@@ -250,6 +250,28 @@
 		<canvas id="code" bind:this={canvas}></canvas>
 	</div>
 
+	{#if tx?.flashAsk}
+		<!-- the first code waits here, paused, until the warning is read -->
+		<div
+			class="flash-ask"
+			role="alertdialog"
+			aria-labelledby="flashTitle"
+			aria-describedby="flashText"
+		>
+			<div class="panel">
+				<h2 id="flashTitle">{t('flashTitle')}</h2>
+				<p id="flashText">{t('flashWarn')}</p>
+				<div class="row">
+					<button class="btn" onclick={() => tx?.close()}>{t('closeCode')}</button>
+					<!-- svelte-ignore a11y_autofocus -->
+					<button class="btn primary" id="flashPlay" autofocus onclick={() => tx?.acceptFlash()}
+						>{t('flashPlay')}</button
+					>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	{#if tx?.sending}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
@@ -267,6 +289,7 @@
 					id="playBtn"
 					title={t('paused')}
 					aria-label={t('paused')}
+					aria-pressed={!tx.playing}
 					onclick={() => tx?.togglePlay()}
 				>
 					{#if tx.playing}
@@ -290,7 +313,7 @@
 				<div class="fileinfo grow">
 					<div class="fname">
 						<span class="dot {tx.playing ? 'live' : 'warn'}" id="liveDot"></span><b id="fileName"
-							>{tx.isText ? `${t('textLabel')}: ${tx.label}` : tx.label}</b
+							>{tx.isText ? t('textLabel') : tx.label}</b
 						><span id="fileSize" class="num">{fmtBytes(tx.size)}</span>
 					</div>
 					<div class="stats" id="stats">

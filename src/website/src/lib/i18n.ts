@@ -42,6 +42,9 @@ export const DICT = {
 		dropHint: '建议：调高屏幕亮度，接收端尽量正对屏幕。',
 		flashWarn:
 			'光敏提示：发送时码会以每秒最多 60 次闪烁变色，对闪光敏感（如光敏性癫痫）的人请勿注视。',
+		flashTitle: '开始播放前请注意',
+		flashPlay: '知道了，开始播放',
+		closeCode: '关闭',
 		textPh: '输入或粘贴要发送的文本、链接、密码……',
 		send: '发送',
 		density: '密度',
@@ -160,6 +163,9 @@ export const DICT = {
 		dropHint: 'Tip: turn screen brightness up; keep the receiver square to the screen.',
 		flashWarn:
 			'Photosensitivity warning: while sending, the code flashes up to 60 times a second. If flashing light affects you (e.g. photosensitive epilepsy), don’t look at it.',
+		flashTitle: 'Before the code plays',
+		flashPlay: 'I understand, play',
+		closeCode: 'Close',
 		textPh: 'Type or paste text, a link, a password…',
 		send: 'Send',
 		density: 'Density',

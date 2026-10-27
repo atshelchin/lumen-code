@@ -1137,3 +1137,37 @@ input[type='range'] {
 	-webkit-backdrop-filter: none;
 	background: rgba(4, 6, 10, 0.9);
 }
+
+/* the photosensitivity warning before the first code plays (over the paused code) */
+.flash-ask {
+	position: fixed;
+	inset: 0;
+	z-index: 30;
+	display: grid;
+	place-items: center;
+	padding: 20px;
+	background: rgba(5, 7, 10, 0.72);
+}
+.flash-ask .panel {
+	max-width: 420px;
+	padding: 22px;
+	border-radius: var(--radius);
+	background: var(--panel-solid);
+	border: 1px solid rgba(255, 214, 10, 0.35);
+}
+.flash-ask h2 {
+	margin: 0 0 10px;
+	font-size: 18px;
+	color: var(--amber);
+}
+.flash-ask p {
+	margin: 0 0 18px;
+	color: #e8d48a;
+	line-height: 1.55;
+}
+.flash-ask .row {
+	display: flex;
+	gap: 10px;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}

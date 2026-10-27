@@ -161,6 +161,7 @@ test('sender: typed text becomes moving frames', async ({ page }) => {
 	await page.click('#srcTabs [data-v="text"]');
 	await page.fill('#textInput', 'Lumen Code browser test ' + 'x'.repeat(5000));
 	await page.click('#textSend');
+	await page.click('#flashPlay'); // first code: the photosensitivity warning
 	await expect(page.locator('#codewrap')).toBeVisible();
 	await expect
 		.poll(() => page.evaluate(() => (document.getElementById('code') as HTMLCanvasElement).width))
@@ -168,9 +169,37 @@ test('sender: typed text becomes moving frames', async ({ page }) => {
 	expect(errors).toEqual([]);
 });
 
+test('the first code waits for the photosensitivity warning; later codes play at once', async ({
+	page
+}) => {
+	await page.goto('/send?demo=20000');
+	const ask = page.locator('.flash-ask');
+	await expect(ask).toBeVisible();
+	await expect(ask).toContainText('60');
+	await expect(page.locator('#playBtn')).toHaveAttribute('aria-pressed', 'true'); // paused
+	await page.click('#flashPlay');
+	await expect(ask).toHaveCount(0);
+	await expect(page.locator('#playBtn')).toHaveAttribute('aria-pressed', 'false');
+	await page.goto('/zh/send?demo=20000');
+	await expect(page.locator('#codewrap')).toBeVisible();
+	await expect(page.locator('#playBtn')).toHaveAttribute('aria-pressed', 'false');
+	await expect(ask).toHaveCount(0);
+});
+
+test('a text send names the text in the dock, never shows it', async ({ page }) => {
+	await page.addInitScript(() => localStorage.setItem('lumen.flashOk', '1'));
+	await page.goto('/send');
+	await page.click('#srcTabs [data-v="text"]');
+	await page.fill('#textInput', 'wifi password is hunter2');
+	await page.click('#textSend');
+	await expect(page.locator('#fileName')).toHaveText('Text');
+	await expect(page.locator('.dock')).not.toContainText('hunter2');
+});
+
 test('sender paused: the hide button hides the dock, and it stays hidden while the mouse moves at the bottom', async ({
 	page
 }) => {
+	await page.addInitScript(() => localStorage.setItem('lumen.flashOk', '1'));
 	await page.goto('/send?demo=20000');
 	const dock = page.locator('.dock');
 	await expect(dock).not.toHaveClass(/away/);
