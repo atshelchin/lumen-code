@@ -1,6 +1,27 @@
 package com.shelchin.lumen.ui
 
 import android.view.ViewGroup
+import android.content.Context
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.collapse
+import androidx.compose.ui.semantics.expand
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,32 +98,7 @@ fun ReceiveScreen(model: AppModel, v: ViewModel) {
                 OutlineLayer(model)
             }
         }
-        if (r.phase == "scanning") {
-            Column(
-                Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 10.dp, vertical = 6.dp).widthIn(max = 560.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                r.zoom?.let { z ->
-                    Box(
-                        Modifier
-                            .clip(CircleShape)
-                            .background(Color(0xDB0C1017))
-                            .border(1.dp, if (z.active) Lumen.cyan else Lumen.line2, CircleShape)
-                            .clickable { model.dispatch(Ev.resetZoom) }
-                            .defaultMinSize(minHeight = 32.dp)
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(z.label, style = mono(13.sp, FontWeight.SemiBold), color = Lumen.text) }
-                }
-                Hud(r)
-            }
-            if (r.canSwitch) {
-                Box(Modifier.align(Alignment.CenterEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp)) {
-                    IconBtn(Icons.switchCamera, model.t("switchCam"), background = Lumen.panelOpaque) { model.dispatch(Ev.switchCamera) }
-                }
-            }
-        }
+        if (r.phase == "scanning") ScanningLayer(model, r)
         if (r.phase == "start") StartPane(model, r)
         if (r.phase == "done") r.done?.let { DoneScreen(model, it) }
         if (r.phase != "done") {
@@ -165,12 +161,97 @@ private fun Outline(o: OverlayVM, mirrored: Boolean) {
     }
 }
 
+/**
+ * While scanning: framing guides over the image until a code is found, the camera tools in a
+ * row just above the panel (never over the middle of the image), and the panel at the bottom
+ * (bottom right in landscape).
+ */
 @Composable
-private fun Hud(r: RecvVM) {
+private fun ScanningLayer(model: AppModel, r: RecvVM) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("lumen", Context.MODE_PRIVATE) }
+    var details by remember { mutableStateOf(prefs.getBoolean(DETAILS_KEY, false)) }
+    BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        val landscape = maxWidth > maxHeight
+        val dockWidth = if (landscape) minOf(340.dp, maxWidth * 0.44f) else minOf(560.dp, maxWidth - 20.dp)
+        var dockHeight by remember { mutableIntStateOf(0) }
+        val dockH = with(LocalDensity.current) { dockHeight.toDp() }
+        if (!r.live) {
+            Guides(
+                Modifier.fillMaxSize().padding(
+                    top = 62.dp,
+                    bottom = if (landscape) 18.dp else dockH + 6.dp + 18.dp,
+                    start = 22.dp,
+                    end = if (landscape) dockWidth + 10.dp + 22.dp else 22.dp,
+                ),
+            )
+        }
+        Column(
+            Modifier
+                .align(if (landscape) Alignment.BottomEnd else Alignment.BottomCenter)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .width(dockWidth)
+                .onSizeChanged { dockHeight = it.height },
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (r.zoom != null || r.canSwitch) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                    r.zoom?.let { z ->
+                        Box(
+                            Modifier
+                                .clip(CircleShape)
+                                .background(Color(0xDB0C1017))
+                                .border(1.dp, if (z.active) Lumen.cyan else Lumen.line2, CircleShape)
+                                .clickable { model.dispatch(Ev.resetZoom) }
+                                .defaultMinSize(minWidth = 48.dp, minHeight = 36.dp)
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(z.label, style = mono(13.sp, FontWeight.SemiBold), color = Lumen.text) }
+                    }
+                    if (r.canSwitch) IconBtn(Icons.switchCamera, model.t("switchCam"), background = Color(0xDB0C1017), size = 48.dp) { model.dispatch(Ev.switchCamera) }
+                }
+            }
+            Hud(model, r, details) {
+                details = !details
+                prefs.edit().putBoolean(DETAILS_KEY, details).apply()
+            }
+        }
+    }
+}
+
+private const val DETAILS_KEY = "recvDetails"
+
+/** Four corner brackets: where to put the code. */
+@Composable
+private fun Guides(modifier: Modifier) {
+    Canvas(modifier) {
+        val arm = 30.dp.toPx()
+        val rad = 10.dp.toPx()
+        val sw = 3.dp.toPx()
+        val h = sw / 2
+        if (size.width < arm * 2 || size.height < arm * 2) return@Canvas
+        val (w, ht) = size.width to size.height
+        // each corner: an arm along each edge and a rounded turn
+        fun corner(x: Float, y: Float, dx: Float, dy: Float) = Path().apply {
+            moveTo(x, y + dy * arm)
+            lineTo(x, y + dy * rad)
+            quadraticTo(x, y, x + dx * rad, y)
+            lineTo(x + dx * arm, y)
+        }
+        val corners = listOf(corner(h, h, 1f, 1f), corner(w - h, h, -1f, 1f), corner(h, ht - h, 1f, -1f), corner(w - h, ht - h, -1f, -1f))
+        for (p in corners) {
+            drawPath(p, Color.Black.copy(alpha = 0.35f), style = Stroke(width = sw + 3.dp.toPx(), cap = StrokeCap.Round))
+            drawPath(p, Color.White.copy(alpha = 0.75f), style = Stroke(width = sw, cap = StrokeCap.Round))
+        }
+    }
+}
+
+@Composable
+private fun Hud(model: AppModel, r: RecvVM, details: Boolean, toggleDetails: () -> Unit) {
     // no animation: progress already moves 20 times a second, and an animation would redraw
     // the panel on every display frame while receiving
     val progress = r.progress
-    Column(Modifier.fillMaxWidth().panel(opaque = true).padding(16.dp)) {
+    Column(Modifier.fillMaxWidth().panel(opaque = true).padding(horizontal = 16.dp, vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(r.name, color = Lumen.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
@@ -179,16 +260,52 @@ private fun Hud(r: RecvVM) {
         Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(8.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(progress.coerceIn(0f, 1f)).clip(CircleShape).background(Lumen.spectrum))
         }
-        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (m in r.metrics) {
-                Column(Modifier.weight(1f)) {
-                    Label(m.label, size = 11.5.sp, color = Lumen.faint, lines = 1)
-                    Text(m.value, style = mono(14.sp, FontWeight.SemiBold), color = Lumen.text, maxLines = 1, overflow = TextOverflow.Clip)
+        // the row keeps its height while the line is empty: nothing jumps when data arrives
+        Row(Modifier.padding(top = 6.dp).fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(r.line, color = Lumen.text, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(10.dp))
+            DetailsToggle(model.t("details"), details, toggleDetails)
+        }
+        Label(r.tip, size = 13.sp, color = if (r.tipOk) Lumen.muted else Lumen.amber, lines = 2)
+        if (details) {
+            Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(1.dp).background(Lumen.line))
+            FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (m in r.metrics) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = Lumen.muted)) { append(m.label + " ") }
+                            withStyle(SpanStyle(color = Lumen.text, fontFamily = Lumen.mono, fontWeight = FontWeight.SemiBold)) { append(m.value) }
+                        },
+                        fontSize = 12.5.sp, maxLines = 1, softWrap = false,
+                    )
                 }
             }
+            Text(r.diag, style = mono(11.sp), color = Lumen.faint, lineHeight = 16.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
         }
-        Label(r.tip, size = 13.sp, color = if (r.tipOk) Lumen.muted else Lumen.amber, lines = 2, modifier = Modifier.padding(top = 10.dp))
-        Text(r.diag, style = mono(11.sp), color = Lumen.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+/** "Details ⌄": folds the numbers in and out (remembered across launches). */
+@Composable
+private fun DetailsToggle(label: String, open: Boolean, toggle: () -> Unit) {
+    val rot by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
+    Row(
+        Modifier
+            .minimumInteractiveComponentSize()
+            .clip(CircleShape)
+            .border(1.dp, Lumen.line2, CircleShape)
+            .background(Color.White.copy(alpha = 0.04f))
+            .clickable(role = Role.Button, onClick = toggle)
+            .semantics {
+                if (open) collapse { toggle(); true } else expand { toggle(); true }
+            }
+            .defaultMinSize(minHeight = 36.dp)
+            .padding(start = 12.dp, end = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, color = Lumen.muted, fontSize = 13.sp, maxLines = 1)
+        Icon(Icons.chevronDown, contentDescription = null, tint = Lumen.muted, modifier = Modifier.size(16.dp).rotate(rot))
     }
 }
 

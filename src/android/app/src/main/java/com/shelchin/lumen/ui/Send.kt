@@ -1,11 +1,6 @@
 package com.shelchin.lumen.ui
 
 import android.graphics.Bitmap
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,15 +10,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
@@ -75,6 +67,22 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -84,7 +92,6 @@ import com.shelchin.lumen.core.AppModel
 import com.shelchin.lumen.core.Ev
 import com.shelchin.lumen.core.GeometryVM
 import com.shelchin.lumen.core.SendVM
-import com.shelchin.lumen.core.StatVM
 import com.shelchin.lumen.core.ViewModel
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
@@ -96,45 +103,150 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.isActive
 import uniffi.lumen_ffi.LumenCore
 
-/** The sender (the web's send.html): pick a file or type text, then the code fills the screen. */
+/** Insets the code must stay clear of: system bars and the cutout (not the keyboard). */
+private val safeArea: WindowInsets
+    @Composable get() = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+
+/**
+ * The sender (the web's send page): pick a file or type text, then the code. While a code is
+ * shown nothing overlaps it: the code takes the area above a permanent bar (and beside or above
+ * the settings, when open), and that area, not the screen, is what the core fits the grid into.
+ */
 @Composable
 fun SendScreen(model: AppModel, v: ViewModel) {
     val s = v.send
-    val context = LocalContext.current
-    Box(Modifier.fillMaxSize()) {
-        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            val density = LocalDensity.current.density
-            val w = constraints.maxWidth
-            val h = constraints.maxHeight
-            LaunchedEffect(w, h) {
-                val dm = context.resources.displayMetrics
-                // physical pixel size; some devices report a nonsense xdpi, fall back to the density bucket
-                val dpi = if (abs(dm.xdpi - dm.densityDpi) / dm.densityDpi < 0.3f) dm.xdpi else dm.densityDpi.toFloat()
-                model.dispatch(Ev.viewport(w.toDouble(), h.toDouble(), density.toDouble(), 25.4 / dpi))
-            }
-            if (s.phase == "pick") {
-                PickCard(model, s)
-            } else {
-                Box(Modifier.fillMaxSize().background(Lumen.ink))
-                s.geometry?.let { CodeView(model.core, it, s.frameRev, s.playing, s.fps) { model.dispatch(Ev.tapCode) } }
+    val coding = s.phase != "pick"
+    Box(Modifier.fillMaxSize().then(if (coding) Modifier.background(Lumen.ink) else Modifier)) {
+        // backgrounds run edge to edge; contents keep clear of the bars and the cutout
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val landscape = maxWidth > maxHeight
+            val settings = coding && s.settingsOpen
+            val sideWidth = minOf(360.dp, maxWidth * 0.46f)
+            val panelMax = maxHeight * 0.5f
+            // the same skeleton on the pick screen, so the first code is laid out for its real area
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    // beside the settings, the panel takes the end inset
+                    val sides = if (settings && landscape) WindowInsetsSides.Start + WindowInsetsSides.Top else WindowInsetsSides.Horizontal + WindowInsetsSides.Top
+                    CodeArea(model, s, Modifier.weight(1f).fillMaxHeight().windowInsetsPadding(safeArea.only(sides)))
+                    if (settings && landscape) SettingsPanel(model, s, side = true, Modifier.width(sideWidth).fillMaxHeight())
+                }
+                if (settings && !landscape) SettingsPanel(model, s, side = false, Modifier.fillMaxWidth().heightIn(max = panelMax))
+                SendBar(model, s, coding)
             }
         }
-        if (s.phase == "pick") {
+        if (!coding) {
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { PickCard(model, s) }
             Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 10.dp, vertical = 8.dp)) {
                 HomeButton(model.t("home")) { model.dispatch(Ev.navigate("home")) }
             }
-        } else {
-            // the warning stands alone: no dock over or under it
-            AnimatedVisibility(
-                visible = s.dockVisible && !s.flashAsk,
-                enter = fadeIn() + slideInVertically { it / 6 },
-                exit = fadeOut() + slideOutVertically { it / 6 },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            ) {
-                Dock(model, s)
-            }
-            if (s.flashAsk && s.phase == "ready") FlashCard(model, s)
+        } else if (s.flashAsk && s.phase == "ready") {
+            FlashCard(model, s)
         }
+    }
+}
+
+/** Where the code goes: its size is the viewport the core fits the grid (quiet zone included) into. */
+@Composable
+private fun CodeArea(model: AppModel, s: SendVM, modifier: Modifier) {
+    val context = LocalContext.current
+    BoxWithConstraints(modifier) {
+        val density = LocalDensity.current.density
+        val w = constraints.maxWidth
+        val h = constraints.maxHeight
+        LaunchedEffect(w, h) {
+            val dm = context.resources.displayMetrics
+            // physical pixel size; some devices report a nonsense xdpi, fall back to the density bucket
+            val dpi = if (abs(dm.xdpi - dm.densityDpi) / dm.densityDpi < 0.3f) dm.xdpi else dm.densityDpi.toFloat()
+            model.dispatch(Ev.viewport(w.toDouble(), h.toDouble(), density.toDouble(), 25.4 / dpi))
+        }
+        if (s.phase != "pick") s.geometry?.let { CodeView(model.core, it, s.frameRev, s.playing, s.fps) }
+    }
+}
+
+/**
+ * The bar under the code: play/pause, what is being sent, settings, close. One row, always
+ * there. On the pick screen it only holds its place (the pick card covers the screen); under
+ * the photosensitivity warning it is empty, so the warning stands alone.
+ */
+@Composable
+private fun SendBar(model: AppModel, s: SendVM, coding: Boolean) {
+    Column(Modifier.fillMaxWidth().then(if (coding) Modifier.background(Lumen.bg2) else Modifier)) {
+        if (coding) Box(Modifier.fillMaxWidth().height(1.dp).background(Lumen.line))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(safeArea.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                .height(64.dp)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (!coding || s.flashAsk) return@Row
+            val ready = s.phase == "ready"
+            PlayButton(s.playing, model.t(if (s.playing) "pause" else "play"), enabled = ready) { model.dispatch(Ev.togglePlay) }
+            Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                TitleLine(s.title)
+                Text(
+                    s.subtitle, color = if (ready && !s.playing) Lumen.amber else Lumen.muted, fontSize = 12.5.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            BarButton(Icons.sliders, model.t("settings"), selected = s.settingsOpen) { model.dispatch(Ev.toggleSettings) }
+            BarButton(Icons.close, model.t("close")) { model.dispatch(Ev.closeSend) }
+        }
+    }
+}
+
+/** A long file name loses its middle, never its end: "holiday-ph…inal.zip". */
+@Composable
+private fun TitleLine(title: String) {
+    val dot = title.lastIndexOf('.')
+    val ext = if (dot > 0 && title.length - dot <= 8) title.substring(dot) else ""
+    val stem = title.substring(0, title.length - ext.length)
+    val keep = minOf(stem.length, 4)
+    val head = stem.substring(0, stem.length - keep)
+    val tail = stem.substring(stem.length - keep) + ext
+    Row(Modifier.semantics(mergeDescendants = true) { contentDescription = title }) {
+        val style = TextStyle(color = Lumen.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        // on one baseline: a CJK head and a Latin tail come from fonts of different heights
+        if (head.isNotEmpty()) Text(head, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).alignByBaseline())
+        Text(tail, style = style, maxLines = 1, softWrap = false, modifier = Modifier.alignByBaseline())
+    }
+}
+
+@Composable
+private fun PlayButton(playing: Boolean, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(48.dp)
+            .alpha(if (enabled) 1f else 0.4f)
+            .clip(CircleShape)
+            .background(Lumen.paper)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = null, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.material3.Icon(if (playing) Icons.pause else Icons.play, contentDescription = null, tint = Lumen.ink, modifier = Modifier.size(22.dp))
+    }
+}
+
+@Composable
+private fun BarButton(icon: ImageVector, description: String, selected: Boolean? = null, onClick: () -> Unit) {
+    val on = selected == true
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (on) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = description
+                if (selected != null) this.selected = on
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.material3.Icon(icon, contentDescription = null, tint = if (on) Lumen.text else Lumen.muted, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -149,7 +261,7 @@ private fun FlashCard(model: AppModel, s: SendVM) {
         Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.6f))
-            // touches stay on the card: the code underneath must not toggle its dock
+            // touches stay on the card, never reach the code or the bar underneath
             .pointerInput(Unit) { detectTapGestures { } }
             .windowInsetsPadding(WindowInsets.safeDrawing),
         contentAlignment = Alignment.Center,
@@ -191,7 +303,7 @@ private fun FlashCard(model: AppModel, s: SendVM) {
  * (finders, markers, rounded gaps) on top. No per-pixel work at screen resolution.
  */
 @Composable
-private fun CodeView(core: LumenCore, g: GeometryVM, frameRev: Long, playing: Boolean, fps: Int, onTap: () -> Unit) {
+private fun CodeView(core: LumenCore, g: GeometryVM, frameRev: Long, playing: Boolean, fps: Int) {
     val frames = remember { CodeFrames(core) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(frameRev, g) {
@@ -215,7 +327,7 @@ private fun CodeView(core: LumenCore, g: GeometryVM, frameRev: Long, playing: Bo
         }
     }
     DisposableEffect(Unit) { onDispose { frames.release() } }
-    Canvas(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onTap() } }) {
+    Canvas(Modifier.fillMaxSize()) {
         @Suppress("UNUSED_EXPRESSION") tick
         val cells = frames.front ?: return@Canvas
         val mask = frames.mask ?: return@Canvas
@@ -412,85 +524,66 @@ private fun PickCard(model: AppModel, s: SendVM) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The settings, attached above the bar (beside the code in landscape). The code shrinks to the
+ * space left; the core regrids and the stream goes on.
+ */
 @Composable
-private fun Dock(model: AppModel, s: SendVM) {
-    Column(
-        Modifier
-            .navigationBarsPadding()
-            .padding(8.dp)
-            .widthIn(max = 720.dp)
-            .fillMaxWidth()
-            .panel(opaque = true)
-            .pointerInput(Unit) { detectTapGestures { model.dispatch(Ev.dockActivity) } }
-            .padding(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            IconBtn(if (s.playing) Icons.pause else Icons.play, model.t(if (s.playing) "pause" else "play"), enabled = s.phase == "ready") {
-                model.dispatch(Ev.togglePlay)
-            }
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusDot(live = s.playing && s.phase == "ready", warn = !s.playing)
-                Text(s.title, color = Lumen.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Text(s.size, style = mono(12.5.sp), color = Lumen.muted, maxLines = 1)
-            }
-            IconBtn(Icons.sliders, model.t("settings"), active = s.settingsOpen) { model.dispatch(Ev.toggleSettings) }
-            IconBtn(Icons.chevronDown, model.t("hideDock")) { model.dispatch(Ev.hideDock) }
-            IconBtn(Icons.close, model.t("close")) { model.dispatch(Ev.closeSend) }
-        }
-        StatsLine(s.stats, Modifier.padding(start = 52.dp, top = 4.dp))
-        if (s.settingsOpen) {
-            Box(Modifier.padding(vertical = 10.dp).fillMaxWidth().heightIn(min = 1.dp, max = 1.dp).background(Lumen.line))
-            Settings(model, s)
-        }
-    }
-}
-
-@Composable
-private fun StatsLine(stats: List<StatVM>, modifier: Modifier) {
-    BoxWithConstraints(modifier.fillMaxWidth()) {
-        // narrow docks drop the "wide" numbers first, as the web dock does under 560 px
-        val show = if (maxWidth < 330.dp) stats.filter { !it.wide } else stats
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (st in show) {
+private fun SettingsPanel(model: AppModel, s: SendVM, side: Boolean, modifier: Modifier) {
+    var fps by remember { mutableFloatStateOf(s.fps.toFloat()) }
+    val title = model.t("settings")
+    Row(modifier.background(Lumen.bg2).semantics { paneTitle = title }) {
+        if (side) Box(Modifier.fillMaxHeight().width(1.dp).background(Lumen.line))
+        Column(Modifier.fillMaxWidth()) {
+            if (!side) Box(Modifier.fillMaxWidth().height(1.dp).background(Lumen.line))
+            Column(
+                Modifier
+                    .windowInsetsPadding(safeArea.only(if (side) WindowInsetsSides.End + WindowInsetsSides.Top else WindowInsetsSides.Horizontal))
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = if (side) 14.dp else 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Field(model.t("density")) {
+                    Segmented(
+                        listOf("auto" to model.t("dAuto"), "low" to model.t("dLow"), "high" to model.t("dHigh"), "max" to model.t("dMax")),
+                        s.density, modifier = Modifier.weight(1f), fill = true, itemHeight = 40.dp,
+                    ) { model.dispatch(Ev.density(it)) }
+                }
+                Field(model.t("colors")) {
+                    Segmented(listOf(1 to "4", 2 to "8"), s.mode, modifier = Modifier.weight(1f), fill = true, itemHeight = 40.dp) { model.dispatch(Ev.mode(it)) }
+                }
+                Field(model.t("ecc")) {
+                    Segmented(
+                        listOf(0 to model.t("eLow"), 1 to model.t("eMid"), 2 to model.t("eHigh")),
+                        s.ecc, modifier = Modifier.weight(1f), fill = true, itemHeight = 40.dp,
+                    ) { model.dispatch(Ev.ecc(it)) }
+                }
+                Field(model.t("speed")) {
+                    LumenSlider(fps, 4f..60f, 1f, Modifier.weight(1f)) {
+                        fps = it
+                        model.dispatch(Ev.fps(it.roundToInt()))
+                    }
+                    Text("${fps.roundToInt()}", style = mono(13.sp, FontWeight.Bold), color = Lumen.text, textAlign = TextAlign.End, modifier = Modifier.width(28.dp))
+                }
+                // two lines, always: the panel's height must not follow the numbers (it sets the code's area)
                 Text(
                     buildAnnotatedString {
-                        withStyle(SpanStyle(color = Lumen.muted)) { append(st.label + " ") }
-                        withStyle(SpanStyle(color = Lumen.text, fontFamily = Lumen.mono, fontWeight = FontWeight.SemiBold)) { append(st.value) }
+                        withStyle(SpanStyle(color = Lumen.muted, fontWeight = FontWeight.SemiBold)) { append(model.t("details")) }
+                        append("  ")
+                        append(s.details)
                     },
-                    fontSize = 12.sp, maxLines = 1, softWrap = false,
+                    color = Lumen.faint, fontSize = 11.5.sp, lineHeight = 17.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Settings(model: AppModel, s: SendVM) {
-    var fps by remember { mutableFloatStateOf(s.fps.toFloat()) }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Field(model.t("density")) {
-            Segmented(listOf("low" to model.t("dLow"), "auto" to model.t("dAuto"), "high" to model.t("dHigh"), "max" to model.t("dMax")), s.density) {
-                model.dispatch(Ev.density(it))
-            }
-        }
-        Field(model.t("colors")) { Segmented(listOf(1 to "4", 2 to "8"), s.mode) { model.dispatch(Ev.mode(it)) } }
-        Field(model.t("ecc")) { Segmented(listOf(0 to model.t("eLow"), 1 to model.t("eMid"), 2 to model.t("eHigh")), s.ecc) { model.dispatch(Ev.ecc(it)) } }
-        Field(model.t("speed")) {
-            LumenSlider(fps, 4f..60f, 1f, Modifier.width(140.dp)) {
-                fps = it
-                model.dispatch(Ev.fps(it.roundToInt()))
-            }
-            Text("${fps.roundToInt()}", style = mono(13.sp, FontWeight.Bold), color = Lumen.text, modifier = Modifier.width(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun Field(label: String, content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Label(label, size = 12.sp, color = Lumen.faint)
+private fun Field(label: String, content: @Composable RowScope.() -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, color = Lumen.muted, fontSize = 13.sp, lineHeight = 17.sp, maxLines = 2, modifier = Modifier.width(88.dp))
         content()
     }
 }

@@ -71,6 +71,10 @@ data class SendVM(
     /** The Text tab's text: the field shows this, so what is shown is what is sent. */
     val text: String = "",
     val title: String,
+    /** Bar, under the title: size and time per pass ("78 KB · ≈ 3 s"), or "Paused". */
+    val subtitle: String = "",
+    /** Settings panel: raw rate, per frame, grid, bits per cell, engine time, in one line. */
+    val details: String = "",
     val size: String,
     val stats: List<StatVM>,
     val playing: Boolean,
@@ -128,6 +132,9 @@ data class RecvVM(
     val name: String,
     val pct: String,
     val progress: Float,
+    /** Under the progress bar: "32 KB/s · 2s left" (empty until data arrives). */
+    val line: String = "",
+    /** Speed, time left, cell size, success: for the Details area. */
     val metrics: List<MetricVM>,
     val tip: String,
     val tipOk: Boolean,

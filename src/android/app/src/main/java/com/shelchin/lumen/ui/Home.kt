@@ -59,10 +59,11 @@ fun Root(model: AppModel) {
                 }
             }
             // back from a code (playing, paused or waiting on the warning) closes it and returns
-            // to the pick screen; from anywhere else it goes home
+            // to the pick screen (open settings close first); from anywhere else it goes home
             BackHandler(enabled = v.screen != "home") {
                 val now = model.view
-                if (now?.screen == "send" && now.send.phase != "pick") model.dispatch(Ev.closeSend)
+                if (now?.screen == "send" && now.send.phase != "pick" && now.send.settingsOpen && !now.send.flashAsk) model.dispatch(Ev.toggleSettings)
+                else if (now?.screen == "send" && now.send.phase != "pick") model.dispatch(Ev.closeSend)
                 else model.dispatch(Ev.navigate("home"))
             }
         }

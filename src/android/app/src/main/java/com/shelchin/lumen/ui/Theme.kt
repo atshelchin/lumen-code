@@ -138,13 +138,13 @@ fun LumenButton(
 }
 
 @Composable
-fun IconBtn(icon: ImageVector, description: String, active: Boolean = false, background: Color = Color.White.copy(alpha = 0.04f), enabled: Boolean = true, onClick: () -> Unit) {
+fun IconBtn(icon: ImageVector, description: String, active: Boolean = false, background: Color = Color.White.copy(alpha = 0.04f), enabled: Boolean = true, size: Dp = 44.dp, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val shape = RoundedCornerShape(12.dp)
     Box(
         Modifier
-            .size(44.dp)
+            .size(size)
             .scale(if (pressed) 0.96f else 1f)
             .alpha(if (enabled) 1f else 0.4f)
             .clip(shape)
@@ -174,10 +174,19 @@ fun ToolBtn(pressed: Boolean = false, description: String, onClick: () -> Unit, 
 }
 
 @Composable
-fun <T> Segmented(items: List<Pair<T, String>>, selected: T, minWidth: Dp = 0.dp, pick: (T) -> Unit) {
+fun <T> Segmented(
+    items: List<Pair<T, String>>,
+    selected: T,
+    minWidth: Dp = 0.dp,
+    modifier: Modifier = Modifier,
+    /** Every item takes an equal share of the width the segmented control is given. */
+    fill: Boolean = false,
+    itemHeight: Dp = 32.dp,
+    pick: (T) -> Unit,
+) {
     val outer = RoundedCornerShape(11.dp)
     Row(
-        Modifier
+        modifier
             .clip(outer)
             .background(Color.White.copy(alpha = 0.05f))
             .border(1.dp, Lumen.line, outer)
@@ -189,14 +198,15 @@ fun <T> Segmented(items: List<Pair<T, String>>, selected: T, minWidth: Dp = 0.dp
             val on = value == selected
             Box(
                 Modifier
-                    .defaultMinSize(minWidth = minWidth, minHeight = 32.dp)
+                    .then(if (fill) Modifier.weight(1f) else Modifier)
+                    .defaultMinSize(minWidth = minWidth, minHeight = itemHeight)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) Color.White.copy(alpha = 0.12f) else Color.Transparent)
                     .selectable(selected = on, role = Role.RadioButton) { if (!on) pick(value) }
                     .padding(horizontal = 11.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, color = if (on) Lumen.text else Lumen.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(label, color = if (on) Lumen.text else Lumen.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
