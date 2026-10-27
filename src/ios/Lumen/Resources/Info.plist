@@ -5,7 +5,7 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Lumen Code</string>
 	<key>CFBundleDocumentTypes</key>
@@ -30,6 +30,11 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -45,9 +50,9 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 	<key>NSCameraUsageDescription</key>
-	<string>Lumen uses the camera to read the colour code on the sender's screen. Nothing leaves your device.</string>
+	<string>Lumen Code uses the camera to read the colour code on the sender's screen. The picture never leaves your device.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Lumen can save a received image to your photo library.</string>
+	<string>When you tap Save on a received image, Lumen Code adds it to your photo library.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIFileSharingEnabled</key>

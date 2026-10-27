@@ -20,8 +20,11 @@ struct HomeView: View {
                             .foregroundStyle(Theme.muted)
                             .padding(.horizontal, 10).padding(.vertical, 5)
                             .overlay(RoundedRectangle(cornerRadius: 9).stroke(Theme.line, lineWidth: 1))
+                            .frame(minWidth: 44, minHeight: 44) // the target, around the small chip
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("中文 / English")
                 }
                 .padding(.top, 8)
 

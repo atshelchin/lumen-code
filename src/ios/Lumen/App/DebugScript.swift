@@ -11,7 +11,7 @@ import UIKit
 ///
 /// Commands: nav:<home|send|receive>, lang, tab:<file|text>, text:<s>, sendtext,
 /// demo:<bytes>, wait:<seconds>, bench:<camera frames>, snap:<name> (PNG in Documents), tap, settings, play,
-/// camera, close, event:<json>, json (sample JSON text), image (a generated PNG),
+/// accept (the photosensitivity warning), camera, close, event:<json>, json (sample JSON text), image (a generated PNG),
 /// capture:<n> (keep n sender frames, upscaled), feed (decode the kept frames as images).
 @MainActor
 enum DebugScript {
@@ -45,6 +45,7 @@ enum DebugScript {
                 case "tap": model.dispatch(Ev.tapCode)
                 case "settings": model.dispatch(Ev.toggleSettings)
                 case "play": model.dispatch(Ev.togglePlay)
+                case "accept": model.dispatch(Ev.acceptFlash)
                 case "camera": model.dispatch(Ev.openCamera)
                 case "close": model.dispatch(Ev.closeSend)
                 case "json":

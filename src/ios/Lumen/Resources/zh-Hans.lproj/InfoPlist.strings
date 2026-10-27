@@ -1,0 +1,4 @@
+/* 本地化的 Info.plist 值（系统权限提示和图标下的名称）。 */
+"CFBundleDisplayName" = "Lumen Code";
+"NSCameraUsageDescription" = "Lumen Code 用相机读取发送端屏幕上的彩色码，画面不会离开你的设备。";
+"NSPhotoLibraryAddUsageDescription" = "在你保存收到的图片时，Lumen Code 会把它添加到照片。";

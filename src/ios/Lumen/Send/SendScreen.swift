@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 /// The sender (the web's send.html): pick a file or type text, then the code fills the screen
 /// with a dock that hides itself while it plays.
@@ -17,9 +19,15 @@ struct SendScreen: View {
                     Color(hex: 0x0a0d14).ignoresSafeArea()
                     if let g = s.geometry {
                         CodeView(model: model, geometry: g, frameRev: s.frameRev, playing: s.playing, fps: s.fps)
+                            .accessibilityHidden(s.flashAsk)
+                    }
+                    if s.flashAsk {
+                        FlashAsk(warning: s.flashWarn)
+                            .transition(.opacity)
                     }
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: s.flashAsk)
             .onAppear { report(proxy) }
             .onChange(of: proxy.size) { _, _ in report(proxy) }
         }
@@ -31,7 +39,8 @@ struct SendScreen: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if s.phase != "pick" {
+            // hidden while the warning waits: it must not cover the card (Play there shows it)
+            if s.phase != "pick" && !s.flashAsk {
                 Dock(send: s)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
@@ -57,8 +66,17 @@ struct SendScreen: View {
 private struct PickCard: View {
     @Environment(AppModel.self) private var model
     let send: SendVM
-    @State private var text = ""
     @FocusState private var focused: Bool
+
+    /// The field edits its own copy and reports each change to the core (`send.text`), which
+    /// arrives back a moment later. While the field is being edited its copy wins, so a late
+    /// echo never undoes a keystroke or breaks an input method's composition; otherwise it
+    /// adopts the core's text (e.g. after a text send is closed).
+    @State private var text = ""
+    private func setText(_ t: String) {
+        text = t
+        model.dispatch(Ev.textChanged(t))
+    }
 
     var body: some View {
         GeometryReader { outer in
@@ -87,12 +105,14 @@ private struct PickCard: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $text)
                             .focused($focused)
+                            .onChange(of: text) { _, t in if t != send.text { model.dispatch(Ev.textChanged(t)) } }
+                            .onChange(of: send.text) { _, t in if !focused && t != text { text = t } }
+                            .onAppear { text = send.text }
                             .scrollContentBackground(.hidden)
                             .font(.system(size: 15))
                             .foregroundStyle(Theme.text)
                             .padding(10)
                             .frame(minHeight: 190, maxHeight: 320)
-                            .onChange(of: text) { _, t in model.dispatch(Ev.textChanged(t)) }
                         if text.isEmpty {
                             Text(model.t("textPh")).font(.system(size: 15)).foregroundStyle(Theme.faint).padding(.horizontal, 15).padding(.vertical, 18).allowsHitTesting(false)
                         }
@@ -103,14 +123,21 @@ private struct PickCard: View {
                         Text(send.textMeta).font(Theme.mono(12)).foregroundStyle(Theme.faint)
                         Spacer()
                         if text.isEmpty {
-                            Button(model.t("paste")) {
-                                if let s = UIPasteboard.general.string { text = s }
-                            }
-                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.cyan)
+                            // the system paste control: reading the pasteboard on its tap needs no prompt
+                            PasteControl { setText($0) }
+                            .foregroundStyle(Theme.ink)
                         } else {
-                            Button(model.t("clear")) { text = "" }.font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted)
+                            Button { setText("") } label: {
+                                Text(model.t("clear"))
+                                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, -14) // a 44 pt target without a taller row
                         }
                     }
+                    .frame(minHeight: 16)
                     .padding(.horizontal, 2).padding(.top, 8).padding(.bottom, 16)
                     Button(model.t("sendText")) {
                         focused = false
@@ -159,6 +186,78 @@ private struct PickCard: View {
             .padding(.horizontal, 20)
             .padding(.top, 64)
             .padding(.bottom, 24)
+    }
+}
+
+/// Over the paused first code: the photosensitivity warning, which must be acknowledged
+/// before anything flashes (the core keeps the answer).
+private struct FlashAsk: View {
+    @Environment(AppModel.self) private var model
+    let warning: String
+    @AccessibilityFocusState private var warningFocused: Bool
+
+    var body: some View {
+        ZStack {
+            // dims the paused code and keeps its taps (which toggle the dock) away
+            Color.black.opacity(0.55).ignoresSafeArea().contentShape(Rectangle()).onTapGesture {}
+            GeometryReader { outer in
+                ScrollView {
+                    card
+                        .frame(maxWidth: .infinity, minHeight: outer.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
+            }
+        }
+        .onAppear { warningFocused = true }
+    }
+
+    private var card: some View {
+        VStack(spacing: 0) {
+            // read first as one element: the title and the warning
+            VStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.amber)
+                    .accessibilityHidden(true)
+                Text(model.t("flashTitle"))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                    .accessibilityAddTraits(.isHeader)
+                Text(warning)
+                    .font(.body)
+                    .foregroundStyle(Theme.warnText)
+            }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityFocused($warningFocused)
+            .accessibilitySortPriority(2)
+
+            VStack(spacing: 10) {
+                Button { model.dispatch(Ev.acceptFlash) } label: {
+                    Text(model.t("flashPlay")).font(.body.weight(.semibold)).lineLimit(nil).multilineTextAlignment(.center)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(LumenButtonStyle(primary: true))
+                Button { model.dispatch(Ev.closeSend) } label: {
+                    Text(model.t("close")).font(.body.weight(.semibold)).lineLimit(nil).multilineTextAlignment(.center)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(LumenButtonStyle())
+            }
+            .padding(.top, 22)
+            .accessibilitySortPriority(1)
+        }
+        .padding(24)
+        .frame(maxWidth: 440)
+        .panel(opaque: true, radius: 22)
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.amber.opacity(0.28), lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .padding(20)
     }
 }
 
@@ -257,6 +356,57 @@ private struct SettingsPanel: View {
         HStack(spacing: 8) {
             Text(model.t(key)).font(.system(size: 12)).foregroundStyle(Theme.faint)
             content()
+        }
+    }
+}
+
+/// The system paste control (UIPasteControl): reading the pasteboard on its tap needs no
+/// permission prompt. Unlike SwiftUI's PasteButton it takes its frame, so it gets a 44 pt
+/// target, and the app's colours. Its label ("Paste" / "粘贴") follows the system language.
+private struct PasteControl: UIViewRepresentable {
+    let onPaste: (String) -> Void
+
+    func makeUIView(context: Context) -> Host { Host() }
+
+    func updateUIView(_ host: Host, context: Context) { host.onPaste = onPaste }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView host: Host, context: Context) -> CGSize? {
+        let w = host.control.intrinsicContentSize.width
+        return CGSize(width: max(44, w.isFinite && w > 0 ? w + 8 : 76), height: 44)
+    }
+
+    final class Host: UIView {
+        var onPaste: ((String) -> Void)?
+        let control: UIPasteControl
+
+        override init(frame: CGRect) {
+            let config = UIPasteControl.Configuration()
+            config.displayMode = .labelOnly
+            config.cornerStyle = .capsule
+            config.baseBackgroundColor = UIColor(Theme.cyan)
+            config.baseForegroundColor = UIColor(Theme.ink)
+            control = UIPasteControl(configuration: config)
+            super.init(frame: frame)
+            pasteConfiguration = UIPasteConfiguration(acceptableTypeIdentifiers: [UTType.text.identifier])
+            control.target = self
+            control.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(control)
+            NSLayoutConstraint.activate([
+                control.leadingAnchor.constraint(equalTo: leadingAnchor),
+                control.trailingAnchor.constraint(equalTo: trailingAnchor),
+                control.topAnchor.constraint(equalTo: topAnchor),
+                control.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func paste(itemProviders: [NSItemProvider]) {
+            guard let p = itemProviders.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return }
+            _ = p.loadObject(ofClass: NSString.self) { [weak self] obj, _ in
+                guard let s = obj as? String else { return }
+                DispatchQueue.main.async { self?.onPaste?(s) }
+            }
         }
     }
 }

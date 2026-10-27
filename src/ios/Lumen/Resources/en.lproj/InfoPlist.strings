@@ -1,0 +1,4 @@
+/* Localised Info.plist values (the system permission prompts and the name under the icon). */
+"CFBundleDisplayName" = "Lumen Code";
+"NSCameraUsageDescription" = "Lumen Code uses the camera to read the colour code on the sender's screen. The picture never leaves your device.";
+"NSPhotoLibraryAddUsageDescription" = "When you tap Save on a received image, Lumen Code adds it to your photo library.";

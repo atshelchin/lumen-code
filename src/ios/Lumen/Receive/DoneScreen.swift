@@ -98,6 +98,7 @@ struct DoneScreen: View {
     private var reader: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
+                HomeButton { model.dispatch(Ev.navigate(.home)) }
                 badge
                 VStack(alignment: .leading, spacing: 1) {
                     Text(done.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.text).lineLimit(1)

@@ -199,6 +199,7 @@ struct IconTile: View {
 
 /// "‹ mark" — back to the home screen.
 struct HomeButton: View {
+    @Environment(AppModel.self) private var model
     let action: () -> Void
     var body: some View {
         Button(action: action) {
@@ -208,9 +209,13 @@ struct HomeButton: View {
             }
             .foregroundStyle(Theme.text)
             .padding(.leading, 4)
+            .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.t("home"))
+        .accessibilityAddTraits(.isButton)
     }
 }
 

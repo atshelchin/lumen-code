@@ -70,6 +70,10 @@ struct SendVM: Decodable, Equatable {
     var dropDesc: String
     var dropHint: String
     var flashWarn: String
+    /// Ready but paused until the photosensitivity warning is acknowledged (`accept_flash`).
+    var flashAsk: Bool
+    /// The Text tab's text: the field shows this, so what is shown is what is sent.
+    var text: String
     var title: String
     var size: String
     var stats: [StatVM]
@@ -164,6 +168,7 @@ enum Ev {
     static func ecc(_ v: Int) -> [String: Any] { ["type": "set_ecc", "value": v] }
     static func fps(_ v: Int) -> [String: Any] { ["type": "set_fps", "value": v] }
     static let togglePlay: [String: Any] = ["type": "toggle_play"]
+    static let acceptFlash: [String: Any] = ["type": "accept_flash"]
     static let toggleSettings: [String: Any] = ["type": "toggle_settings"]
     static let tapCode: [String: Any] = ["type": "tap_code"]
     static let hideDock: [String: Any] = ["type": "hide_dock"]

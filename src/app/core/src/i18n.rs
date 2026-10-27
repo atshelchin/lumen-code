@@ -157,7 +157,7 @@ const DICT: &[(&str, &str, &str)] = &[
     ("share", "分享", "Share"),
     ("saved", "已保存", "Saved"),
     ("saveFailed", "保存失败", "Could not save"),
-    ("camDenied", "没有相机权限。请在系统设置中允许 Lumen 使用相机。", "No camera permission. Allow Lumen to use the camera in Settings."),
+    ("camDenied", "没有相机权限。请在系统设置中允许 Lumen Code 使用相机。", "No camera permission. Allow Lumen Code to use the camera in Settings."),
     ("camNone", "没有找到可用的相机。", "No camera was found."),
     ("openSettings", "打开设置", "Open Settings"),
     ("switchCam", "切换相机", "Switch camera"),

@@ -54,7 +54,9 @@ struct ReceiveScreen: View {
             }
         }
         .overlay(alignment: .top) {
-            if r.phase != "done" {
+            // the done screen keeps the way out (the core keeps the result until "receive
+            // another"); the full-screen reader carries the button in its own header
+            if r.phase != "done" || r.done?.reader == false {
                 HStack(spacing: 10) {
                     HomeButton { model.dispatch(Ev.navigate(.home)) }
                     if r.phase == "scanning" {
@@ -139,26 +141,27 @@ private struct StartPane: View {
                     IconTile(symbol: "viewfinder", tint: Theme.pink)
                     Text(model.t("recvStartTitle")).font(.system(size: 24, weight: .bold)).foregroundStyle(Theme.text).padding(.top, 18).padding(.bottom, 8)
                     Text(model.t("recvStartDesc")).font(.system(size: 15)).foregroundStyle(Theme.muted).multilineTextAlignment(.center).padding(.bottom, 22)
-                    FlowRow(spacing: 10) {
-                        Button {
-                            model.dispatch(Ev.openCamera)
-                        } label: {
-                            HStack(spacing: 8) {
-                                if recv.cameraStarting { ProgressView().tint(Theme.ink).scaleEffect(0.8) }
-                                Text(model.t("openCam"))
-                            }
-                        }
-                        .buttonStyle(LumenButtonStyle(primary: true))
-                        .disabled(recv.cameraStarting)
-                        Button(model.t("fromImage")) { model.dispatch(Ev.pickImage) }.buttonStyle(LumenButtonStyle())
-                    }
                     if let err = recv.error {
-                        Text(err).font(.system(size: 13)).foregroundStyle(Theme.red).multilineTextAlignment(.center).padding(.top, 14)
+                        Text(err).font(.system(size: 13)).foregroundStyle(Theme.red).multilineTextAlignment(.center).padding(.bottom, 16)
+                    }
+                    FlowRow(spacing: 10) {
                         if recv.canOpenSettings {
+                            // camera access denied: asking again does nothing, Settings is the way
                             Button(model.t("openSettings")) { model.dispatch(Ev.openSettings) }
-                                .buttonStyle(LumenButtonStyle(compact: true))
-                                .padding(.top, 10)
+                                .buttonStyle(LumenButtonStyle(primary: true))
+                        } else {
+                            Button {
+                                model.dispatch(Ev.openCamera)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    if recv.cameraStarting { ProgressView().tint(Theme.ink).scaleEffect(0.8) }
+                                    Text(model.t("openCam"))
+                                }
+                            }
+                            .buttonStyle(LumenButtonStyle(primary: true))
+                            .disabled(recv.cameraStarting)
                         }
+                        Button(model.t("fromImage")) { model.dispatch(Ev.pickImage) }.buttonStyle(LumenButtonStyle())
                     }
                     if let note = recv.note {
                         Text(note).font(.system(size: 13)).foregroundStyle(Theme.amber).multilineTextAlignment(.center).padding(.top, 14)
