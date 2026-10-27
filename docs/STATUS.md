@@ -262,3 +262,19 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 
 - 网页：构建时把站点源码（src/web、src/core、src/rust、src/tools、docs、LICENSE、package.json）的最后一个提交 ID、日期写进 `dist/js/version.js` 并预渲染进页面：首页页脚、发送与接收卡片底部，链接到 GitHub 上的提交；接收完成的详情和浏览器控制台也有。源码有未提交改动时标 `+dev`。流程：先提交源码，再构建并提交 `dist/`，重建结果不变（测试验证）。只改原生 App 或测试不会改变网站版本号。
 - 原生 App：共享核心 build.rs 记录整个源码树的提交 ID、日期、`+dev`；视图模型带 `build`，接收详情显示，三个外壳首页底部显示"版本 <App 版本号> · <提交 · 日期>"。K40 截图与 iPhone 视图数据确认显示 9cc2078；桌面在有未提交改动时正确显示 +dev。原生显示要等下一次发布 App 才到用户手里。
+
+## 8 网页改用 SvelteKit（2026-10-27，用户要求）
+
+用户决定：网页应用不必强调零依赖，用 SvelteKit 重写（更好的体验、SEO 和可维护性）；只放开网页应用，`src/core` 的 JS 协议库与 Rust crate 仍零依赖。
+
+- **位置与技术**：`src/website`，SvelteKit 3 + Svelte 5（runes），adapter-cloudflare 面向 Workers，bun。首页、发送、接收三页 × 中英文共 6 页全部预渲染：文字、标题、描述、canonical、hreflang（含 x-default）、Open Graph、JSON-LD 都在 HTML 里；`sitemap.xml`、`robots.txt` 由路由生成；未知地址返回 404。旧地址 `/send.html`、`/zh/` 由 Workers 静态资源自动跳到 `/send`、`/zh`。
+- **行为一致**：发送端、接收端是 `send-app.js`、`recv-app.js` 的逐段移植（控制器类 + `$state`），扫描调度、ROI 裁剪、引擎切换（保留进度）、相机帧率自适应、缩放、阅读视图、统计、唤醒锁、`?demo=`、`?engine=`、`?debug` 都保留；协议库与 WASM 直接取自 `src/core`、`dist/wasm`。JSON 高亮仍用 `formatJson` 的转义输出；链接改为拆段渲染，不再操作 DOM。
+- **文案**：首页"零依赖、完全本地"一条改为"双引擎，帧逐位一致"（中英文）；库的零依赖说明不变。
+- **版本号**：取 `src/website`、`src/core`、`src/rust`、`docs`、LICENSE 的最后一个提交，构建时注入，页面与旧站同位置显示。
+- **验证**：`svelte-check` 0 错误 0 警告；eslint、prettier 通过；Vitest 5 项（词典键与占位符一致、路径、链接拆分、文件名清洗）；Playwright 17 项全过：假摄像头播放 6 万字节传输，WASM/英文与 JS/中文各收完一次并核对 SHA-256；单帧图片收 JSON 消息（格式化、标签按文本显示、原始视图、复制内容、记住选择）与文字消息（链接、单链接打开按钮、再收一次）；首页示例帧、发送端出码、语言跳转 4 项、6 页 HTML 内容、sitemap/robots/404。根目录 `npm test` 仍全过。截图对比旧站，手机与桌面外观一致。CI 增加 `website` 任务。
+- **局域网手机调试**：`bun run dev:https`（自签名证书）。
+
+尚待用户决定（外部操作或大量删除，未做）：
+
+1. **部署切换**：线上仍是 Cloudflare Pages 从 main 的 `dist/` 自动部署的旧站。新站是 Worker（`wrangler.jsonc`，名称 `lumen-code`），需要在 Cloudflare 上建 Worker 并把域名 lumencode.awesometools.dev 指过去（或改用 Workers Builds 从仓库构建，根目录 `src/website`）。
+2. **旧站退役**：切换后可删除 `src/web`、`dist/`（保留 `dist/wasm/lumen.wasm` 或移到别处）、`src/tools` 中的旧站构建/预渲染/开发服务器、`test/test-site.js`、`test/browser-e2e.js`，以及根目录对应脚本与 CI 步骤。

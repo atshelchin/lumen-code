@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-cloudflare';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +45,9 @@ export default defineConfig({
 			adapter: adapter(),
 			// pre-rendered pages see this origin: canonical links, sitemap, previews
 			paths: { origin: SITE }
-		})
+		}),
+		// `bun run dev:https`: phones on the local network need HTTPS for the camera
+		process.env.HTTPS ? basicSsl() : null
 	],
 	define: { __BUILD__: JSON.stringify(buildInfo()), __SITE__: JSON.stringify(SITE) },
 	// the protocol library (src/core) and the WASM module (dist/wasm) live outside this project

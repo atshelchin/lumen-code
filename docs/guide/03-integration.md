@@ -70,7 +70,7 @@ async function tick() {
 tick();
 ```
 
-This is the minimal version. In real use, put scanning in a Web Worker and schedule it as described in [guide 2 §2.4](02-scanner.md). `src/web/js/scan-worker.js`, `sink-worker.js` and `recv-app.js` are the complete reference.
+This is the minimal version. In real use, put scanning in a Web Worker and schedule it as described in [guide 2 §2.4](02-scanner.md). `src/website/src/lib/recv/scan.worker.ts`, `sink.worker.ts` and `receiver.svelte.ts` are the complete reference.
 
 The receiver is the state machine of PROTOCOL §11:
 

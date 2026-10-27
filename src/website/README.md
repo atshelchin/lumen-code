@@ -13,6 +13,7 @@ dependencies.
 ```sh
 bun install
 bun run dev          # http://localhost:5173 (the camera needs localhost or HTTPS)
+bun run dev:https    # https://<lan-ip>:5173 for phones (self-signed certificate)
 bun run build        # .svelte-kit/cloudflare: the Worker and the prerendered pages
 bun run preview      # the build in the local Workers runtime, http://localhost:4173
 bun run check        # types (svelte-check)
@@ -23,17 +24,17 @@ bun run test:e2e     # Playwright, Chromium
 
 ## Layout
 
-| Path | What |
-| --- | --- |
-| `src/routes/[[lang=lang]]/` | the three pages; `lang` is absent (English) or `zh` (`src/params.ts`) |
-| `src/lib/send/sender.svelte.ts` | the sender: encoding, the frame loop, settings, the dock |
-| `src/lib/recv/receiver.svelte.ts` | the receiver: camera, scan scheduling, workers, dashboard, result |
-| `src/lib/recv/*.worker.ts` | frame decoding (one per core, up to 3) and the protocol receiver |
-| `src/lib/i18n.ts` | all text, both languages, and the page paths |
-| `src/lib/ui/Seo.svelte` | title, description, canonical and language links, link previews |
-| `src/app.html` | opens the remembered language (or a Chinese browser's) before the first paint |
-| `vite.config.ts` | the version shown on every page: the last commit of the site's sources |
-| `e2e/` | the receiver with Chrome's fake camera, messages, sender, languages, the served HTML |
+| Path                              | What                                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `src/routes/[[lang=lang]]/`       | the three pages; `lang` is absent (English) or `zh` (`src/params.ts`)                |
+| `src/lib/send/sender.svelte.ts`   | the sender: encoding, the frame loop, settings, the dock                             |
+| `src/lib/recv/receiver.svelte.ts` | the receiver: camera, scan scheduling, workers, dashboard, result                    |
+| `src/lib/recv/*.worker.ts`        | frame decoding (one per core, up to 3) and the protocol receiver                     |
+| `src/lib/i18n.ts`                 | all text, both languages, and the page paths                                         |
+| `src/lib/ui/Seo.svelte`           | title, description, canonical and language links, link previews                      |
+| `src/app.html`                    | opens the remembered language (or a Chinese browser's) before the first paint        |
+| `vite.config.ts`                  | the version shown on every page: the last commit of the site's sources               |
+| `e2e/`                            | the receiver with Chrome's fake camera, messages, sender, languages, the served HTML |
 
 ## Version
 

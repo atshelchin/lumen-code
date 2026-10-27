@@ -1,6 +1,6 @@
 # Tests on every push and pull request: the conformance vectors and fuzz/property tests of both
 # implementations, their interoperability (JS <-> Rust/WASM, differential corpora), the native
-# app core, and the built site in headless Chrome with a video file as its webcam.
+# app core, and the web app (src/website) in headless Chromium with a video file as its webcam.
 name: Tests
 
 # main and pull requests; a release branch is cut from main, where its commit was tested
@@ -48,3 +48,22 @@ jobs:
         run: npm run test:browser
         env:
           CHROME: google-chrome
+
+  website:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: src/website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Types and lint
+        run: bun run check && bun run lint
+      - name: Unit tests
+        run: bun run test:unit -- --run
+      - name: Browser end to end (fake camera, both engines, both languages)
+        run: bunx playwright install --with-deps chromium && bunx playwright test

@@ -70,7 +70,7 @@ async function tick() {
 tick();
 ```
 
-这是最小写法。正式使用时应当把识别放进 Web Worker，并按 [指南 2 §2.4](02-scanner.zh-CN.md) 的方式调度；`src/web/js/scan-worker.js`、`sink-worker.js` 和 `recv-app.js` 是完整的参考。
+这是最小写法。正式使用时应当把识别放进 Web Worker，并按 [指南 2 §2.4](02-scanner.zh-CN.md) 的方式调度；`src/website/src/lib/recv/scan.worker.ts`、`sink.worker.ts` 和 `receiver.svelte.ts` 是完整的参考。
 
 接收端就是 PROTOCOL §11 的状态机：
 
