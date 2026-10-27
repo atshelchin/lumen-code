@@ -22,7 +22,7 @@
 
 ## 试用
 
-在线地址：<https://lumencode.awesometools.dev/zh>。在发送端屏幕打开「发送」并选择文件，在接收端手机打开「接收」。两个页面在手机和电脑上都能用，无需安装，文件只在两台设备之间传递。
+在线地址：<https://lumencode.link/zh>。在发送端屏幕打开「发送」并选择文件，在接收端手机打开「接收」。两个页面在手机和电脑上都能用，无需安装，文件只在两台设备之间传递。
 
 > **光敏提示：** 发送时，码会以每秒最多 60 次的频率闪烁变色。对闪光敏感的人请不要注视。网页和原生 App 都会在码开始播放前显示这条提示。
 
@@ -130,4 +130,4 @@ cd src/website && bun run test:e2e    # 网页应用在 Chromium 中：录好的
 - 目前的验证：模拟器、Chrome 虚拟摄像头，以及初步的真机测试。真机调优仍在进行，欢迎反馈效果不好的机型和环境。
 - 反馈问题时请附上版本号。网页在首页底部以及发送、接收卡片底部显示（如"版本 9cc2078 · 2026-10-20"，即源码的提交 ID）；App 在首页底部和接收完成后的详情里显示。
 - 许可证：[MIT](LICENSE)。
-- 网站在 `src/website/src/app.html` 里加载一个访问统计脚本（`tj.appsdata.org`，见[隐私政策](https://lumencode.awesometools.dev/zh/privacy)）。自行部署时把它删掉，并删去 `src/website/vite.config.ts` 中 CSP 里的对应地址。
+- 网站在 `src/website/src/app.html` 里加载一个访问统计脚本（`tj.appsdata.org`，见[隐私政策](https://lumencode.link/zh/privacy)）。自行部署时把它删掉，并删去 `src/website/vite.config.ts` 中 CSP 里的对应地址。

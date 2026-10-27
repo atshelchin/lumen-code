@@ -1,6 +1,6 @@
 # Lumen Code website
 
-The web app at <https://lumencode.awesometools.dev>: the home page, the sender and the receiver,
+The web app at <https://lumencode.link>: the home page, the sender and the receiver,
 in English (at the root) and Chinese (under `/zh`). It is built with SvelteKit and Svelte 5 for
 Cloudflare Workers. Every page is prerendered, so the text, titles and language links are in the
 served HTML for the first paint and for search engines; scripts only add the moving parts.

@@ -22,7 +22,7 @@ At the default 12 frames per second, a laptop screen sends roughly 80–125 KB/s
 
 ## Try it
 
-Online: <https://lumencode.awesometools.dev>. Open **Send** on the sending screen and choose a file, then open **Receive** on the receiving phone. Both pages work on phones and desktops. Nothing is installed, and the file never leaves the two devices.
+Online: <https://lumencode.link>. Open **Send** on the sending screen and choose a file, then open **Receive** on the receiving phone. Both pages work on phones and desktops. Nothing is installed, and the file never leaves the two devices.
 
 > **Photosensitivity warning:** while sending, the code flashes and changes colour up to 60 times a second. People who are sensitive to flashing light should not look at it. The web pages and the native apps show this warning before a code plays.
 
@@ -128,4 +128,4 @@ The receiver also skips frames it has already decoded (it reads only the header,
 - Validation so far: simulation, Chrome with a fake camera stream, and early tests on real phones. Real-device tuning continues; please report camera models and conditions that do not work well.
 - When you report a problem, quote the version. The web pages show it at the bottom of the home page and of the send and receive cards ("Version 9cc2078 · 2026-10-20", the commit of the sources); the apps show it at the bottom of their home screen and in the details of a received file.
 - License: [MIT](LICENSE).
-- The website loads a visit-statistics script (`tj.appsdata.org`, see the [privacy policy](https://lumencode.awesometools.dev/privacy)) from `src/website/src/app.html`. Remove it there, and from the CSP in `src/website/vite.config.ts`, if you host your own copy.
+- The website loads a visit-statistics script (`tj.appsdata.org`, see the [privacy policy](https://lumencode.link/privacy)) from `src/website/src/app.html`. Remove it there, and from the CSP in `src/website/vite.config.ts`, if you host your own copy.

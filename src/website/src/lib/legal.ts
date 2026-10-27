@@ -45,7 +45,7 @@ const en: Legal = {
 			{
 				h: 'Who we are',
 				p: [
-					`Lumen Code is made by ${COMPANY} (“we”, “us”). This policy covers the website at lumencode.awesometools.dev (the web app included) and the Lumen Code apps for iPhone, Android, macOS, Windows and Linux that we publish.`
+					`Lumen Code is made by ${COMPANY} (“we”, “us”). This policy covers the website at lumencode.link (the web app included) and the Lumen Code apps for iPhone, Android, macOS, Windows and Linux that we publish.`
 				]
 			},
 			{
@@ -109,7 +109,7 @@ const en: Legal = {
 			{
 				h: 'Agreement',
 				p: [
-					'These terms apply when you use the website at lumencode.awesometools.dev (the web app included) or the Lumen Code apps we publish (together, “the service”). By using the service you agree to them. If you do not agree, do not use the service.'
+					'These terms apply when you use the website at lumencode.link (the web app included) or the Lumen Code apps we publish (together, “the service”). By using the service you agree to them. If you do not agree, do not use the service.'
 				]
 			},
 			{
@@ -191,7 +191,7 @@ const zh: Legal = {
 			{
 				h: '我们是谁',
 				p: [
-					`Lumen Code 由 ${COMPANY}（下称“我们”）开发。本政策适用于 lumencode.awesometools.dev 网站（包括网页应用），以及我们发布的 iPhone、Android、macOS、Windows、Linux 版 Lumen Code 应用。`
+					`Lumen Code 由 ${COMPANY}（下称“我们”）开发。本政策适用于 lumencode.link 网站（包括网页应用），以及我们发布的 iPhone、Android、macOS、Windows、Linux 版 Lumen Code 应用。`
 				]
 			},
 			{
@@ -249,7 +249,7 @@ const zh: Legal = {
 			{
 				h: '协议',
 				p: [
-					'本条款适用于你使用 lumencode.awesometools.dev 网站（包括网页应用）或我们发布的 Lumen Code 应用（合称“本服务”）。使用本服务即表示你同意本条款；如不同意，请不要使用。'
+					'本条款适用于你使用 lumencode.link 网站（包括网页应用）或我们发布的 Lumen Code 应用（合称“本服务”）。使用本服务即表示你同意本条款；如不同意，请不要使用。'
 				]
 			},
 			{

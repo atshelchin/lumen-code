@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
-const SITE = 'https://lumencode.awesometools.dev';
+const SITE = 'https://lumencode.link';
 
 // The inline scripts of src/app.html (the language redirect) are not SvelteKit's, so the CSP gets
 // their hashes from here; they follow any edit to the file.

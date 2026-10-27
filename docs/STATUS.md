@@ -277,7 +277,7 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 
 尚待用户决定（外部操作或大量删除，未做）：
 
-1. **部署切换**：线上仍是 Cloudflare Pages 从 main 的 `dist/` 自动部署的旧站。新站是 Worker（`wrangler.jsonc`，名称 `lumen-code`），需要在 Cloudflare 上建 Worker 并把域名 lumencode.awesometools.dev 指过去（或改用 Workers Builds 从仓库构建，根目录 `src/website`）。
+1. **部署切换**：线上仍是 Cloudflare Pages 从 main 的 `dist/` 自动部署的旧站。新站是 Worker（`wrangler.jsonc`，名称 `lumen-code`），需要在 Cloudflare 上建 Worker 并把域名 lumencode.link 指过去（或改用 Workers Builds 从仓库构建，根目录 `src/website`）。
 2. **旧站退役**：切换后可删除 `src/web`、`dist/`（保留 `dist/wasm/lumen.wasm` 或移到别处）、`src/tools` 中的旧站构建/预渲染/开发服务器、`test/test-site.js`、`test/browser-e2e.js`，以及根目录对应脚本与 CI 步骤。
 
 ## 9 官网首页改版与定价（2026-10-27，用户要求）
@@ -312,3 +312,7 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 按用户的“自然语言与表达规范”改写了首页文案、两份 README、开发者指南（中英文）、各组件 README 和发布说明：去掉口号、排比、过渡套话和可删的句子，事实、数字、命令、链接、标题不变（脚本逐项比对）。网页与原生应用的界面文案本来就短，没有改。协议规范（PROTOCOL）是冻结的规范性文本，不改措辞。
 
 改写中核对并修正的事实错误：英文 README 一段话误并入光敏警告框；中文 README 代码块未闭合、吞掉下一节；英文 README 补上 Windows/Linux 版未在真机验证；统计脚本位置改为 src/website/src/app.html；“数据不离开设备”改为“文件只在两台设备之间传递”（网站有访问统计）；应用核心测试数 19 → 20；数据格子占比 93–95% → 约 92–96%（按 layout.js 实算）；Rust 识别器速度统一为 WASM 快 1.5–2 倍、原生快 1.6–2.8 倍（原文 1.5–2.6 倍、35%、1.5–2 倍三种说法）；跨帧软合并的边缘区间 3.5 → 3.4 px（与接收端代码一致）；识别次数统一为约 1.6 × 发送帧率；喷泉解码 167 → 164 MB/s（16 384 × 200 B / 20 ms）；仪表示例“约一半”改为“43%”；§4.7 C 不再说“v1 定稿前决定”（1.0 已冻结）；中文 README 对指南 3 的称呼统一为“接入指南”。
+
+## 12 新域名 lumencode.link（2026-10-27，用户要求）
+
+新站（src/website）的站点地址改为 https://lumencode.link：canonical、hreflang、Open Graph、JSON-LD、sitemap、robots、隐私政策和服务条款、README 都随之更新。旧静态站（src/web、dist/、根目录 package.json 的 homepage）不改，它仍在 lumencode.awesometools.dev 上，等切换后退役。切换后建议让旧域名 301 跳转到新域名对应页面，保住已有链接和搜索收录。

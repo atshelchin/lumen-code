@@ -23,7 +23,7 @@ for (const [url, title, text] of pages) {
 		expect(html).toContain(`<title>${title}`);
 		expect(html).toContain(text);
 		expect(html).toContain(`<html lang="${url.startsWith('/zh') ? 'zh-CN' : 'en'}"`);
-		expect(html).toMatch(/rel="canonical" href="https:\/\/lumencode\.awesometools\.dev[^"]*"/);
+		expect(html).toMatch(/rel="canonical" href="https:\/\/lumencode\.link[^"]*"/);
 		expect(html).toContain('hreflang="x-default"');
 		expect(html).toMatch(/data-build[^>]*>[^<]*[0-9a-f]{7}/);
 	});
@@ -89,7 +89,7 @@ test('sitemap lists every page in both languages; robots points to it', async ({
 	const xml = await (await request.get('/sitemap.xml')).text();
 	expect(xml.match(/<loc>/g)?.length).toBe(10);
 	expect(await (await request.get('/robots.txt')).text()).toContain(
-		'Sitemap: https://lumencode.awesometools.dev/sitemap.xml'
+		'Sitemap: https://lumencode.link/sitemap.xml'
 	);
 	expect((await request.get('/no-such-page')).status()).toBe(404);
 });
