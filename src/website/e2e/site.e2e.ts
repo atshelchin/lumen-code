@@ -3,6 +3,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { camVideo } from '../playwright.config';
 
+// The pages count visits on tj.appsdata.org; tests load the counter but do not report to it.
+test.beforeEach(async ({ context }) => {
+	await context.route('https://tj.appsdata.org/api/track*', (route) =>
+		route.fulfill({ status: 204 })
+	);
+});
+
 const pages = [
 	['/', 'Lumen Code', 'Turn files into'],
 	['/send', 'Send a file — Lumen Code', 'Choose file'],
@@ -25,6 +32,9 @@ for (const [url, title, text] of pages) {
 		expect(html).toContain(`<html lang="${url.startsWith('/zh') ? 'zh-CN' : 'en'}"`);
 		expect(html).toMatch(/rel="canonical" href="https:\/\/lumencode\.link[^"]*"/);
 		expect(html).toContain('hreflang="x-default"');
+		expect(html).toContain(
+			'<script src="https://tj.appsdata.org/api/script.js" data-site-id="b9594b9f1c70" defer></script>'
+		);
 		expect(html).toMatch(/data-build[^>]*>[^<]*[0-9a-f]{7}/);
 	});
 }

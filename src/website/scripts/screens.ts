@@ -38,6 +38,9 @@ const browser = await chromium.launch({
 		'--use-fake-ui-for-media-stream'
 	]
 });
+// screenshots are not visits
+const blockCounter = (page: Page) =>
+	page.route('https://tj.appsdata.org/api/track*', (route) => route.fulfill({ status: 204 }));
 const phone = {
 	viewport: { width: 390, height: 844 },
 	deviceScaleFactor: 1.5,
@@ -54,6 +57,7 @@ for (const lang of ['en', 'zh']) {
 	const prefix = lang === 'zh' ? '/zh' : '';
 	// the receiver part way through a transfer
 	const page = await browser.newPage(phone);
+	await blockCounter(page);
 	await page.goto(`${base}${prefix}/recv?engine=wasm`);
 	await page.click('#startBtn');
 	await page.waitForFunction(

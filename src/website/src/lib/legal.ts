@@ -1,6 +1,6 @@
 // The privacy policy and the terms of service, in English and Chinese. What they say about data
 // must stay true to the code: the web app (src/website), the analytics script in src/app.html
-// (Rybbit; its features are set on the server, checked 2026-10-27: page views, URL parameters,
+// (Rybbit, site b9594b9f1c70; its features are set on the server, checked 2026-10-27: page views, URL parameters,
 // outbound links; no replay, no errors, no web vitals, no clicks/copy/forms), and the apps
 // (no network code; Android requests only CAMERA and VIBRATE). Links: [label](url).
 import type { Lang } from './i18n';

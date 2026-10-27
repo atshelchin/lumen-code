@@ -5,6 +5,13 @@ import { Sender, preparePayload } from '../../core/transfer.js';
 import { Renderer } from '../../core/render.js';
 import { writePNG } from '../../../test/png.js';
 
+// The pages count visits on tj.appsdata.org; tests load the counter but do not report to it.
+test.beforeEach(async ({ context }) => {
+	await context.route('https://tj.appsdata.org/api/track*', (route) =>
+		route.fulfill({ status: 204 })
+	);
+});
+
 async function frameOf(text: string, file: string) {
 	const prepared = await preparePayload(new TextEncoder().encode(text), 'message.txt');
 	const tx = new Sender(prepared, { mode: 1, X: 100, Y: 100 });

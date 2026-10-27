@@ -316,3 +316,5 @@ seq 只有 8 位，60 fps 下 4.27 s 回绕；4 s 窗口只差 6 %，且按“�
 ## 12 新域名 lumencode.link（2026-10-27，用户要求）
 
 新站（src/website）的站点地址改为 https://lumencode.link：canonical、hreflang、Open Graph、JSON-LD、sitemap、robots、隐私政策和服务条款、README 都随之更新。旧静态站（src/web、dist/、根目录 package.json 的 homepage）不改，它仍在 lumencode.awesometools.dev 上，等切换后退役。切换后建议让旧域名 301 跳转到新域名对应页面，保住已有链接和搜索收录。
+
+新站的访问统计改用 Rybbit 站点 b9594b9f1c70（用户提供；服务端配置与旧站相同：页面浏览、URL 参数、外链点击，其余关闭，隐私政策无需改）。端到端测试和截图脚本拦截 `/api/track`，不再把本地和 CI 的访问计入统计；已实测页面会加载脚本、取配置并发出一次 `/api/track`，CSP 无拦截。
