@@ -47,6 +47,23 @@ pub fn save_prefs(json: &str) {
     }
 }
 
+/// The shell's own preferences, beside the core's `prefs.json` (which the core rewrites from
+/// its own fields): whether the receive panel's Details are open.
+const SHELL_PREFS: &str = "desktop.json";
+
+pub fn load_recv_details() -> bool {
+    config_dir()
+        .and_then(|d| std::fs::read_to_string(d.join(SHELL_PREFS)).ok())
+        .is_some_and(|s| s.replace(char::is_whitespace, "").contains("\"recvDetails\":true"))
+}
+
+pub fn save_recv_details(open: bool) {
+    if let Some(dir) = config_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join(SHELL_PREFS), format!("{{\"recvDetails\":{open}}}\n"));
+    }
+}
+
 pub fn downloads_dir() -> PathBuf {
     // Windows sets USERPROFILE, not HOME
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);

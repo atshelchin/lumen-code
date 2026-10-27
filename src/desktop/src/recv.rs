@@ -26,7 +26,7 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
     }
     match r.phase {
         RecvPhase::Start => stage = stage.child(start(root)),
-        RecvPhase::Scanning => stage = stage.child(hud(root)),
+        RecvPhase::Scanning => stage = stage.child(hud(root, window, cx)),
         RecvPhase::Done => {
             if let Some(d) = r.done.clone() {
                 stage = stage.child(done(root, &d, window, cx));
@@ -64,12 +64,6 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
                     .child(status_dot(r.live, false))
                     .child(div().font_weight(FontWeight::SEMIBOLD).child(r.status.clone())),
             );
-            if r.can_switch {
-                let rt = root.rt.clone();
-                stage = stage.child(
-                    div().absolute().right(px(14.)).top(px(BAR_TOP)).child(icon_button("switch", "switch", false, move |_, _| rt.dispatch(Event::SwitchCamera))),
-                );
-            }
         }
         stage = stage.child(bar);
     }
@@ -161,25 +155,60 @@ fn start(root: &Root) -> AnyElement {
         .into_any_element()
 }
 
-fn hud(root: &Root) -> AnyElement {
-    let r = &root.view.recv;
-    let mut metrics = div().flex().gap(px(8.)).mt(px(12.));
-    for m in &r.metrics {
-        metrics = metrics.child(
-            div()
-                .flex_1()
-                .flex()
-                .flex_col()
-                .child(div().text_size(px(11.5)).text_color(c(FAINT)).child(m.label.clone()))
-                .child(div().font_family(MONO).text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).child(m.value.clone())),
-        );
+/// Framing guides: four corners marking where to put the code, until one is found.
+fn guides(show: bool) -> AnyElement {
+    let corner = || div().absolute().size(px(30.)).border_color(white(0.7));
+    let mut g = div().flex_1().min_h_0().relative();
+    if show {
+        g = g
+            .child(corner().top_0().left_0().border_t(px(3.)).border_l(px(3.)).rounded_tl(px(10.)))
+            .child(corner().top_0().right_0().border_t(px(3.)).border_r(px(3.)).rounded_tr(px(10.)))
+            .child(corner().bottom_0().left_0().border_b(px(3.)).border_l(px(3.)).rounded_bl(px(10.)))
+            .child(corner().bottom_0().right_0().border_b(px(3.)).border_r(px(3.)).rounded_br(px(10.)));
     }
+    g.into_any_element()
+}
+
+/// While scanning: the guides over the camera image, and at the bottom the camera tools (at
+/// the image's edge, never over its middle) above the progress panel.
+fn hud(root: &Root, window: &Window, cx: &mut Context<Root>) -> AnyElement {
+    let r = &root.view.recv;
+    let open = root.recv_details;
     let pct = r.progress.clamp(0.0, 1.0);
-    let mut col = div().flex().flex_col().items_center().gap(px(12.));
-    let panel = panel_box()
-        .w(px(560.))
-        .max_w_full()
-        .p(px(16.))
+    let details = div()
+        .id("recv-details")
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(px(4.))
+        .h(px(34.))
+        .pl(px(12.))
+        .pr(px(9.))
+        .rounded_full()
+        .bg(white(0.04))
+        .border_1()
+        .border_color(line2())
+        .text_size(px(12.5))
+        .text_color(c(MUTED))
+        .cursor_pointer()
+        .hover(|st| st.bg(white(0.08)))
+        .child(root.t("details"))
+        .child(
+            gpui::svg()
+                .path("icons/down.svg")
+                .size(px(16.))
+                .flex_none()
+                .text_color(c(MUTED))
+                .when(open, |el| el.with_transformation(gpui::Transformation::rotate(gpui::radians(std::f32::consts::PI)))),
+        )
+        .on_click(cx.listener(|root, _, _, cx| {
+            root.toggle_recv_details();
+            cx.notify();
+        }));
+    let mut panel = panel_box()
+        .w_full()
+        .px(px(16.))
+        .py(px(14.))
         .flex()
         .flex_col()
         .child(
@@ -189,8 +218,8 @@ fn hud(root: &Root) -> AnyElement {
                 .justify_between()
                 .gap(px(12.))
                 .mb(px(10.))
-                .child(div().font_weight(FontWeight::SEMIBOLD).overflow_hidden().text_ellipsis().whitespace_nowrap().child(r.name.clone()))
-                .child(div().font_family(MONO).text_size(px(22.)).font_weight(FontWeight::BOLD).child(r.pct.clone())),
+                .child(div().min_w_0().font_weight(FontWeight::SEMIBOLD).overflow_hidden().text_ellipsis().whitespace_nowrap().child(r.name.clone()))
+                .child(div().flex_none().font_family(MONO).text_size(px(22.)).font_weight(FontWeight::BOLD).child(r.pct.clone())),
         )
         .child(
             div().h(px(8.)).w_full().rounded_full().bg(white(0.08)).child(
@@ -201,11 +230,82 @@ fn hud(root: &Root) -> AnyElement {
                     .bg(gpui::linear_gradient(90., gpui::linear_color_stop(c(CYAN), 0.), gpui::linear_color_stop(c(AMBER), 1.))),
             ),
         )
-        .child(metrics)
-        .child(div().mt(px(10.)).text_size(px(13.)).text_color(c(if r.tip_ok { MUTED } else { AMBER })).child(r.tip.clone()))
-        .child(div().mt(px(6.)).font_family(MONO).text_size(px(11.)).text_color(c(FAINT)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(r.diag.clone()));
-    col = col.child(panel);
-    div().absolute().bottom(px(14.)).left_0().right_0().px(px(10.)).flex().justify_center().child(col).into_any_element()
+        // the rate line keeps its height while empty, so nothing moves when data arrives
+        .child(
+            div()
+                .mt(px(6.))
+                .min_h(px(36.))
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(10.))
+                .child(div().min_w_0().text_size(px(13.5)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(r.line.clone()))
+                .child(details),
+        )
+        .child(div().min_h(px(19.5)).text_size(px(13.)).line_height(px(19.5)).text_color(c(if r.tip_ok { MUTED } else { AMBER })).child(r.tip.clone()));
+    if open {
+        let mut metrics = div().flex().flex_wrap().gap_x(px(18.)).gap_y(px(6.)).text_size(px(12.5)).text_color(c(MUTED));
+        for m in &r.metrics {
+            metrics = metrics.child(
+                div()
+                    .flex()
+                    .gap(px(4.))
+                    .child(m.label.clone())
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(c(TEXT)).child(m.value.clone())),
+            );
+        }
+        let mut more = div().mt(px(10.)).pt(px(10.)).border_t_1().border_color(line()).flex().flex_col().child(metrics);
+        if !r.diag.is_empty() {
+            more = more.child(div().mt(px(8.)).font_family(MONO).text_size(px(11.)).line_height(px(16.5)).text_color(c(FAINT)).child(r.diag.clone()));
+        }
+        panel = panel.child(more);
+    }
+    let mut dock = div().w(px(560.)).max_w(px(f32::from(window.viewport_size().width) - 20.)).flex().flex_col().gap(px(10.));
+    if r.zoom.is_some() || r.can_switch {
+        let mut tools = div().flex().justify_end().items_center().gap(px(8.));
+        if let Some(z) = &r.zoom {
+            let rt = root.rt.clone();
+            tools = tools.child(
+                div()
+                    .id("zoom")
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .min_h(px(44.))
+                    .min_w(px(56.))
+                    .px(px(14.))
+                    .rounded_full()
+                    .bg(gpui::rgba(0x0c1017db))
+                    .border_1()
+                    .border_color(if z.active { c(CYAN) } else { line2() })
+                    .text_size(px(13.))
+                    .font_weight(FontWeight::BOLD)
+                    .cursor_pointer()
+                    .child(z.label.clone())
+                    .on_click(move |_, _, _| rt.dispatch(Event::ResetZoom)),
+            );
+        }
+        if r.can_switch {
+            let rt = root.rt.clone();
+            tools = tools.child(icon_button("switch", "switch", false, move |_, _| rt.dispatch(Event::SwitchCamera)).bg(gpui::rgba(0x0c1017db)));
+        }
+        dock = dock.child(tools);
+    }
+    dock = dock.child(panel);
+    let side = (f32::from(window.viewport_size().width) * 0.05).max(22.);
+    div()
+        .absolute()
+        .size_full()
+        .flex()
+        .flex_col()
+        .items_center()
+        // the guides fill the space between the top bar and the dock
+        .child(div().h(px(BAR_TOP + 62.)).flex_none())
+        .child(div().flex_1().min_h_0().w_full().px(px(side)).flex().flex_col().child(guides(!r.live)))
+        .child(div().h(px(18.)).flex_none())
+        .child(dock)
+        .child(div().h(px(14.)).flex_none())
+        .into_any_element()
 }
 
 fn stats_grid(d: &DoneView, cols: usize) -> AnyElement {

@@ -62,7 +62,11 @@ fn main() {
         text_area::bind_keys(cx);
         cx.set_menus(vec![Menu { name: "Lumen".into(), items: vec![MenuItem::action("Quit Lumen", Quit)], disabled: false }]);
 
-        let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
+        let mut bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
+        // test runs: LUMEN_WINDOW_AT="x,y" places the window (screenshots need it on a display)
+        if let Some((x, y)) = std::env::var("LUMEN_WINDOW_AT").ok().as_deref().and_then(|v| v.split_once(',')).and_then(|(x, y)| Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?))) {
+            bounds.origin = point(px(x), px(y));
+        }
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),

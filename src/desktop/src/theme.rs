@@ -20,6 +20,8 @@ pub const GREEN: u32 = 0x2bdc74;
 pub const RED: u32 = 0xff5468;
 pub const PAPER: u32 = 0xf2f4f8;
 pub const MARK_DARK: u32 = 0x1b2130;
+/// The web's `--panel-solid`: the send bar and settings.
+pub const PANEL_SOLID: u32 = 0x11151e;
 
 pub fn c(hex: u32) -> Hsla {
     rgb(hex).into()
@@ -165,6 +167,27 @@ pub fn segmented<T: Clone + PartialEq + 'static>(
     min_w: f32,
     pick: impl Fn(T, &mut Window, &mut App) + 'static,
 ) -> Div {
+    seg(id, items, selected, min_w, false, pick)
+}
+
+/// A segmented control whose buttons share its whole width (the send settings' `.seg`).
+pub fn segmented_fill<T: Clone + PartialEq + 'static>(
+    id: &str,
+    items: Vec<(T, SharedString)>,
+    selected: T,
+    pick: impl Fn(T, &mut Window, &mut App) + 'static,
+) -> Div {
+    seg(id, items, selected, 0., true, pick)
+}
+
+fn seg<T: Clone + PartialEq + 'static>(
+    id: &str,
+    items: Vec<(T, SharedString)>,
+    selected: T,
+    min_w: f32,
+    fill: bool,
+    pick: impl Fn(T, &mut Window, &mut App) + 'static,
+) -> Div {
     let pick = std::rc::Rc::new(pick);
     let mut row = div().flex().p(px(3.)).gap(px(2.)).rounded(px(11.)).bg(white(0.05)).border_1().border_color(line());
     for (i, (value, label)) in items.into_iter().enumerate() {
@@ -176,9 +199,10 @@ pub fn segmented<T: Clone + PartialEq + 'static>(
                 .flex()
                 .items_center()
                 .justify_center()
-                .min_h(px(32.))
+                .min_h(px(if fill { 34. } else { 32. }))
                 .min_w(px(min_w))
-                .px(px(11.))
+                .px(px(if fill { 6. } else { 11. }))
+                .when(fill, |d| d.flex_1())
                 .rounded(px(8.))
                 .text_size(px(13.))
                 .font_weight(FontWeight::SEMIBOLD)

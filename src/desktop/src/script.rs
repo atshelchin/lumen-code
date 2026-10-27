@@ -1,6 +1,7 @@
 //! Drive the app from the LUMEN_SCRIPT environment variable, for tests without a mouse (as on
 //! iOS and Android): nav:<screen>, lang, tab:<file|text>, text:<s>, sendtext, demo:<bytes>,
-//! wait:<s>, tap, settings, play, accept, camera, close, json, capture:<n>, feed, bench:<frames>.
+//! wait:<s>, tap, settings, play, accept, camera, close, json, capture:<n>, feed, bench:<frames>,
+//! file:<path>, size:<w>x<h> (window, in points), fullscreen, details (the receive panel's Details).
 
 use crate::app::Root;
 use gpui::{AsyncWindowContext, WeakEntity};
@@ -58,6 +59,22 @@ pub async fn run(this: WeakEntity<Root>, cx: &mut AsyncWindowContext, script: St
             "play" => rt.dispatch(Event::TogglePlay),
             "accept" => rt.dispatch(Event::AcceptFlash),
             "camera" => rt.dispatch(Event::OpenCamera),
+            "file" => {
+                crate::app::load_path(&rt, std::path::Path::new(arg));
+            }
+            "size" => {
+                let (w, h) = arg.split_once('x').map_or((1280.0, 820.0), |(w, h)| (w.parse().unwrap_or(1280.0), h.parse().unwrap_or(820.0)));
+                let _ = this.update_in(cx, |_, window, _| window.resize(gpui::size(gpui::px(w), gpui::px(h))));
+            }
+            "fullscreen" => {
+                let _ = this.update_in(cx, |_, window, _| window.toggle_fullscreen());
+            }
+            "details" => {
+                let _ = this.update(cx, |root, cx| {
+                    root.toggle_recv_details();
+                    cx.notify();
+                });
+            }
             "close" => rt.dispatch(Event::CloseSend),
             "capture" => {
                 captured.clear();

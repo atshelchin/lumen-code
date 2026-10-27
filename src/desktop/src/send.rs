@@ -10,6 +10,9 @@ use lumen_app::app::{Event, Screen, SendPhase, SourceTab};
 use lumen_app::engine::send::{CellFrame, StaticLayout};
 use lumen_app::geometry::Density;
 
+/// Height of the control bar under the code (its top line included).
+pub const BAR_H: f32 = 57.0;
+
 pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> impl IntoElement {
     let s = root.view.send.clone();
     let mut stage = div().id("send").size_full().relative();
@@ -17,40 +20,36 @@ pub fn render(root: &mut Root, window: &mut Window, cx: &mut Context<Root>) -> i
         stage = stage.child(pick(root, window, cx)).child(top_bar(root));
         return stage;
     }
-    stage = stage.bg(c(INK));
     // the text box is gone: keys (Space, Enter, Esc) go to the root again
     if root.text_area.read(cx).focus_handle.is_focused(window) {
         root.focus.focus(window, cx);
     }
-    if let (Some(layout), Some(frame)) = (root.layout.clone(), root.frame.clone()) {
-        let rt = root.rt.clone();
-        let top = title_inset(window);
-        stage = stage.child(
-            div()
-                .id("code")
-                .absolute()
-                .top(px(top))
-                .left_0()
-                .right_0()
-                .bottom_0()
-                .cursor_pointer()
-                .on_click(move |_, _, _| rt.dispatch(Event::TapCode))
-                .child(
-                    canvas(|_, _, _| {}, move |bounds, _, window, _| {
-                        // One layer: its primitives share one z-order, so GPUI does not index
-                        // tens of thousands of cells in its bounds tree every frame (that
-                        // indexing was nearly all of the CPU time). Insertion order stacks them.
-                        window.paint_layer(bounds, |window| paint_code(bounds, &layout, &frame, window))
-                    })
-                    .size_full(),
-                ),
-        );
+    let top = title_inset(window);
+    // Nothing is ever drawn over the code: it gets the space above the settings and the bar,
+    // measured here and reported to the core, which fits the grid (quiet zone and corners) to it.
+    let (rt, reported) = (root.rt.clone(), root.reported.clone());
+    let code = (root.layout.clone(), root.frame.clone());
+    let area = div().id("code").flex_1().min_h_0().w_full().overflow_hidden().child(
+        canvas(|_, _, _| {}, move |bounds, _, window, _| {
+            let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+            crate::app::report_area(&rt, &reported, w, h, window.scale_factor());
+            if let (Some(layout), Some(frame)) = &code {
+                // One layer: its primitives share one z-order, so GPUI does not index
+                // tens of thousands of cells in its bounds tree every frame (that
+                // indexing was nearly all of the CPU time). Insertion order stacks them.
+                window.paint_layer(bounds, |window| paint_code(bounds, layout, frame, window))
+            }
+        })
+        .size_full(),
+    );
+    let mut view = div().size_full().flex().flex_col().bg(c(INK)).child(div().h(px(top)).flex_none()).child(area);
+    if s.settings_open {
+        view = view.child(settings(root, window));
     }
+    stage = stage.child(view.child(bar(root, window)));
     if s.flash_ask {
         // the first code waits, paused, until the warning is read; nothing else is offered
-        stage = stage.child(flash_card(root, title_inset(window)));
-    } else if s.dock_visible {
-        stage = stage.child(dock(root));
+        stage = stage.child(flash_card(root, top));
     }
     stage
 }
@@ -81,7 +80,7 @@ fn flash_card(root: &Root, top: f32) -> AnyElement {
                 .child(button("flash-play", root.t("flashPlay"), true, true, move |_, _| r1.dispatch(Event::AcceptFlash)))
                 .child(button("flash-close", root.t("close"), false, true, move |_, _| r2.dispatch(Event::CloseSend))),
         );
-    // a scrim over the code: clicks on it must not reach the code (which toggles the dock)
+    // a scrim over the code and the bar: nothing else is offered until the warning is read
     div()
         .id("flash-scrim")
         .block_mouse_except_scroll()
@@ -287,111 +286,185 @@ fn paint_code(bounds: Bounds<Pixels>, l: &StaticLayout, f: &CellFrame, window: &
     }
 }
 
-fn dock(root: &Root) -> AnyElement {
-    let s = root.view.send.clone();
-    let rt = root.rt.clone();
-    let (r1, r2, r3, r4, r5) = (rt.clone(), rt.clone(), rt.clone(), rt.clone(), rt.clone());
-    let mut stats = div().flex().gap(px(12.)).text_size(px(12.)).text_color(c(MUTED)).overflow_hidden();
-    for st in &s.stats {
-        stats = stats.child(
-            div()
-                .flex()
-                .gap(px(4.))
-                .flex_none()
-                .child(st.label.clone())
-                .child(div().font_family(MONO).font_weight(FontWeight::SEMIBOLD).text_color(c(TEXT)).child(st.value.clone())),
-        );
-    }
-    let mut panel = panel_box()
-        .id("dock")
-        // clicks on the dock must not reach the code behind it, which toggles the dock (the
-        // hide button "did nothing": hidden, then shown again by the same click)
-        .block_mouse_except_scroll()
-        .w(px(720.))
-        .max_w_full()
-        .p(px(10.))
+/// A long file name loses its middle, never its extension: ("holiday-ph…", "2024.zip").
+fn name_parts(name: &str) -> (String, String) {
+    let chars: Vec<char> = name.chars().collect();
+    let ext = match chars.iter().rposition(|&c| c == '.') {
+        Some(dot) if dot > 0 && chars.len() - dot <= 8 => chars.len() - dot,
+        _ => 0,
+    };
+    let stem = chars.len() - ext;
+    let cut = stem - stem.min(4);
+    (chars[..cut].iter().collect(), chars[cut..].iter().collect())
+}
+
+/// The bar's quiet buttons (`.sendbar .btn.ghost`); `on` marks an open panel.
+fn ghost_button(id: &'static str, name: &str, on: bool, f: impl Fn(&mut Window, &mut gpui::App) + 'static) -> AnyElement {
+    div()
+        .id(id)
+        .flex()
+        .items_center()
+        .justify_center()
+        .size(px(44.))
+        .flex_none()
+        .rounded(px(12.))
+        .when(on, |d| d.bg(white(0.12)))
+        .hover(|st| st.bg(white(0.08)))
+        .cursor_pointer()
+        .child(icon(name, 20., c(if on { TEXT } else { MUTED })))
+        .on_click(move |_, w, cx| f(w, cx))
+        .into_any_element()
+}
+
+/// The control bar under the code, always there: play, what is sent, settings, full screen, close.
+fn bar(root: &Root, window: &Window) -> AnyElement {
+    let s = &root.view.send;
+    let (r1, r2, r3) = (root.rt.clone(), root.rt.clone(), root.rt.clone());
+    let paused = !s.playing && s.phase == SendPhase::Ready;
+    let (head, tail) = name_parts(&s.title);
+    let play = div()
+        .id("play")
+        .flex()
+        .items_center()
+        .justify_center()
+        .size(px(44.))
+        .flex_none()
+        .rounded_full()
+        .bg(c(PAPER))
+        .hover(|st| st.bg(gpui::white()))
+        .cursor_pointer()
+        .child(icon(if s.playing { "pause" } else { "play" }, 20., c(INK)))
+        .on_click(move |_, _, _| r1.dispatch(Event::TogglePlay));
+    let what = div()
+        .flex_1()
+        .min_w_0()
+        .px(px(6.))
         .flex()
         .flex_col()
         .child(
             div()
                 .flex()
-                .items_center()
-                .gap(px(8.))
-                .child(icon_button("play", if s.playing { "pause" } else { "play" }, false, move |_, _| r1.dispatch(Event::TogglePlay)))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(8.))
-                                .text_size(px(14.))
-                                .child(status_dot(s.playing && s.phase == SendPhase::Ready, !s.playing))
-                                .child(div().font_weight(FontWeight::SEMIBOLD).overflow_hidden().text_ellipsis().whitespace_nowrap().child(s.title.clone()))
-                                .child(div().flex_none().font_family(MONO).text_size(px(12.5)).text_color(c(MUTED)).child(s.size.clone())),
-                        )
-                        .child(stats),
-                )
-                .child(icon_button("settings", "settings", s.settings_open, move |_, _| r2.dispatch(Event::ToggleSettings)))
-                .child(icon_button("fullscreen", "fullscreen", false, |w, _| w.toggle_fullscreen()))
-                .child(icon_button("hide", "down", false, move |_, _| r3.dispatch(Event::HideDock)))
-                .child(icon_button("close", "close", false, move |_, _| r4.dispatch(Event::CloseSend))),
+                .min_w_0()
+                .text_size(px(14.))
+                .line_height(px(18.))
+                .font_weight(FontWeight::SEMIBOLD)
+                .whitespace_nowrap()
+                .child(div().min_w_0().overflow_hidden().text_ellipsis().child(head))
+                .child(div().flex_none().child(tail)),
+        )
+        .child(
+            div()
+                .text_size(px(12.5))
+                .line_height(px(16.))
+                .text_color(c(if paused { AMBER } else { MUTED }))
+                .whitespace_nowrap()
+                .overflow_hidden()
+                .text_ellipsis()
+                .child(s.subtitle.clone()),
         );
-    if s.settings_open {
-        let field = |label: &str, el: AnyElement| div().flex().items_center().gap(px(8.)).child(div().text_size(px(12.)).text_color(c(FAINT)).child(label.to_string())).child(el);
-        let (d1, d2, d3) = (rt.clone(), rt.clone(), rt.clone());
-        let fps = s.fps;
-        let f1 = rt.clone();
+    div()
+        .id("bar")
+        .flex_none()
+        .h(px(BAR_H))
+        .px(px(10.))
+        .flex()
+        .items_center()
+        .gap(px(4.))
+        .bg(c(PANEL_SOLID))
+        .border_t_1()
+        .border_color(line())
+        .child(play)
+        .child(what)
+        .child(ghost_button("settings", "settings", s.settings_open, move |_, _| r2.dispatch(Event::ToggleSettings)))
+        .child(ghost_button("fullscreen", "fullscreen", window.is_fullscreen(), |w, _| w.toggle_fullscreen()))
+        .child(ghost_button("close", "close", false, move |_, _| r3.dispatch(Event::CloseSend)))
+        .into_any_element()
+}
+
+/// The settings, above the bar; the code shrinks to the space left above them.
+fn settings(root: &Root, window: &Window) -> AnyElement {
+    let s = &root.view.send;
+    let rt = root.rt.clone();
+    let (d1, d2, d3, f1) = (rt.clone(), rt.clone(), rt.clone(), rt.clone());
+    // the web's grid: as many columns of at least 330 pt as fit, 24 pt apart
+    let size = window.viewport_size();
+    let avail = f32::from(size.width) - 20.0;
+    let cols = ((avail + 24.0) / (330.0 + 24.0)).floor().max(1.0);
+    let field_w = ((avail - 24.0 * (cols - 1.0)) / cols).floor();
+    let label_w = if field_w < 300.0 { 84.0 } else { 112.0 };
+    let field = |label: &str, el: AnyElement| {
+        div()
+            .w(px(field_w))
+            .flex()
+            .items_center()
+            .gap(px(10.))
+            .child(div().w(px(label_w)).flex_none().text_size(px(13.)).text_color(c(MUTED)).child(label.to_string()))
+            .child(div().flex_1().min_w_0().child(el))
+    };
+    let fps = s.fps;
+    let slider_w = (field_w - label_w - 10.0 - 10.0 - 26.0).max(80.0);
+    let fields = div()
+        .flex()
+        .flex_wrap()
+        .gap_x(px(24.))
+        .gap_y(px(8.))
+        .child(field(
+            root.t("density"),
+            segmented_fill(
+                "density",
+                vec![
+                    (Density::Auto, root.t("dAuto").into()),
+                    (Density::Low, root.t("dLow").into()),
+                    (Density::High, root.t("dHigh").into()),
+                    (Density::Max, root.t("dMax").into()),
+                ],
+                s.density,
+                move |value, _, _| d1.dispatch(Event::SetDensity { value }),
+            )
+            .into_any_element(),
+        ))
+        .child(field(root.t("colors"), segmented_fill("mode", vec![(1u8, "4".into()), (2u8, "8".into())], s.mode, move |value, _, _| d2.dispatch(Event::SetMode { value })).into_any_element()))
+        .child(field(
+            root.t("ecc"),
+            segmented_fill("ecc", vec![(0u8, root.t("eLow").into()), (1u8, root.t("eMid").into()), (2u8, root.t("eHigh").into())], s.ecc, move |value, _, _| {
+                d3.dispatch(Event::SetEcc { value })
+            })
+            .into_any_element(),
+        ))
+        .child(field(
+            root.t("speed"),
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.))
+                .child(slider(&root.fps_slider, fps as f32, 4.0, 60.0, slider_w, move |v, _, _| f1.dispatch(Event::SetFps { value: v as u32 })))
+                .child(div().w(px(26.)).flex_none().text_right().font_family(MONO).text_size(px(13.)).font_weight(FontWeight::BOLD).child(format!("{fps}")))
+                .into_any_element(),
+        ));
+    let mut panel = div()
+        .id("settings")
+        .flex_none()
+        .max_h(px(f32::from(size.height) * 0.5))
+        .overflow_y_scroll()
+        .px(px(10.))
+        .pt(px(12.))
+        .pb(px(10.))
+        .bg(c(PANEL_SOLID))
+        .border_t_1()
+        .border_color(line())
+        .child(fields);
+    if !s.details.is_empty() {
         panel = panel.child(
             div()
                 .mt(px(10.))
-                .pt(px(10.))
-                .border_t_1()
-                .border_color(line())
                 .flex()
-                .flex_wrap()
-                .gap_x(px(16.))
-                .gap_y(px(10.))
-                .child(field(
-                    root.t("density"),
-                    segmented(
-                        "density",
-                        vec![
-                            (Density::Low, root.t("dLow").into()),
-                            (Density::Auto, root.t("dAuto").into()),
-                            (Density::High, root.t("dHigh").into()),
-                            (Density::Max, root.t("dMax").into()),
-                        ],
-                        s.density,
-                        0.,
-                        move |value, _, _| d1.dispatch(Event::SetDensity { value }),
-                    )
-                    .into_any_element(),
-                ))
-                .child(field(root.t("colors"), segmented("mode", vec![(1u8, "4".into()), (2u8, "8".into())], s.mode, 0., move |value, _, _| d2.dispatch(Event::SetMode { value })).into_any_element()))
-                .child(field(
-                    root.t("ecc"),
-                    segmented("ecc", vec![(0u8, root.t("eLow").into()), (1u8, root.t("eMid").into()), (2u8, root.t("eHigh").into())], s.ecc, 0., move |value, _, _| {
-                        d3.dispatch(Event::SetEcc { value })
-                    })
-                    .into_any_element(),
-                ))
-                .child(field(
-                    root.t("speed"),
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.))
-                        .child(slider(&root.fps_slider, fps as f32, 4.0, 60.0, 180.0, move |v, _, _| f1.dispatch(Event::SetFps { value: v as u32 })))
-                        .child(div().w(px(28.)).font_family(MONO).font_weight(FontWeight::BOLD).child(format!("{fps}")))
-                        .into_any_element(),
-                )),
+                .gap(px(6.))
+                .text_size(px(11.5))
+                .line_height(px(18.))
+                .text_color(c(FAINT))
+                .child(div().flex_none().font_weight(FontWeight::SEMIBOLD).text_color(c(MUTED)).child(root.t("details")))
+                .child(div().flex_1().min_w_0().child(s.details.clone())),
         );
     }
-    let _ = r5;
-    div().absolute().bottom(px(12.)).left_0().right_0().flex().justify_center().px(px(8.)).child(panel).into_any_element()
+    panel.into_any_element()
 }

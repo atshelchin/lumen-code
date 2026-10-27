@@ -6,15 +6,16 @@ use crate::theme::{c, BG};
 use crate::{home, platform, recv, send, ToggleFullScreen};
 use futures::StreamExt;
 use gpui::{
-    div, prelude::*, ClipboardItem, Context, Entity, ExternalPaths, FocusHandle, KeyDownEvent, MouseMoveEvent, PathPromptOptions,
-    RenderImage, Window,
+    div, prelude::*, ClipboardItem, Context, Entity, ExternalPaths, FocusHandle, KeyDownEvent, PathPromptOptions, RenderImage, Window,
 };
 use lumen_app::app::{CameraError, Event, HapticKind, Platform, Screen, ShellOp, ShellOutput};
 use lumen_app::engine::send::{CellFrame, StaticLayout};
 use lumen_app::i18n::{labels, Lang};
 use lumen_app::runtime::{ReaderContent, Runtime, ShellRequest, Update};
 use lumen_app::{FrameRef, ViewModel};
+use std::cell::Cell;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -36,10 +37,11 @@ pub struct Root {
     pub reader: Option<(u64, bool, Arc<ReaderContent>)>,
     pub image: Option<(u64, Arc<RenderImage>)>,
     awake: platform::KeepAwake,
-    reported: (f32, f32, f32),
-    dock_poke: Instant,
-    /// the bottom edge shows a hidden dock only after the pointer has been above the dock's area
-    edge_armed: bool,
+    /// The code area last reported to the core (points, points, scale); shared with the send
+    /// screen, which measures the area left above its bar and settings while drawing.
+    pub reported: Rc<Cell<(f32, f32, f32)>>,
+    /// The receive panel's Details, folded at first and remembered (`platform::load_recv_details`).
+    pub recv_details: bool,
     pub fps_slider: crate::theme::SliderState,
     /// Test runs (LUMEN_SCRIPT): frames shown per second, logged.
     flips: (Instant, u32),
@@ -89,9 +91,8 @@ impl Root {
             reader: None,
             image: None,
             awake: platform::KeepAwake::default(),
-            reported: (0., 0., 0.),
-            dock_poke: Instant::now(),
-            edge_armed: false,
+            reported: Rc::new(Cell::new((0., 0., 0.))),
+            recv_details: platform::load_recv_details(),
             fps_slider: Default::default(),
             flips: (Instant::now(), 0),
         }
@@ -116,6 +117,11 @@ impl Root {
                 self.frame_rev = s.frame_rev;
                 self.layout = self.rt.send_layout().map(Arc::new);
                 self.frame = self.rt.send_frame().map(Arc::new);
+                if std::env::var_os("LUMEN_SCRIPT").is_some() {
+                    if let Some(l) = &self.layout {
+                        eprintln!("[lumen] layout {}x{} cell {} px · geometry {:?}", l.x, l.y, l.s, s.geometry);
+                    }
+                }
             }
             if s.geometry.is_none() {
                 self.layout = None;
@@ -370,20 +376,23 @@ impl Root {
         Some(image)
     }
 
-    /// The space the code may use, in device pixels (titlebar strip excluded).
+    /// Before the send screen shows its code area (which measures itself, `send::render`): the
+    /// space the code will get with the settings closed, so the first grid usually fits it: the
+    /// window less the titlebar strip and the control bar.
     fn report_viewport(&mut self, window: &mut Window) {
-        let scale = window.scale_factor();
+        let s = &self.view.send;
+        if self.view.screen == Screen::Send && s.phase != lumen_app::app::SendPhase::Pick {
+            return;
+        }
         let size = window.viewport_size();
         let top = crate::theme::title_inset(window);
-        let (w, h) = (f32::from(size.width), f32::from(size.height) - top);
-        if (w, h, scale) != self.reported {
-            self.reported = (w, h, scale);
-            // ~0.25 mm per point: a typical laptop or desktop monitor
-            if std::env::var("LUMEN_SCRIPT").is_ok() {
-                eprintln!("[lumen] viewport {w}x{h} pt @{scale}");
-            }
-            self.dispatch(Event::Viewport { width_px: (w * scale) as f64, height_px: (h * scale) as f64, scale: scale as f64, mm_per_px: 0.25 / scale as f64 });
-        }
+        let h = f32::from(size.height) - top - send::BAR_H;
+        report_area(&self.rt, &self.reported, f32::from(size.width), h, window.scale_factor());
+    }
+
+    pub fn toggle_recv_details(&mut self) {
+        self.recv_details = !self.recv_details;
+        platform::save_recv_details(self.recv_details);
     }
 
     fn on_key(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -391,6 +400,10 @@ impl Root {
             return;
         }
         let key = ev.keystroke.key.as_str();
+        let m = &ev.keystroke.modifiers;
+        if m.control || m.platform || m.alt {
+            return;
+        }
         let send = &self.view.send;
         if self.view.screen == Screen::Send && send.flash_ask {
             // the warning card: Enter or Space plays, Esc closes; nothing else
@@ -400,47 +413,39 @@ impl Root {
                 _ => {}
             }
         } else if self.view.screen == Screen::Send && send.geometry.is_some() {
+            // Esc closes the settings and nothing else: closing the code would end the transfer
+            // and cost a receiver part way through its progress
             match key {
                 "space" => self.dispatch(Event::TogglePlay),
                 "f" => window.toggle_fullscreen(),
-                "escape" => self.dispatch(Event::HideDock),
-                "h" => self.dispatch(if send.dock_visible { Event::HideDock } else { Event::ShowDock }),
+                "escape" if send.settings_open => self.dispatch(Event::ToggleSettings),
                 "right" | "up" | "left" | "down" => {
-                    let step = if ev.keystroke.modifiers.shift { 5 } else { 1 };
+                    let step = if m.shift { 5 } else { 1 };
                     let fps = send.fps as i32 + if matches!(key, "right" | "up") { step } else { -step };
                     self.dispatch(Event::SetFps { value: fps.clamp(1, 120) as u32 });
-                    self.dispatch(Event::ShowDock);
                 }
-                _ => self.dispatch(Event::ShowDock),
+                _ => {}
             }
         } else if key == "escape" && self.view.screen != Screen::Home {
             self.dispatch(Event::Navigate { screen: Screen::Home });
         }
     }
-
-    fn on_mouse_move(&mut self, ev: &MouseMoveEvent, window: &mut Window) {
-        let send = &self.view.send;
-        if self.view.screen != Screen::Send || send.geometry.is_none() {
-            return;
-        }
-        let h = f32::from(window.viewport_size().height);
-        let y = f32::from(ev.position.y);
-        // right after the hide button the pointer is still over the dock's area: stay hidden
-        if send.dock_visible {
-            self.edge_armed = false;
-        } else if y < h - 220.0 {
-            self.edge_armed = true;
-        }
-        if !send.dock_visible && y > h - 90.0 && self.edge_armed {
-            self.dispatch(Event::ShowDock);
-        } else if send.dock_visible && y > h - 220.0 && self.dock_poke.elapsed() > Duration::from_millis(500) {
-            self.dock_poke = Instant::now();
-            self.dispatch(Event::DockActivity);
-        }
-    }
 }
 
-fn load_path(rt: &Runtime, path: &std::path::Path) -> bool {
+/// Tells the core the space the code may use (in points; sent in device pixels), once per change.
+pub fn report_area(rt: &Runtime, reported: &Cell<(f32, f32, f32)>, w: f32, h: f32, scale: f32) {
+    if (w, h, scale) == reported.get() {
+        return;
+    }
+    reported.set((w, h, scale));
+    if std::env::var("LUMEN_SCRIPT").is_ok() {
+        eprintln!("[lumen] viewport {w}x{h} pt @{scale}");
+    }
+    // ~0.25 mm per point: a typical laptop or desktop monitor
+    rt.dispatch(Event::Viewport { width_px: (w * scale) as f64, height_px: (h * scale) as f64, scale: scale as f64, mm_per_px: 0.25 / scale as f64 });
+}
+
+pub fn load_path(rt: &Runtime, path: &std::path::Path) -> bool {
     match std::fs::read(path) {
         Ok(bytes) => {
             let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
@@ -467,7 +472,6 @@ impl Render for Root {
             .font_family(".SystemUIFont")
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| this.on_key(ev, window, cx)))
-            .on_mouse_move(cx.listener(|this, ev: &MouseMoveEvent, window, _| this.on_mouse_move(ev, window)))
             .on_action(cx.listener(|_, _: &ToggleFullScreen, window, _| window.toggle_fullscreen()))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, _| {
                 if let Some(p) = paths.paths().first() {
