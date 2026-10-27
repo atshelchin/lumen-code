@@ -74,6 +74,17 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
 
 // The Rust core: libraries for each ABI and the Kotlin bindings. Up to date unless something
 // under src/app or src/rust changed. Skip with -PlumenSkipRust when only Kotlin changed.
+// The core embeds the version shown on screen (src/app/core/build.rs: last commit outside
+// dist/, and whether the sources are dirty). Gradle skips cargo when its inputs are unchanged,
+// so the version is an input too: a new commit rebuilds the core, as on iOS, and both apps
+// built from the same tree show the same version.
+fun git(vararg args: String) = providers.exec {
+    commandLine("git", "-C", srcRoot.parentFile.absolutePath, *args)
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { it.trim() }
+val sourceCommit = git("log", "-1", "--format=%H", "--", ".", ":!dist")
+val sourceDirty = git("status", "--porcelain", "--", ".", ":!dist").map { (it.isNotEmpty()).toString() }
+
 val cargoBuild = tasks.register<Exec>("cargoBuild") {
     group = "build"
     description = "Builds the Rust core (cargo-ndk) and generates the Kotlin bindings"
@@ -85,6 +96,8 @@ val cargoBuild = tasks.register<Exec>("cargoBuild") {
     inputs.dir(srcRoot.resolve("rust/src"))
     inputs.files(srcRoot.resolve("app/Cargo.toml"), srcRoot.resolve("app/Cargo.lock"), srcRoot.resolve("rust/Cargo.toml"))
     inputs.file(rootDir.resolve("scripts/build-core.sh"))
+    inputs.property("sourceCommit", sourceCommit)
+    inputs.property("sourceDirty", sourceDirty)
     outputs.dir(projectDir.resolve("src/main/jniLibs"))
     outputs.dir(layout.buildDirectory.dir("generated/uniffi"))
 }
