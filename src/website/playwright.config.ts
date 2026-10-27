@@ -6,8 +6,10 @@ export const repo = path.resolve(import.meta.dirname, '../..');
 export const camVideo = path.join(repo, 'test/out/cam.y4m');
 
 export default defineConfig({
+	// vite preview, not wrangler dev: on its first start in a fresh checkout (every CI run),
+	// wrangler dev 4.153 stops answering after about 30 s. `bun run preview` is the Workers check.
 	webServer: {
-		command: 'bun run build && bun run preview',
+		command: 'bun run build && bunx vite preview --port 4173 --strictPort',
 		port: 4173,
 		reuseExistingServer: !process.env.CI,
 		timeout: 180_000
