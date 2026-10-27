@@ -2,25 +2,63 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// The sender (the web's send.html): pick a file or type text, then the code fills the screen
-/// with a dock that hides itself while it plays.
+/// The sender (the web's send page): pick a file or type text; then the code fills the space
+/// above a slim permanent bar. Nothing is ever drawn over the code (a covered corner stops the
+/// receiver): the settings open as a panel above the bar, or beside the code on a phone held
+/// sideways, and the code shrinks to the space that is left.
 struct SendScreen: View {
     @Environment(AppModel.self) private var model
     let view: ViewModel
 
+    /// The bar's height above the bottom safe area (a row of 44 pt targets).
+    static let barHeight: CGFloat = 56
+
+    /// A phone on its side: the settings open beside the code, which keeps its height.
+    static func sideSettings(_ size: CGSize) -> Bool {
+        size.width > size.height && size.height < 520
+    }
+
     var body: some View {
         let s = view.send
-        GeometryReader { proxy in
+        GeometryReader { outer in
+            let side = Self.sideSettings(outer.size)
             ZStack {
                 if s.phase == "pick" {
                     PickCard(send: s)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Color(hex: 0x0a0d14).ignoresSafeArea()
-                    if let g = s.geometry {
-                        CodeView(model: model, geometry: g, frameRev: s.frameRev, playing: s.playing, fps: s.fps)
-                            .accessibilityHidden(s.flashAsk)
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            CodeArea(send: s)
+                            if s.settingsOpen && side {
+                                SettingsPanel(send: s, side: true, labelWidth: 84, maxHeight: .infinity)
+                                    .frame(width: min(360, outer.size.width * 0.46))
+                                    .background(alignment: .leading) {
+                                        ZStack(alignment: .leading) {
+                                            Theme.panelSolid
+                                            Theme.line.frame(width: 1)
+                                        }
+                                        .ignoresSafeArea(edges: [.top, .trailing])
+                                    }
+                                    .debugFrame("settings")
+                                    .transition(.move(edge: .trailing))
+                            }
+                        }
+                        if s.settingsOpen && !side {
+                            SettingsPanel(send: s, side: false, labelWidth: outer.size.width < 420 ? 84 : 112, maxHeight: outer.size.height * 0.5)
+                                .background(alignment: .top) { barBackground }
+                                .debugFrame("settings")
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        SendBar(send: s)
+                            .frame(height: Self.barHeight)
+                            .background(alignment: .top) { barBackground }
+                            .debugFrame("bar")
                     }
+                    // under the warning the bar stays in sight but out of reach (its card has Close)
+                    .accessibilityHidden(s.flashAsk)
+                    .allowsHitTesting(!s.flashAsk)
                     if s.flashAsk {
                         FlashAsk(warning: s.flashWarn)
                             .transition(.opacity)
@@ -28,8 +66,10 @@ struct SendScreen: View {
                 }
             }
             .animation(.easeOut(duration: 0.2), value: s.flashAsk)
-            .onAppear { report(proxy) }
-            .onChange(of: proxy.size) { _, _ in report(proxy) }
+            .animation(.easeOut(duration: 0.2), value: s.settingsOpen)
+            // before a code exists, the space it will get (settings closed): the first grid fits
+            .onAppear { if s.phase == "pick" { predict(outer.size, settings: s.settingsOpen) } }
+            .onChange(of: outer.size) { _, size in if view.send.phase == "pick" { predict(size, settings: view.send.settingsOpen) } }
         }
         .overlay(alignment: .topLeading) {
             if s.phase == "pick" {
@@ -38,28 +78,54 @@ struct SendScreen: View {
                     .padding(.top, 8)
             }
         }
-        .overlay(alignment: .bottom) {
-            // hidden while the warning waits: it must not cover the card (Play there shows it)
-            if s.phase != "pick" && !s.flashAsk {
-                Dock(send: s)
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
-                    .opacity(s.dockVisible ? 1 : 0)
-                    .offset(y: s.dockVisible ? 0 : 16)
-                    .allowsHitTesting(s.dockVisible)
-                    .animation(.easeOut(duration: 0.25), value: s.dockVisible)
-            }
-        }
     }
 
-    /// The safe area is the code's box; the core turns it into a grid.
-    private func report(_ proxy: GeometryProxy) {
+    /// The bar's and the panel's solid background with its top line, out to the screen's edges.
+    private var barBackground: some View {
+        ZStack(alignment: .top) {
+            Theme.panelSolid
+            Theme.line.frame(height: 1)
+        }
+        .ignoresSafeArea(edges: [.horizontal, .bottom])
+    }
+
+    private func predict(_ size: CGSize, settings: Bool) {
+        guard !settings else { return } // the panel's height is not known yet; the code area reports it
+        SendScreen.report(model, CGSize(width: size.width, height: size.height - Self.barHeight))
+    }
+
+    /// The code's box (the space above the bar and the settings) goes to the core, which turns
+    /// it into a grid with its quiet zone inside the box.
+    static func report(_ model: AppModel, _ size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
         let scale = UIScreen.main.scale
         let pad = UIDevice.current.userInterfaceIdiom == .pad
         // physical size of a point: ~0.16 mm on iPhones, ~0.19 mm on iPads
         let mmPerPt = pad ? 0.19 : 0.16
-        model.dispatch(Ev.viewport(width: Double(proxy.size.width * scale), height: Double(proxy.size.height * scale),
+        model.dispatch(Ev.viewport(width: Double(size.width * scale), height: Double(size.height * scale),
                                    scale: Double(scale), mmPerPx: mmPerPt / Double(scale)))
+    }
+}
+
+/// Where the code is drawn: whatever the bar and the settings leave.
+private struct CodeArea: View {
+    @Environment(AppModel.self) private var model
+    let send: SendVM
+
+    var body: some View {
+        GeometryReader { p in
+            ZStack {
+                if let g = send.geometry {
+                    CodeView(model: model, geometry: g, frameRev: send.frameRev, playing: send.playing, fps: send.fps)
+                        .accessibilityHidden(send.flashAsk)
+                }
+            }
+            .frame(width: p.size.width, height: p.size.height)
+            .onAppear { SendScreen.report(model, p.size) }
+            .onChange(of: p.size) { _, size in SendScreen.report(model, size) }
+        }
+        .clipped()
+        .debugFrame("codeArea")
     }
 }
 
@@ -198,7 +264,7 @@ private struct FlashAsk: View {
 
     var body: some View {
         ZStack {
-            // dims the paused code and keeps its taps (which toggle the dock) away
+            // dims the paused code and the bar, and keeps their taps away
             Color.black.opacity(0.55).ignoresSafeArea().contentShape(Rectangle()).onTapGesture {}
             GeometryReader { outer in
                 ScrollView {
@@ -261,101 +327,185 @@ private struct FlashAsk: View {
     }
 }
 
-private struct Dock: View {
+/// The permanent bar: play or pause, what is sent (and how long a pass takes), settings, close.
+private struct SendBar: View {
     @Environment(AppModel.self) private var model
     let send: SendVM
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Button { model.dispatch(Ev.togglePlay) } label: {
-                    Image(systemName: send.playing ? "pause.fill" : "play.fill")
-                }
-                .buttonStyle(IconButtonStyle())
-                .disabled(send.phase != "ready")
-
-                HStack(spacing: 8) {
-                    StatusDot(live: send.playing && send.phase == "ready", warn: !send.playing)
-                    Text(send.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.text).lineLimit(1).truncationMode(.middle)
-                    Text(send.size).font(Theme.mono(12.5)).foregroundStyle(Theme.muted).lineLimit(1).fixedSize()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button { model.dispatch(Ev.toggleSettings) } label: { Image(systemName: "slider.horizontal.3") }
-                    .buttonStyle(IconButtonStyle(active: send.settingsOpen))
-                Button { model.dispatch(Ev.hideDock) } label: { Image(systemName: "chevron.down") }
-                    .buttonStyle(IconButtonStyle())
-                Button { model.dispatch(Ev.closeSend) } label: { Image(systemName: "xmark") }
-                    .buttonStyle(IconButtonStyle())
+        let paused = !send.playing && send.phase == "ready"
+        HStack(spacing: 4) {
+            Button {
+                model.dispatch(Ev.togglePlay)
+                Haptics.play("light")
+            } label: {
+                Image(systemName: send.playing ? "pause.fill" : "play.fill")
+                    .font(.system(size: 17, weight: .semibold))
             }
-            ViewThatFits(in: .horizontal) {
-                statsRow(send.stats)
-                statsRow(send.stats.filter { !$0.wide })
-            }
-            .padding(.leading, 52)
-            .padding(.top, 4)
-            if send.settingsOpen {
-                SettingsPanel(send: send)
-                    .padding(.top, 10)
-                    .overlay(alignment: .top) { Rectangle().fill(Theme.line).frame(height: 1) }
-                    .padding(.top, 10)
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: 720)
-        .panel(opaque: true)
-        .simultaneousGesture(TapGesture().onEnded { model.dispatch(Ev.dockActivity) })
-    }
+            .buttonStyle(PlayButtonStyle())
+            .disabled(send.phase != "ready")
+            .accessibilityLabel(model.t(send.playing ? "pause" : "play"))
+            .accessibilityIdentifier("play")
 
-    private func statsRow(_ stats: [StatVM]) -> some View {
-        HStack(spacing: 12) {
-            ForEach(stats, id: \.self) { st in
-                (Text(st.label + " ").foregroundStyle(Theme.muted) + Text(st.value).foregroundStyle(Theme.text).font(Theme.mono(12, .semibold)))
-                    .font(.system(size: 12))
+            VStack(alignment: .leading, spacing: 1) {
+                FileName(name: send.title)
+                Text(send.subtitle)
+                    .font(.system(size: 12.5))
+                    .monospacedDigit()
+                    .foregroundStyle(paused ? Theme.amber : Theme.muted)
                     .lineLimit(1)
-                    .fixedSize()
             }
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+
+            Button { model.dispatch(Ev.toggleSettings) } label: { Image(systemName: "slider.horizontal.3") }
+                .buttonStyle(BarButtonStyle(active: send.settingsOpen))
+                .accessibilityLabel(model.t("settings"))
+                .accessibilityAddTraits(send.settingsOpen ? .isSelected : [])
+            Button { model.dispatch(Ev.closeSend) } label: { Image(systemName: "xmark") }
+                .buttonStyle(BarButtonStyle())
+                .accessibilityLabel(model.t("close"))
         }
+        .padding(.horizontal, 10)
     }
 }
 
+/// A file name cut in the middle, keeping the end of the stem and the extension in sight.
+private struct FileName: View {
+    let name: String
+
+    var body: some View {
+        let (head, tail) = Self.split(name)
+        HStack(spacing: 0) {
+            Text(head).lineLimit(1).truncationMode(.tail)
+            Text(tail).lineLimit(1).fixedSize()
+        }
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundStyle(Theme.text)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
+    }
+
+    static func split(_ n: String) -> (String, String) {
+        let chars = Array(n)
+        var ext = ""
+        if let dot = chars.lastIndex(of: "."), dot > 0, chars.count - dot <= 8 { ext = String(chars[dot...]) }
+        let stem = Array(chars.prefix(chars.count - ext.count))
+        let keep = min(stem.count, 4)
+        return (String(stem.prefix(stem.count - keep)), String(stem.suffix(keep)) + ext)
+    }
+}
+
+private struct PlayButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Theme.ink)
+            .frame(width: 44, height: 44)
+            .background(Circle().fill(configuration.isPressed ? Color.white : Theme.paper))
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .opacity(enabled ? 1 : 0.5)
+            .contentShape(Circle())
+    }
+}
+
+/// The bar's quiet buttons: no frame, a light fill when pressed or selected.
+private struct BarButtonStyle: ButtonStyle {
+    var active = false
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 18, weight: .medium))
+            .foregroundStyle(active || configuration.isPressed ? Theme.text : Theme.muted)
+            .frame(width: 44, height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(active ? 0.12 : (configuration.isPressed ? 0.06 : 0)))
+            )
+            .contentShape(Rectangle())
+    }
+}
+
+/// Density, colours, error correction, frame rate, and the details line.
 private struct SettingsPanel: View {
     @Environment(AppModel.self) private var model
     let send: SendVM
+    let side: Bool
+    let labelWidth: CGFloat
+    let maxHeight: CGFloat
     @State private var fps: Double = 12
+    @State private var editing = false
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
-        FlowRow(spacing: 14, alignCenter: false) {
-            field("density") {
-                Segmented(items: [("low", model.t("dLow")), ("auto", model.t("dAuto")), ("high", model.t("dHigh")), ("max", model.t("dMax"))], selected: send.density) {
-                    model.dispatch(Ev.density($0))
-                }
-            }
-            field("colors") {
-                Segmented(items: [(1, "4"), (2, "8")], selected: Int(send.mode)) { model.dispatch(Ev.mode($0)) }
-            }
-            field("ecc") {
-                Segmented(items: [(0, model.t("eLow")), (1, model.t("eMid")), (2, model.t("eHigh"))], selected: Int(send.ecc)) { model.dispatch(Ev.ecc($0)) }
-            }
-            field("speed") {
-                HStack(spacing: 8) {
-                    Slider(value: $fps, in: 4...60, step: 1) { editing in
-                        if !editing { model.dispatch(Ev.dockActivity) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), spacing: 24, alignment: .leading)], alignment: .leading, spacing: 8) {
+                    field("density") {
+                        Segmented(items: [("auto", model.t("dAuto")), ("low", model.t("dLow")), ("high", model.t("dHigh")), ("max", model.t("dMax"))],
+                                  selected: send.density, fill: true, height: 36) {
+                            model.dispatch(Ev.density($0))
+                            Haptics.play("selection")
+                        }
                     }
-                    .tint(Theme.cyan)
-                    .frame(width: 130)
-                    .onChange(of: fps) { _, v in model.dispatch(Ev.fps(Int(v))) }
-                    Text("\(Int(fps))").font(Theme.mono(13, .bold)).foregroundStyle(Theme.text).frame(width: 24, alignment: .leading)
+                    field("colors") {
+                        Segmented(items: [(1, "4"), (2, "8")], selected: Int(send.mode), fill: true, height: 36) {
+                            model.dispatch(Ev.mode($0))
+                            Haptics.play("selection")
+                        }
+                    }
+                    field("ecc") {
+                        Segmented(items: [(0, model.t("eLow")), (1, model.t("eMid")), (2, model.t("eHigh"))], selected: Int(send.ecc), fill: true, height: 36) {
+                            model.dispatch(Ev.ecc($0))
+                            Haptics.play("selection")
+                        }
+                    }
+                    field("speed") {
+                        HStack(spacing: 10) {
+                            Slider(value: $fps, in: 4...60, step: 1) { editing = $0 }
+                                .tint(Theme.cyan)
+                                .frame(minHeight: 44)
+                                .accessibilityLabel(model.t("speed"))
+                                .accessibilityValue("\(Int(fps))")
+                            Text("\(Int(fps))").font(Theme.mono(13, .bold)).foregroundStyle(Theme.text)
+                                .frame(minWidth: 24, alignment: .trailing)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                }
+                if !send.details.isEmpty {
+                    (Text(model.t("details")).fontWeight(.semibold).foregroundStyle(Theme.muted) + Text("  " + send.details).foregroundStyle(Theme.faint))
+                        .font(.system(size: 11.5))
+                        .monospacedDigit()
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .padding(.horizontal, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
+        .frame(height: side ? nil : min(max(contentHeight, 1), maxHeight))
         .onAppear { fps = Double(send.fps) }
+        .onChange(of: send.fps) { _, v in if !editing && Int(fps) != Int(v) { fps = Double(v) } }
+        .onChange(of: fps) { _, v in if Int(v) != Int(send.fps) { model.dispatch(Ev.fps(Int(v))) } }
     }
 
     private func field<C: View>(_ key: String, @ViewBuilder _ content: () -> C) -> some View {
-        HStack(spacing: 8) {
-            Text(model.t(key)).font(.system(size: 12)).foregroundStyle(Theme.faint)
+        HStack(spacing: 10) {
+            Text(model.t(key))
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: labelWidth, alignment: .leading)
+                .accessibilityHidden(true)
             content()
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(model.t(key))
         }
     }
 }

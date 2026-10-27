@@ -7,15 +7,19 @@ import UIKit
 /// Debug builds only: drive the app from a launch environment variable, for device tests
 /// without touching the screen.
 ///
-///     LUMEN_SCRIPT="nav:send;demo:40000;wait:2;snap:send;tap;wait:0.5;snap:dock"
+///     LUMEN_SCRIPT="nav:send;demo:40000;wait:2;accept;snap:send;settings;wait:0.5;snap:settings"
 ///
 /// Commands: nav:<home|send|receive>, lang, tab:<file|text>, text:<s>, sendtext,
-/// demo:<bytes>, wait:<seconds>, bench:<camera frames>, snap:<name> (PNG in Documents), tap, settings, play,
+/// demo:<bytes>, wait:<seconds>, bench:<camera frames>, snap:<name> (PNG in Documents), settings, play,
+/// orient:<portrait|landscape>, layout:<name> (frames of the marked views, JSON in Documents),
+/// details (the receive panel's Details), forgetflash (ask about flashing at the next launch), file:<name>:<bytes> (a demo file with that name),
 /// accept (the photosensitivity warning), camera, close, event:<json>, json (sample JSON text), image (a generated PNG),
 /// capture:<n> (keep n sender frames, upscaled), feed (decode the kept frames as images).
 @MainActor
 enum DebugScript {
     private static var captured: [(Int, Int, Data)] = []
+    /// Window frames (points) of views marked with `debugFrame`, and of the drawn code.
+    static var frames: [String: CGRect] = [:]
 
     static func run(_ model: AppModel) {
         guard let script = ProcessInfo.processInfo.environment["LUMEN_SCRIPT"], !script.isEmpty else { return }
@@ -33,16 +37,40 @@ enum DebugScript {
                 case "sendtext": model.dispatch(Ev.sendText)
                 case "demo":
                     let n = max(1, Int(arg) ?? 20000)
-                    var arr = [UInt8](repeating: 0, count: n)
-                    var x: UInt32 = 0x9e3779b9
-                    for i in 0..<n {
-                        x ^= x << 13; x ^= x >> 17; x ^= x << 5
-                        arr[i] = UInt8(truncatingIfNeeded: x)
+                    model.core.loadFile(name: "demo-\(n).bin", data: noise(n))
+                case "file":
+                    let parts = arg.split(separator: ":").map(String.init)
+                    let n = max(1, Int(parts.count > 1 ? parts[1] : "") ?? 20000)
+                    model.core.loadFile(name: parts.first ?? "demo.bin", data: noise(n))
+                case "orient":
+                    let mask: UIInterfaceOrientationMask = arg == "landscape" ? .landscapeRight : .portrait
+                    if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+                        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { print("[lumen-script] orient: \($0)") }
                     }
-                    model.core.loadFile(name: "demo-\(n).bin", data: Data(arr))
+                case "forgetflash":
+                    // the next launch asks again (the running core keeps its answer)
+                    let d = UserDefaults.standard
+                    if let json = d.string(forKey: "lumen.prefs"), var o = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] {
+                        o["flashOk"] = false
+                        if let data = try? JSONSerialization.data(withJSONObject: o) { d.set(String(data: data, encoding: .utf8), forKey: "lumen.prefs") }
+                    }
+                case "details":
+                    let d = UserDefaults.standard
+                    d.set(!d.bool(forKey: "lumen.recv.details"), forKey: "lumen.recv.details")
+                case "layout":
+                    var out: [String: [String: Double]] = [:]
+                    for (k, r) in frames {
+                        out[k] = ["x": r.minX, "y": r.minY, "w": r.width, "h": r.height, "maxX": r.maxX, "maxY": r.maxY]
+                    }
+                    if let w = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first {
+                        out["window"] = ["w": w.bounds.width, "h": w.bounds.height, "top": w.safeAreaInsets.top, "bottom": w.safeAreaInsets.bottom,
+                                         "left": w.safeAreaInsets.left, "right": w.safeAreaInsets.right]
+                    }
+                    let data = try! JSONSerialization.data(withJSONObject: out, options: [.sortedKeys, .prettyPrinted])
+                    let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    try? data.write(to: dir.appendingPathComponent("layout-\(arg.isEmpty ? "layout" : arg).json"))
                 case "wait": try? await Task.sleep(for: .milliseconds(Int((Double(arg) ?? 1) * 1000)))
                 case "snap": snap(arg.isEmpty ? "snap" : arg)
-                case "tap": model.dispatch(Ev.tapCode)
                 case "settings": model.dispatch(Ev.toggleSettings)
                 case "play": model.dispatch(Ev.togglePlay)
                 case "accept": model.dispatch(Ev.acceptFlash)
@@ -112,6 +140,16 @@ enum DebugScript {
         }
     }
 
+    private static func noise(_ n: Int) -> Data {
+        var arr = [UInt8](repeating: 0, count: n)
+        var x: UInt32 = 0x9e3779b9
+        for i in 0..<n {
+            x ^= x << 13; x ^= x >> 17; x ^= x << 5
+            arr[i] = UInt8(truncatingIfNeeded: x)
+        }
+        return Data(arr)
+    }
+
     private static func upscale(_ src: Data, _ w: Int, _ h: Int, _ k: Int) -> (Int, Int, Data) {
         let s = [UInt8](src)
         var out = [UInt8](repeating: 0, count: w * k * h * k * 4)
@@ -135,3 +173,18 @@ enum DebugScript {
     }
 }
 #endif
+
+import SwiftUI
+
+extension View {
+    /// Debug builds: keeps this view's window frame for the script's `layout` command.
+    @ViewBuilder
+    func debugFrame(_ name: String) -> some View {
+        #if DEBUG
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { DebugScript.frames[name] = $0 }
+            .onDisappear { DebugScript.frames[name] = nil }
+        #else
+        self
+        #endif
+    }
+}

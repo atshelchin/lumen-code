@@ -74,12 +74,16 @@ struct SendVM: Decodable, Equatable {
     var flashAsk: Bool
     /// The Text tab's text: the field shows this, so what is shown is what is sent.
     var text: String
+    /// Bar: the file name, or just "Text" (never the text itself).
     var title: String
+    /// Bar, under the title: size and time per pass ("78 KB · ≈ 3 s"), or "Paused".
+    var subtitle: String
+    /// Settings panel: raw rate, per frame, grid, bits per cell, engine time, in one line.
+    var details: String
     var size: String
     var stats: [StatVM]
     var playing: Bool
     var fps: UInt32
-    var dockVisible: Bool
     var settingsOpen: Bool
     var density: String
     var mode: UInt8
@@ -140,6 +144,9 @@ struct RecvVM: Decodable, Equatable {
     var name: String
     var pct: String
     var progress: Float
+    /// Under the progress bar: "32 KB/s · 2s left" (empty until data arrives).
+    var line: String
+    /// Speed, time left, cell size, success: for the Details area.
     var metrics: [MetricVM]
     var tip: String
     var tipOk: Bool
@@ -170,10 +177,6 @@ enum Ev {
     static let togglePlay: [String: Any] = ["type": "toggle_play"]
     static let acceptFlash: [String: Any] = ["type": "accept_flash"]
     static let toggleSettings: [String: Any] = ["type": "toggle_settings"]
-    static let tapCode: [String: Any] = ["type": "tap_code"]
-    static let hideDock: [String: Any] = ["type": "hide_dock"]
-    static let showDock: [String: Any] = ["type": "show_dock"]
-    static let dockActivity: [String: Any] = ["type": "dock_activity"]
     static let closeSend: [String: Any] = ["type": "close_send"]
     static let openCamera: [String: Any] = ["type": "open_camera"]
     static let switchCamera: [String: Any] = ["type": "switch_camera"]

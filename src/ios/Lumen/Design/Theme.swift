@@ -123,6 +123,9 @@ struct Segmented<T: Hashable>: View {
     let items: [(T, String)]
     let selected: T
     var minWidth: CGFloat = 0
+    /// Stretch to the offered width, the segments sharing it equally (the settings panel).
+    var fill = false
+    var height: CGFloat = 32
     let pick: (T) -> Void
 
     var body: some View {
@@ -136,11 +139,14 @@ struct Segmented<T: Hashable>: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(on ? Theme.text : Theme.muted)
                         .padding(.horizontal, 11)
-                        .frame(minWidth: minWidth, minHeight: 32)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(minWidth: minWidth, maxWidth: fill ? .infinity : nil, minHeight: height)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Color.white.opacity(0.12) : Color.clear))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
         .padding(3)

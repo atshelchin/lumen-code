@@ -17,7 +17,6 @@ struct CodeView: UIViewRepresentable {
     func makeUIView(context: Context) -> CodeUIView {
         let v = CodeUIView()
         v.core = model.core
-        v.onTap = { [weak model] in model?.dispatch(Ev.tapCode) }
         return v
     }
 
@@ -32,7 +31,6 @@ struct CodeView: UIViewRepresentable {
 
 final class CodeUIView: UIView {
     var core: LumenCore?
-    var onTap: (() -> Void)?
     private let cells = CALayer()
     private let maskLayer = CALayer()
     private var link: CADisplayLink?
@@ -58,12 +56,9 @@ final class CodeUIView: UIView {
             layer.addSublayer(l)
         }
         cells.isOpaque = true
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
     }
 
     required init?(coder: NSCoder) { fatalError() }
-
-    @objc private func tapped() { onTap?() }
 
     func update(geometry g: GeometryVM, frameRev rev: UInt64, playing: Bool, fps: UInt32) {
         period = 1.0 / Double(max(1, fps))
@@ -102,6 +97,9 @@ final class CodeUIView: UIView {
         cells.contentsScale = scale
         maskLayer.contentsScale = scale
         CATransaction.commit()
+        #if DEBUG
+        DebugScript.frames["code"] = convert(cells.frame, to: nil)
+        #endif
     }
 
     private func reloadMask() {
