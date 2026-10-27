@@ -116,14 +116,14 @@
 		else if (e.key === 'h') tx.toggleDock();
 		else tx.showDock();
 	}
+	// The bottom edge shows a hidden dock, but only after the mouse has been above the dock's area:
+	// right after the hide button the mouse is still there, and the dock must stay hidden.
+	let edgeArmed = false;
 	function onPointerMove(e: PointerEvent) {
-		if (
-			e.pointerType === 'mouse' &&
-			tx?.active &&
-			e.clientY > window.innerHeight - 90 &&
-			tx.dockAway
-		)
-			tx.showDock();
+		if (e.pointerType !== 'mouse' || !tx?.active) return;
+		if (!tx.dockAway) edgeArmed = false;
+		else if (e.clientY < window.innerHeight - 220) edgeArmed = true;
+		else if (e.clientY > window.innerHeight - 90 && edgeArmed) tx.showDock();
 	}
 
 	const densities: [Density, Key][] = [

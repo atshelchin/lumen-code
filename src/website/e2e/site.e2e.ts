@@ -168,6 +168,24 @@ test('sender: typed text becomes moving frames', async ({ page }) => {
 	expect(errors).toEqual([]);
 });
 
+test('sender paused: the hide button hides the dock, and it stays hidden while the mouse moves at the bottom', async ({
+	page
+}) => {
+	await page.goto('/send?demo=20000');
+	const dock = page.locator('.dock');
+	await expect(dock).not.toHaveClass(/away/);
+	await page.click('#playBtn');
+	await page.click('#hideBtn');
+	await expect(dock).toHaveClass(/away/);
+	const box = page.viewportSize()!;
+	await page.mouse.move(box.width / 2 + 20, box.height - 30, { steps: 4 }); // down from the button into the bottom edge
+	await page.waitForTimeout(300);
+	await expect(dock).toHaveClass(/away/);
+	await page.mouse.move(box.width / 2, box.height / 2, { steps: 4 }); // up above the dock's area, then down again
+	await page.mouse.move(box.width / 2, box.height - 30, { steps: 4 });
+	await expect(dock).not.toHaveClass(/away/);
+});
+
 test.describe('languages', () => {
 	test('a saved choice opens the other language before anything is drawn', async ({ page }) => {
 		await page.goto('/send');

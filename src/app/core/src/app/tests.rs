@@ -109,6 +109,15 @@ fn sending_a_file_shows_a_code_and_keeps_the_screen_on() {
     h.send(Event::TapCode);
     assert!(h.last.send.dock_visible);
 
+    // paused: the dock shows, stays, and can still be hidden to see the whole code
+    h.send(Event::TogglePlay);
+    assert!(!h.last.send.playing && h.last.send.dock_visible);
+    h.send(Event::HideDock);
+    assert!(!h.last.send.dock_visible, "hide works while paused");
+    h.send(Event::TapCode);
+    assert!(h.last.send.dock_visible);
+    h.send(Event::TogglePlay);
+
     // turning the phone keeps the stream, with a landscape grid
     let rev = h.last.send.frame_rev;
     h.send(Event::Viewport { width_px: 2200.0, height_px: 1080.0, scale: 2.75, mm_per_px: 0.0577 });

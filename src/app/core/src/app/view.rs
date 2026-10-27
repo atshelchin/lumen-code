@@ -220,7 +220,7 @@ fn send_view(m: &Model) -> SendView {
         stats,
         playing: s.playing,
         fps: m.prefs.fps,
-        dock_visible: s.dock_visible || !s.playing,
+        dock_visible: s.dock_visible,
         settings_open: settings_open(m),
         density: m.prefs.density,
         mode: m.prefs.mode,

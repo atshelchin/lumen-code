@@ -38,6 +38,8 @@ pub struct Root {
     awake: platform::KeepAwake,
     reported: (f32, f32, f32),
     dock_poke: Instant,
+    /// the bottom edge shows a hidden dock only after the pointer has been above the dock's area
+    edge_armed: bool,
     pub fps_slider: crate::theme::SliderState,
     /// Test runs (LUMEN_SCRIPT): frames shown per second, logged.
     flips: (Instant, u32),
@@ -89,6 +91,7 @@ impl Root {
             awake: platform::KeepAwake::default(),
             reported: (0., 0., 0.),
             dock_poke: Instant::now(),
+            edge_armed: false,
             fps_slider: Default::default(),
             flips: (Instant::now(), 0),
         }
@@ -407,9 +410,16 @@ impl Root {
             return;
         }
         let h = f32::from(window.viewport_size().height);
-        if !send.dock_visible && f32::from(ev.position.y) > h - 90.0 {
+        let y = f32::from(ev.position.y);
+        // right after the hide button the pointer is still over the dock's area: stay hidden
+        if send.dock_visible {
+            self.edge_armed = false;
+        } else if y < h - 220.0 {
+            self.edge_armed = true;
+        }
+        if !send.dock_visible && y > h - 90.0 && self.edge_armed {
             self.dispatch(Event::ShowDock);
-        } else if send.dock_visible && f32::from(ev.position.y) > h - 220.0 && self.dock_poke.elapsed() > Duration::from_millis(500) {
+        } else if send.dock_visible && y > h - 220.0 && self.dock_poke.elapsed() > Duration::from_millis(500) {
             self.dock_poke = Instant::now();
             self.dispatch(Event::DockActivity);
         }
