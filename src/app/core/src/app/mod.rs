@@ -815,13 +815,16 @@ fn engine_answer(model: &mut Model, step: Step, attempt: u64, out: EngineOutput)
             model.send.info = Some(info);
             model.send.frame_rev += 1;
             model.send.phase = SendPhase::Ready;
+            // the screen may have changed while the sender was being built (a resize during
+            // preparation or during the last resize): lay the code out for the screen as it is now
+            let fit = regrid(model);
             if first {
                 // every path to a playing code (pick, text, a file opened from another app)
                 // passes here: the first time, the code waits for the warning to be read
                 model.send.playing = model.prefs.flash_ok;
-                Command::all([haptic(HapticKind::Medium), show_dock(model)])
+                Command::all([haptic(HapticKind::Medium), show_dock(model), fit])
             } else {
-                Command::done()
+                fit
             }
         }
         (_, EngineOutput::Prepared { ok: false, .. }) | (_, EngineOutput::Sender(_)) => {

@@ -228,7 +228,8 @@ fn send_view(m: &Model) -> SendView {
             info.bpc,
             ms
         );
-        subtitle = if s.playing { format!("{size} · ≈ {pass}") } else { t(l, "paused").to_string() };
+        let approx = if pass.starts_with('<') { "" } else { "≈ " };
+        subtitle = if s.playing { format!("{size} · {approx}{pass}") } else { t(l, "paused").to_string() };
     }
     let mobile = m.platform.mobile();
     SendView {

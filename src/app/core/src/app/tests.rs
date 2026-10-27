@@ -116,7 +116,8 @@ fn sending_a_file_shows_a_code_and_keeps_the_screen_on() {
     h.send(Event::TapCode);
     assert!(h.last.send.dock_visible, "tapping the code does not hide it");
     // the bar's line: time per pass while playing, "paused" when paused; details for settings
-    assert!(h.last.send.subtitle.contains('≈'), "{}", h.last.send.subtitle);
+    let sub = &h.last.send.subtitle;
+    assert!(sub.contains(" · ") && (sub.contains("≈ ") || sub.ends_with("< 1 s")), "{sub}");
     assert!(h.last.send.details.contains('×'), "{}", h.last.send.details);
     h.send(Event::TogglePlay);
     assert!(!h.last.send.playing && h.last.send.dock_visible);
@@ -350,4 +351,20 @@ fn receive_feedback_follows_progress() {
     let v = view::view(&m).recv;
     assert_eq!(v.tip, crate::i18n::t(Lang::En, "tipColor"), "stalled: the hint is back");
     assert_eq!(v.overlay.expect("outline").tone, view::Tone::Poor);
+}
+
+/// A screen change while the sender is being built reaches the code: when the sender is ready,
+/// the code is laid out for the screen as it is then, not as it was when the build started.
+#[test]
+fn a_resize_while_the_sender_is_built_reaches_the_code() {
+    let big = Viewport { width_px: 1280.0, height_px: 735.0, scale: 1.0, mm_per_px: 0.25 };
+    let small = Viewport { width_px: 600.0, height_px: 535.0, scale: 1.0, mm_per_px: 0.25 };
+    let mut m = Model { screen: Screen::Send, viewport: small, ..Model::default() };
+    m.send.phase = SendPhase::Preparing;
+    m.send.attempt = 7;
+    m.send.geometry = Some(geometry::compute(&big, Density::Auto)); // built for the old size
+    let info = SenderInfo { ok: true, ..SenderInfo::default() };
+    let _ = update(Event::Engine { step: Step::Started, attempt: 7, out: EngineOutput::Sender(info) }, &mut m);
+    assert_eq!(m.send.phase, SendPhase::Ready);
+    assert_eq!(m.send.geometry, Some(geometry::compute(&small, Density::Auto)));
 }
