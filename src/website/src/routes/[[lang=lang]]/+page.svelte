@@ -67,9 +67,7 @@
 		'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5z',
 		'M12 3.5c3.2 4.2 5.2 6.9 5.2 9.6a5.2 5.2 0 0 1-10.4 0c0-2.7 2-5.4 5.2-9.6zM9.6 13.6a2.6 2.6 0 0 0 2.4 2.5',
 		'M4 9V4h5M15 4h5v5M4 15v5h5M15.5 15.5l5 5M20.5 15.5l-5 5',
-		'M12 3l7 3v5.2c0 4.4-3 8-7 9.8-4-1.8-7-5.4-7-9.8V6zM9 12l2.2 2.2L15.5 10',
-		'M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14',
-		'M4 17.5a8 8 0 1 1 16 0M12 17.5l3.8-5.6M12 17.5h.01'
+		'M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'
 	];
 	const appIcons = [
 		'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM3.5 12h17M12 3c2.4 2.7 3.6 5.7 3.6 9s-1.2 6.3-3.6 9c-2.4-2.7-3.6-5.7-3.6-9S9.6 5.7 12 3z',
@@ -148,13 +146,8 @@
 			</div>
 		</section>
 
-		<ul class="facts wrap">
-			{#each c.facts as fact (fact)}<li>{fact}</li>{/each}
-		</ul>
-
 		<section id="how" class="section wrap">
 			<h2>{c.how.title}</h2>
-			<p class="section-lead">{c.how.lead}</p>
 			<ol class="flow" aria-label={c.how.flow.map(([a]) => a).join(' → ')}>
 				{#each c.how.flow as [what, note], i (i)}
 					<li class:mid={i > 0 && i < c.how.flow.length - 1}>
@@ -194,17 +187,10 @@
 				</table>
 			</div>
 			<p class="caption">{c.speed.note}</p>
-			<div class="stats">
-				<div><b>96 KB/s</b><span>{t('s1')}</span></div>
-				<div><b>3 / 4</b><span>{t('s2')}</span></div>
-				<div><b>0</b><span>{t('s3')}</span></div>
-				<div><b>1.0</b><span>{t('s4')}</span></div>
-			</div>
 		</section>
 
 		<section class="section wrap">
 			<h2>{c.features.title}</h2>
-			<p class="section-lead">{c.features.lead}</p>
 			<ul class="grid three">
 				{#each c.features.items as item, i (item.title)}
 					<li class="card">
@@ -231,7 +217,6 @@
 					</li>
 				{/each}
 			</ul>
-			<p class="caption">{c.apps.caption}</p>
 			<div class="actions">
 				<a class="button tonal" href={`${REPO}/releases`} rel="external">{t('releasesLink')}</a>
 				<a class="button tonal" href={buildGuide} rel="external">{c.pricing.build.action}</a>
@@ -240,7 +225,6 @@
 
 		<section class="section wrap">
 			<h2>{c.open.title}</h2>
-			<p class="section-lead">{c.open.lead}</p>
 			<ul class="open">
 				{#each c.open.items as item (item.title)}
 					<li>
@@ -320,7 +304,7 @@
 	<footer class="footer">
 		<div class="wrap footer-inner">
 			<div class="brand"><Mark /><span>Lumen Code</span></div>
-			<p>{t('privacy')} {t('foot')}</p>
+			<p>{t('privacy')}</p>
 			<p>
 				{c.license}
 				<a href={REPO} rel="external">GitHub</a> ·
@@ -605,24 +589,6 @@
 		}
 	}
 
-	/* facts */
-	.facts {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 10px;
-		list-style: none;
-		padding: 0;
-		margin-block: 24px 8px;
-	}
-	.facts li {
-		padding: 6px 16px;
-		border: 1px solid var(--line-2);
-		border-radius: 999px;
-		color: var(--muted);
-		font-size: 15px;
-	}
-
 	/* sections */
 	.section {
 		padding-block: 72px;
@@ -806,30 +772,6 @@
 		td {
 			padding: 12px 12px;
 			font-size: 14.5px;
-		}
-	}
-	.stats {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 16px;
-		margin-top: 40px;
-	}
-	.stats div {
-		padding: 6px 20px;
-		border-left: 2px solid var(--line-2);
-	}
-	.stats b {
-		display: block;
-		font-size: 30px;
-		letter-spacing: -0.02em;
-	}
-	.stats span {
-		color: var(--muted);
-		font-size: 14px;
-	}
-	@media (max-width: 760px) {
-		.stats {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 	}
 
