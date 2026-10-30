@@ -4,7 +4,7 @@
 	import { t as tr, path, type Key } from '#lib/i18n';
 	import { LANDING, STORES } from '#lib/landing';
 	import { COMPANY, LEGAL } from '#lib/legal';
-	import { REPO } from '#lib/build';
+	import { BUILD, REPO } from '#lib/build';
 	import Mark from '#lib/ui/Mark.svelte';
 	import Warn from '#lib/ui/Warn.svelte';
 	import BuildLink from '#lib/ui/BuildLink.svelte';
@@ -76,16 +76,39 @@
 		'M3.5 4.5h17a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1zM8 20.5h8M12 16.5v4'
 	];
 
+	// structured data for search engines: the software (free web and desktop versions), the site,
+	// and the questions on this page
 	const jsonLd = $derived({
 		'@context': 'https://schema.org',
-		'@type': 'SoftwareApplication',
-		name: 'Lumen Code',
-		description: t('descHome'),
-		url: `${__SITE__}${path(lang, '')}`,
-		applicationCategory: 'UtilitiesApplication',
-		operatingSystem: 'Web, macOS, Windows, Linux, iOS, Android',
-		license: 'https://opensource.org/licenses/MIT',
-		offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
+		'@graph': [
+			{
+				'@type': 'SoftwareApplication',
+				name: 'Lumen Code',
+				description: t('descHome'),
+				url: `${__SITE__}${path(lang, '')}`,
+				applicationCategory: 'UtilitiesApplication',
+				operatingSystem: 'Web, macOS, Windows, Linux, iOS, Android',
+				softwareVersion: BUILD.version,
+				downloadUrl: `${REPO}/releases`,
+				license: 'https://opensource.org/licenses/MIT',
+				isAccessibleForFree: true,
+				offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
+			},
+			{
+				'@type': 'WebSite',
+				name: 'Lumen Code',
+				url: `${__SITE__}${path(lang, '')}`,
+				inLanguage: zh ? 'zh-CN' : 'en'
+			},
+			{
+				'@type': 'FAQPage',
+				mainEntity: c.faq.items.map((f) => ({
+					'@type': 'Question',
+					name: f.q,
+					acceptedAnswer: { '@type': 'Answer', text: f.a }
+				}))
+			}
+		]
 	});
 </script>
 
@@ -99,6 +122,7 @@
 			<a class="brand" href={path(lang, '')}><Mark /><span>Lumen Code</span></a>
 			<div class="links">
 				<a href="#start">{c.nav.start}</a>
+				<a href="#apps">{c.nav.apps}</a>
 				<a href="#how">{c.nav.how}</a>
 				<a href="#speed">{c.nav.speed}</a>
 				<a href="#limits">{c.nav.limits}</a>
@@ -127,6 +151,10 @@
 					<a class="button primary" href={path(lang, 'send')}>{c.hero.send}</a>
 					<a class="button tonal" href={path(lang, 'recv')}>{c.hero.recv}</a>
 				</div>
+				<p class="try">
+					{c.hero.try}
+					<a href={`${REPO}/releases`} rel="external">{c.hero.desktop} →</a>
+				</p>
 				<p class="note">{c.hero.note}</p>
 				<Warn text={t('flashWarn')} />
 			</div>
@@ -157,6 +185,25 @@
 					</li>
 				{/each}
 			</ol>
+		</section>
+
+		<section id="apps" class="section wrap">
+			<h2>{c.apps.title}</h2>
+			<p class="section-lead">{c.apps.lead}</p>
+			<ul class="grid four">
+				{#each c.apps.items as item, i (item.name)}
+					<li class="card">
+						<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={appIcons[i]} /></svg>
+						<h3>{item.name}</h3>
+						<p class="req">{item.req}</p>
+						<p>{item.text}</p>
+					</li>
+				{/each}
+			</ul>
+			<div class="actions">
+				<a class="button tonal" href={`${REPO}/releases`} rel="external">{t('releasesLink')}</a>
+				<a class="button tonal" href={buildGuide} rel="external">{c.pricing.build.action}</a>
+			</div>
 		</section>
 
 		<section id="how" class="section wrap">
@@ -250,25 +297,6 @@
 			</div>
 		</section>
 
-		<section id="apps" class="section wrap">
-			<h2>{c.apps.title}</h2>
-			<p class="section-lead">{c.apps.lead}</p>
-			<ul class="grid four">
-				{#each c.apps.items as item, i (item.name)}
-					<li class="card">
-						<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={appIcons[i]} /></svg>
-						<h3>{item.name}</h3>
-						<p class="req">{item.req}</p>
-						<p>{item.text}</p>
-					</li>
-				{/each}
-			</ul>
-			<div class="actions">
-				<a class="button tonal" href={`${REPO}/releases`} rel="external">{t('releasesLink')}</a>
-				<a class="button tonal" href={buildGuide} rel="external">{c.pricing.build.action}</a>
-			</div>
-		</section>
-
 		<section id="pricing" class="section wrap">
 			<h2>{c.pricing.title}</h2>
 			<p class="section-lead">{c.pricing.lead}</p>
@@ -318,6 +346,7 @@
 				<a class="button primary" href={path(lang, 'send')}>{c.hero.send}</a>
 				<a class="button tonal" href={path(lang, 'recv')}>{c.hero.recv}</a>
 			</div>
+			<p class="try"><a href={`${REPO}/releases`} rel="external">{c.hero.desktop} →</a></p>
 		</section>
 	</main>
 
@@ -501,6 +530,14 @@
 	}
 	.actions.center {
 		justify-content: center;
+	}
+	.try {
+		margin-top: 14px;
+		color: var(--muted);
+		font-size: 15px;
+	}
+	.try a {
+		white-space: nowrap;
 	}
 	.note {
 		margin-top: 16px;

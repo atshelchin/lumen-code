@@ -6,9 +6,9 @@ export const LANGS: Lang[] = ['en', 'zh'];
 
 export const DICT = {
 	zh: {
-		titleHome: 'Lumen Code — 用屏幕和相机传文件',
+		titleHome: 'Lumen Code：用屏幕和相机传文件，不需要网络',
 		descHome:
-			'Lumen Code 把文件变成彩色动态码：发送端屏幕播放，手机相机扫描接收。无需网络、无需配对，实测最高 96 KB/s。开放协议，MIT 许可。',
+			'把文件显示成彩色动态码，用另一台设备的相机扫描接收。不需要网络、配对和账号；网页版和桌面版免费，开放协议，MIT 许可。',
 		titleSend: '发送文件 — Lumen Code',
 		descSend:
 			'在这块屏幕上把文件或文字播放成彩色动态码，让另一台设备用相机接收。无需网络、无需配对，全部在浏览器本地完成。',
@@ -131,9 +131,9 @@ export const DICT = {
 		ghTitle: 'Source on GitHub',
 		releasesLink: 'Download for desktop',
 		privacy: 'Files never go through a server.',
-		titleHome: 'Lumen Code — send files from a screen to a camera',
+		titleHome: 'Lumen Code: send files from a screen to a camera, no network needed',
 		descHome:
-			'Lumen Code turns a file into an animated colour code: the sender’s screen plays it, a phone camera receives it. No network, no pairing; up to 96 KB/s measured. Open protocol, MIT licence.',
+			'Show a file as an animated colour code and receive it with another device’s camera. No network, pairing or account. Free web and desktop versions; open protocol, MIT-licensed.',
 		titleSend: 'Send a file — Lumen Code',
 		descSend:
 			'Play a file or text as an animated colour code on this screen, for another device to receive with its camera. No network, no pairing; everything stays in the browser.',

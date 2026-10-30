@@ -26,13 +26,15 @@ interface Item {
 }
 
 export interface Landing {
-	nav: { start: string; how: string; speed: string; limits: string; pricing: string };
+	nav: { start: string; apps: string; how: string; speed: string; limits: string; pricing: string };
 	hero: {
 		eyebrow: string;
 		title: [string, string];
 		lead: string;
 		send: string;
 		recv: string;
+		try: string;
+		desktop: string;
 		note: string;
 	};
 	start: { title: string; steps: Item[] };
@@ -57,6 +59,7 @@ export interface Landing {
 const en: Landing = {
 	nav: {
 		start: 'Get started',
+		apps: 'Apps',
 		how: 'How it works',
 		speed: 'Performance',
 		limits: 'Limits',
@@ -65,21 +68,23 @@ const en: Landing = {
 	hero: {
 		eyebrow: 'Open protocol 1.0 · MIT · Web, iPhone, Android, desktop',
 		title: ['Send files from', 'a screen to a camera'],
-		lead: 'The sender shows the file as a sequence of colour-coded frames; a phone or webcam films them and rebuilds the file. One-way: no network, no pairing, no return channel.',
+		lead: 'The sender shows the file as a sequence of colour-coded frames; another device films them with its camera and rebuilds the file. No network, pairing or account.',
 		send: 'Send a file',
 		recv: 'Receive',
-		note: `Free in the browser. iPhone and Android apps: ${PRICE}, coming soon.`
+		try: 'Open this site on both devices: Send on one, Receive on the other (a phone’s browser is fine).',
+		desktop: 'Download for desktop',
+		note: `The web and desktop versions are free. iPhone and Android apps: ${PRICE}, coming soon.`
 	},
 	start: {
 		title: 'Get started',
 		steps: [
 			{
 				title: 'Send',
-				text: 'On the device with the file, open Send and choose a file or type text.'
+				text: 'On the device with the file, open this site (or the desktop app), tap Send and choose a file or type text.'
 			},
 			{
 				title: 'Receive',
-				text: 'On the other device, open Receive and keep the whole code in the camera view.'
+				text: 'On the other device, open this site in the browser, tap Receive and keep the whole code in the camera view.'
 			},
 			{ title: 'Save', text: 'At 100 % the file is checked and ready to open, save or share.' }
 		]
@@ -170,7 +175,7 @@ const en: Landing = {
 	},
 	apps: {
 		title: 'Apps',
-		lead: 'The web version and every app can send to and receive from each other.',
+		lead: 'The web and desktop versions are free; the phone apps are coming soon. Every version sends to and receives from every other.',
 		items: [
 			{
 				name: 'Web',
@@ -180,17 +185,17 @@ const en: Landing = {
 			{
 				name: 'iPhone',
 				req: 'iOS 17 or later',
-				text: 'Uses the camera directly, at up to 240 frames a second, and plays codes at 120 Hz.'
+				text: 'Uses the camera directly, at up to 240 frames a second, so it usually receives faster than the browser. Plays codes at 120 Hz.'
 			},
 			{
 				name: 'Android',
 				req: 'Android 10 or later',
-				text: 'Uses the camera directly, at up to 60 frames a second, with its own exposure control to avoid washed-out colours and blur.'
+				text: 'Uses the camera directly, at up to 60 frames a second, so it usually receives faster than the browser. Its own exposure control avoids washed-out colours and blur.'
 			},
 			{
 				name: 'Desktop',
 				req: 'macOS, Windows, Linux',
-				text: 'Send from a computer screen, or receive with a webcam.'
+				text: 'Free download. Send from a computer screen, or receive with a webcam.'
 			}
 		]
 	},
@@ -230,27 +235,35 @@ const en: Landing = {
 	},
 	cta: {
 		title: 'Try it with two devices you already have.',
-		text: 'Open Send on one and Receive on the other.'
+		text: 'Open this site on both: Send on one, Receive on the other.'
 	},
 	soon: 'Coming soon',
 	license: 'Open source under the MIT License.'
 };
 
 const zh: Landing = {
-	nav: { start: '上手', how: '原理', speed: '性能', limits: '局限', pricing: '定价' },
+	nav: { start: '上手', apps: '应用', how: '原理', speed: '性能', limits: '局限', pricing: '定价' },
 	hero: {
 		eyebrow: '开放协议 1.0 · MIT · 网页、iPhone、Android、桌面',
 		title: ['用屏幕和相机', '传文件'],
-		lead: '发送端把文件显示成一串彩色编码帧，手机或摄像头拍下来还原文件。单向传输：不需要网络和配对，也没有回传通道。',
+		lead: '发送端把文件显示成一串彩色编码帧，另一台设备用相机拍下来，还原出文件。不需要网络、配对和账号。',
 		send: '发送文件',
 		recv: '接收',
-		note: `网页版免费。iPhone 与 Android 应用 ${PRICE}，即将上架。`
+		try: '两台设备都打开本网站：一台点“发送”，另一台点“接收”（手机浏览器即可）。',
+		desktop: '下载桌面版',
+		note: `网页版和桌面版免费。iPhone 与 Android 应用 ${PRICE}，即将上架。`
 	},
 	start: {
 		title: '上手',
 		steps: [
-			{ title: '发送', text: '在有文件的设备上打开“发送”，选择文件或输入文字。' },
-			{ title: '接收', text: '在另一台设备上打开“接收”，让码完整出现在相机画面里。' },
+			{
+				title: '发送',
+				text: '在有文件的设备上打开本网站（或桌面版），点“发送”，选择文件或输入文字。'
+			},
+			{
+				title: '接收',
+				text: '在另一台设备的浏览器里打开本网站，点“接收”，让码完整出现在相机画面里。'
+			},
 			{ title: '保存', text: '到 100 % 时文件已校验，可以打开、保存或分享。' }
 		]
 	},
@@ -331,7 +344,7 @@ const zh: Landing = {
 	},
 	apps: {
 		title: '应用',
-		lead: '网页版和各个应用之间都能互相收发。',
+		lead: '网页版和桌面版免费，手机应用即将上架。各版本之间都能互相收发。',
 		items: [
 			{
 				name: '网页',
@@ -341,14 +354,18 @@ const zh: Landing = {
 			{
 				name: 'iPhone',
 				req: 'iOS 17 及以上',
-				text: '直接调用相机，最高每秒 240 帧；以 120 Hz 播放码。'
+				text: '直接调用相机，最高每秒 240 帧，接收通常比网页版快；以 120 Hz 播放码。'
 			},
 			{
 				name: 'Android',
 				req: 'Android 10 及以上',
-				text: '直接调用相机，最高每秒 60 帧；曝光由应用控制，减少过曝和拖影。'
+				text: '直接调用相机，最高每秒 60 帧，接收通常比网页版快；曝光由应用控制，减少过曝和拖影。'
 			},
-			{ name: '桌面', req: 'macOS、Windows、Linux', text: '用电脑屏幕发送，或用摄像头接收。' }
+			{
+				name: '桌面',
+				req: 'macOS、Windows、Linux',
+				text: '免费下载。用电脑屏幕发送，或用摄像头接收。'
+			}
 		]
 	},
 	pricing: {
@@ -385,7 +402,7 @@ const zh: Landing = {
 			}
 		]
 	},
-	cta: { title: '用手边的两台设备试试。', text: '一台打开发送，一台打开接收。' },
+	cta: { title: '用手边的两台设备试试。', text: '两台设备都打开本网站，一台发送，一台接收。' },
 	soon: '即将上架',
 	license: '以 MIT 许可证开源。'
 };

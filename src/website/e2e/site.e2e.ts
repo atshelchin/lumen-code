@@ -17,7 +17,7 @@ const pages = [
 	['/', 'Lumen Code', 'Send files from'],
 	['/send', 'Send a file — Lumen Code', 'Choose file'],
 	['/recv', 'Receive a file — Lumen Code', 'Open camera'],
-	['/zh', 'Lumen Code — 用屏幕和相机传文件', '用屏幕和相机'],
+	['/zh', 'Lumen Code：用屏幕和相机传文件', '用屏幕和相机'],
 	['/zh/send', '发送文件 — Lumen Code', '选择文件'],
 	['/zh/recv', '接收文件 — Lumen Code', '打开相机'],
 	['/privacy', 'Privacy Policy — Lumen Code', 'never leave your devices'],
