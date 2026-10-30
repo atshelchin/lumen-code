@@ -1,5 +1,7 @@
-// Everything the home page says, in English and Chinese. Numbers and claims come from the README,
-// the protocol (docs/PROTOCOL.md) and the measurements in docs/guide/04-performance.md.
+// Everything the home page says, in English and Chinese. Written for people who know the field:
+// every number states its conditions and comes from the protocol (docs/PROTOCOL.md, incl.
+// Appendix C), the measurements (docs/guide/04-performance.md) or the code; the limits come from
+// the protocol's security considerations (§13). Getting started stays three plain steps.
 import type { Lang } from './i18n';
 
 /** One price worldwide for the iPhone and Android apps, paid once; each store converts it. */
@@ -18,20 +20,33 @@ interface Plan {
 	action?: string;
 }
 
+interface Item {
+	title: string;
+	text: string;
+}
+
 export interface Landing {
-	nav: { how: string; speed: string; apps: string; pricing: string; faq: string };
-	hero: { eyebrow: string; lead: string; send: string; recv: string; note: string };
-	how: { title: string; flow: [string, string][]; steps: { title: string; text: string }[] };
-	speed: {
-		title: string;
+	nav: { start: string; how: string; speed: string; limits: string; pricing: string };
+	hero: {
+		eyebrow: string;
+		title: [string, string];
 		lead: string;
-		head: [string, string, string];
-		rows: [string, string, string][];
+		send: string;
+		recv: string;
 		note: string;
 	};
-	features: { title: string; items: { title: string; text: string }[] };
+	start: { title: string; steps: Item[] };
+	how: { title: string; flow: [string, string][]; items: Item[] };
+	speed: {
+		title: string;
+		head: [string, string, string, string];
+		rows: [string, string, string, string][];
+		note: string;
+		more: string;
+	};
+	limits: { title: string; lead: string; items: Item[] };
+	open: { title: string; items: Item[] };
 	apps: { title: string; lead: string; items: { name: string; req: string; text: string }[] };
-	open: { title: string; items: { title: string; text: string }[] };
 	pricing: { title: string; lead: string; web: Plan; build: Plan; store: Plan; note: string };
 	faq: { title: string; items: { q: string; a: string }[] };
 	cta: { title: string; text: string };
@@ -40,95 +55,148 @@ export interface Landing {
 }
 
 const en: Landing = {
-	nav: { how: 'How it works', speed: 'Speed', apps: 'Apps', pricing: 'Pricing', faq: 'FAQ' },
+	nav: {
+		start: 'Get started',
+		how: 'How it works',
+		speed: 'Performance',
+		limits: 'Limits',
+		pricing: 'Pricing'
+	},
 	hero: {
-		eyebrow: 'Open protocol · No network · Web, iPhone, Android, desktop',
-		lead: 'One screen plays the file as a colour code; a camera reads it back. No network, pairing or account.',
+		eyebrow: 'Open protocol 1.0 · MIT · Web, iPhone, Android, desktop',
+		title: ['Send files from', 'a screen to a camera'],
+		lead: 'The sender shows the file as a sequence of colour-coded frames; a phone or webcam films them and rebuilds the file. One-way: no network, no pairing, no return channel.',
 		send: 'Send a file',
 		recv: 'Receive',
 		note: `Free in the browser. iPhone and Android apps: ${PRICE}, coming soon.`
 	},
+	start: {
+		title: 'Get started',
+		steps: [
+			{
+				title: 'Send',
+				text: 'On the device with the file, open Send and choose a file or type text.'
+			},
+			{
+				title: 'Receive',
+				text: 'On the other device, open Receive and keep the whole code in the camera view.'
+			},
+			{ title: 'Save', text: 'At 100 % the file is checked and ready to open, save or share.' }
+		]
+	},
 	how: {
 		title: 'How it works',
 		flow: [
-			['holiday-photos.zip', 'your file'],
-			['Fountain code', 'new packets'],
-			['Colour frames', '12–60 a second'],
-			['Camera', 'any order'],
-			['holiday-photos.zip', 'checked']
+			['file', 'DEFLATE if smaller'],
+			['fountain code', 'blocks ≤ 16 384 symbols'],
+			['packets', 'CRC-16'],
+			['codewords', 'Reed–Solomon'],
+			['frames', '12–60 per second']
 		],
-		steps: [
-			{ title: 'Send', text: 'Choose a file or type text. The screen plays the code.' },
-			{ title: 'Point a camera', text: 'Open Receive on the other device and aim at the screen.' },
-			{ title: 'Save', text: 'When the file arrives, open, save or share it.' }
-		]
-	},
-	speed: {
-		title: 'More data per frame',
-		lead: 'Used like an animated QR code, with more data in every frame:',
-		head: ['', 'Animated QR (v25)', 'Lumen Code 1.0'],
-		rows: [
-			['Bits per cell', '1', '2 or 3'],
-			['Data per frame, 13″ laptop', '~1.2 KB', '~6.9 KB / ~10.3 KB'],
-			['A missed frame', 'wait for it to come round', 'no wait: every frame is new'],
-			['Glare on one corner', 'frame lost', 'read from the other three']
-		],
-		note: 'Fastest measured: 96 KB/s between two phones running the apps. The real rate depends on the camera.'
-	},
-	features: {
-		title: 'Made for real cameras',
 		items: [
 			{
-				title: 'Adaptive density',
-				text: 'Cell size follows the screen, so small phones read reliably.'
-			},
-			{ title: 'Fountain code', text: 'Missed or blurred frames only slow the transfer a little.' },
-			{
-				title: 'Three corners are enough',
-				text: 'A corner hidden by glare or a finger does not stop a frame.'
+				title: 'Frame',
+				text: 'A grid sized to the physical screen, 2 bits per cell (4 colours) or 3 (8 colours). Three finders and a corner mark: any three of the four corners locate it. Alignment markers follow lens distortion.'
 			},
 			{
-				title: 'Two engines, identical frames',
-				text: 'JavaScript and Rust/WebAssembly; switch without losing progress.'
+				title: 'Reed–Solomon',
+				text: 'Every codeword is RS over GF(2⁸) with 10–30 % parity (16 % by default). Codewords lie along a Hilbert curve, so a capture torn between two frames loses only a few of them.'
+			},
+			{
+				title: 'Fountain code',
+				text: 'Raptor-like, over GF(2). Any K + e distinct symbols of a block decode it; e averages 1.6 up to K = 1000 and 2.4 at K = 16 384. Missed frames and any order are fine; nothing is retransmitted.'
+			},
+			{
+				title: 'Four levels of checks',
+				text: 'The 70-bit frame header in four copies with CRC-16; Reed–Solomon per codeword; CRC-16 per packet; size and CRC-32 of the whole file. A file that fails is never delivered: the transfer restarts.'
 			}
 		]
 	},
-	apps: {
-		title: 'In the browser, or as an app',
-		lead: 'All of them send to each other.',
+	speed: {
+		title: 'Performance',
+		head: ['', 'Animated QR v25-L', 'Phone screen', '13″ laptop screen'],
+		rows: [
+			['Grid (cells)', '117 × 117', '83 × 147', '143 × 254'],
+			['Bits per cell', '1', '2', '2 / 3'],
+			['Payload per frame', '1.24 KB', '2.2 KB', '6.9 / 10.3 KB'],
+			['Raw rate at 12 fps', '15 KB/s', '27 KB/s', '82 / 124 KB/s']
+		],
+		note: 'The sender plays 12–60 fps. Best end-to-end result so far: 96 KB/s, Android app to iPhone app. What a receiver achieves depends on its camera; the receive screen shows the live rate and what limits it.',
+		more: 'Methodology and measurements'
+	},
+	limits: {
+		title: 'Limits',
+		lead: 'From the protocol’s security considerations (§13), and what to expect in practice:',
 		items: [
-			{ name: 'Web', req: 'A browser with a camera', text: 'Nothing to install.' },
-			{ name: 'iPhone', req: 'iOS 17 or later', text: 'Camera at up to 240 fps, 120 Hz playback.' },
 			{
-				name: 'Android',
-				req: 'Android 10 or later',
-				text: 'Camera at up to 60 fps with its own exposure control.'
+				title: 'Not confidential',
+				text: 'Frames are not encrypted. Anyone who can see the screen, or a recording of it, can read the file. Encrypt it first if that matters.'
 			},
 			{
-				name: 'Desktop',
-				req: 'macOS, Windows, Linux',
-				text: 'Send from a big screen, receive with a webcam.'
+				title: 'Not authenticated',
+				text: 'The CRCs catch accidental errors, not tampering. Sign the file if its origin matters.'
+			},
+			{
+				title: 'Tens of KB/s',
+				text: 'Good for documents, keys, configuration, photos. 1 MB takes about 20 s at 50 KB/s. The reference receivers accept up to 256 MiB.'
+			},
+			{
+				title: 'Line of sight',
+				text: 'The camera needs about 3.5 or more pixels per cell. Glare, steep angles and blur slow it down.'
+			},
+			{
+				title: 'Flashing',
+				text: 'The code changes up to 60 times a second; people sensitive to flashing light should not look at it.'
 			}
 		]
 	},
 	open: {
-		title: 'An open protocol, frozen at 1.0',
+		title: 'Open, frozen, tested',
 		items: [
-			{ title: 'Frozen', text: 'The 1.0 wire format will not change.' },
+			{
+				title: 'Frozen at 1.0',
+				text: 'The wire format will not change. The specification is in English and Chinese.'
+			},
 			{
 				title: 'Two implementations',
-				text: 'JavaScript and Rust pass the same conformance vectors.'
+				text: 'JavaScript and Rust pass the same conformance vectors and make identical decisions on 20 000 headers, 20 000 descriptors, 5 000 damaged DEFLATE streams and 2 000 fountain symbol sets.'
 			},
 			{
-				title: 'Add it to your app',
-				text: 'No package to install: point your coding agent at the repository.'
+				title: 'No package',
+				text: 'Take src/core for the web, the Rust crate, or its C ABI. A coding agent can follow the integration guide.'
 			},
-			{ title: 'Open source', text: 'Protocol, implementations and apps under the MIT License.' }
+			{ title: 'MIT License', text: 'The protocol, both implementations and all the apps.' }
+		]
+	},
+	apps: {
+		title: 'Apps',
+		lead: 'Every version speaks the same protocol and sends to every other.',
+		items: [
+			{
+				name: 'Web',
+				req: 'A browser with a camera',
+				text: 'JavaScript or Rust/WebAssembly engine; nothing to install.'
+			},
+			{
+				name: 'iPhone',
+				req: 'iOS 17 or later',
+				text: 'Camera up to 240 fps when the sender is fast; 120 Hz playback.'
+			},
+			{
+				name: 'Android',
+				req: 'Android 10 or later',
+				text: 'Camera up to 60 fps with the app’s own exposure control.'
+			},
+			{
+				name: 'Desktop',
+				req: 'macOS, Windows, Linux',
+				text: 'Send from a large screen, receive with a webcam.'
+			}
 		]
 	},
 	pricing: {
 		title: `Free in the browser. ${PRICE} for the apps.`,
-		lead: 'Same protocol, same files. The apps are faster.',
+		lead: 'The same protocol and the same files; the apps read the camera directly and are faster.',
 		web: {
 			name: 'Web',
 			price: 'Free',
@@ -159,106 +227,141 @@ const en: Landing = {
 		title: 'Questions',
 		items: [
 			{
-				q: 'Why pay for the app if the web version is free?',
-				a: 'You don’t have to. The apps read the camera directly, so they are faster and run cooler; buying one funds development.'
-			},
-			{
-				q: 'Does my file go through a server?',
-				a: 'No. It goes only from the screen to the camera.'
-			},
-			{
-				q: 'How large can a file be?',
-				a: 'Up to 256 MiB. At 50 KB/s, 1 MB takes about 20 seconds.'
+				q: 'Does the file go through a server?',
+				a: 'No. The page loads from this site; the file goes only from the screen to the camera. The site counts page visits (see the privacy policy); the apps send nothing.'
 			},
 			{
 				q: 'Does it work offline?',
 				a: 'The apps need no connection. The web version needs one only to load the page.'
 			},
 			{
-				q: 'Is the flashing safe?',
-				a: 'The code flashes up to 60 times a second. People sensitive to flashing light should not look at it.'
+				q: 'Why pay for an app?',
+				a: 'You don’t have to. The apps read the camera directly and are faster than the browser; buying one pays for development.'
 			},
 			{
-				q: 'Can I use it in my own app?',
-				a: 'Yes: the protocol is open and frozen, and the code is MIT-licensed. See the developer guides.'
+				q: 'Why not AirDrop or a cable?',
+				a: 'Use them when you can. This is for when you can’t: different makers, no shared network, an air-gapped or locked-down machine, a screen you can only look at.'
 			}
 		]
 	},
 	cta: {
 		title: 'Try it with two devices you already have.',
-		text: 'Send on one, receive on the other.'
+		text: 'Open Send on one and Receive on the other.'
 	},
 	soon: 'Coming soon',
 	license: 'Open source under the MIT License.'
 };
 
 const zh: Landing = {
-	nav: { how: '原理', speed: '速度', apps: '应用', pricing: '定价', faq: '常见问题' },
+	nav: { start: '上手', how: '原理', speed: '性能', limits: '局限', pricing: '定价' },
 	hero: {
-		eyebrow: '开放协议 · 无需网络 · 网页、iPhone、Android、桌面',
-		lead: '屏幕把文件播放成彩色码，相机拍下来还原。不需要网络、配对或账号。',
+		eyebrow: '开放协议 1.0 · MIT · 网页、iPhone、Android、桌面',
+		title: ['用屏幕和相机', '传文件'],
+		lead: '发送端把文件显示成一串彩色编码帧，手机或摄像头拍下来还原文件。单向传输：不需要网络和配对，也没有回传通道。',
 		send: '发送文件',
 		recv: '接收',
 		note: `网页版免费。iPhone 与 Android 应用 ${PRICE}，即将上架。`
 	},
+	start: {
+		title: '上手',
+		steps: [
+			{ title: '发送', text: '在有文件的设备上打开“发送”，选择文件或输入文字。' },
+			{ title: '接收', text: '在另一台设备上打开“接收”，让码完整出现在相机画面里。' },
+			{ title: '保存', text: '到 100 % 时文件已校验，可以打开、保存或分享。' }
+		]
+	},
 	how: {
 		title: '原理',
 		flow: [
-			['holiday-photos.zip', '你的文件'],
-			['喷泉码', '不断生成新包'],
-			['彩色帧', '每秒 12–60 帧'],
-			['相机', '顺序随意'],
-			['holiday-photos.zip', '校验无误']
+			['文件', '更小时用 DEFLATE'],
+			['喷泉码', '每块 ≤ 16 384 个符号'],
+			['数据包', 'CRC-16'],
+			['码字', 'Reed–Solomon'],
+			['帧', '每秒 12–60 帧']
 		],
-		steps: [
-			{ title: '发送', text: '选文件或输入文字，屏幕开始播放。' },
-			{ title: '对准', text: '另一台设备打开接收，相机对准屏幕。' },
-			{ title: '保存', text: '收完后打开、保存或分享。' }
+		items: [
+			{
+				title: '帧',
+				text: '网格按屏幕物理尺寸确定，每格 2 bit（4 色）或 3 bit（8 色）。三个定位图案加一个角标，看到任意三个角即可定位；对齐点阵跟随镜头畸变。'
+			},
+			{
+				title: 'Reed–Solomon',
+				text: '每个码字是 GF(2⁸) 上的 RS 码，校验占 10–30 %（默认 16 %）。码字沿 Hilbert 曲线排布，相机拍到两帧之间的撕裂画面时只损失少量码字。'
+			},
+			{
+				title: '喷泉码',
+				text: '类 Raptor 码，基于 GF(2)。一个块收到任意 K + e 个不同符号即可解出；K ≤ 1000 时 e 平均 1.6，K = 16 384 时平均 2.4。丢帧、乱序都不影响，不需要重传。'
+			},
+			{
+				title: '四层校验',
+				text: '70 位帧头四份副本加 CRC-16；每个码字 Reed–Solomon；每个包 CRC-16；整个文件校验长度和 CRC-32。校验不过的文件不会交付，传输重新开始。'
+			}
 		]
 	},
 	speed: {
-		title: '每帧装更多数据',
-		lead: '用法和动态二维码一样，每帧数据更多：',
-		head: ['', '动态二维码（v25）', 'Lumen Code 1.0'],
+		title: '性能',
+		head: ['', '动态二维码 v25-L', '手机屏幕', '13 英寸笔记本'],
 		rows: [
-			['每格比特数', '1', '2 或 3'],
-			['每帧数据，13 英寸笔记本', '约 1.2 KB', '约 6.9 KB / 10.3 KB'],
-			['漏掉一帧', '等它循环回来', '不用等：每帧都是新数据'],
-			['一个角反光', '整帧作废', '靠另外三个角读出']
+			['网格（格）', '117 × 117', '83 × 147', '143 × 254'],
+			['每格比特', '1', '2', '2 / 3'],
+			['每帧有效数据', '1.24 KB', '2.2 KB', '6.9 / 10.3 KB'],
+			['12 fps 原始速率', '15 KB/s', '27 KB/s', '82 / 124 KB/s']
 		],
-		note: '实测最快 96 KB/s（两台手机之间用应用）。实际速度取决于相机。'
+		note: '发送端 12–60 fps。目前端到端最好成绩：96 KB/s，Android 应用发送、iPhone 应用接收。接收端实际能到多少取决于相机，接收界面会实时显示速率和限速环节。',
+		more: '测量方法与数据'
 	},
-	features: {
-		title: '为实际拍摄条件设计',
+	limits: {
+		title: '局限',
+		lead: '来自协议的安全考虑（§13）和实际使用：',
 		items: [
-			{ title: '自适应密度', text: '格子大小随屏幕调整，小屏也能稳定识别。' },
-			{ title: '喷泉码', text: '漏帧、拍糊只会让传输稍慢一点。' },
-			{ title: '三个角就够', text: '一个角被反光或手指挡住也能解码。' },
-			{ title: '双引擎，帧逐位一致', text: 'JavaScript 与 Rust/WebAssembly，切换不丢进度。' }
-		]
-	},
-	apps: {
-		title: '浏览器里用，或者装应用',
-		lead: '各版本之间都能互传。',
-		items: [
-			{ name: '网页', req: '带相机的浏览器', text: '无需安装。' },
-			{ name: 'iPhone', req: 'iOS 17 及以上', text: '相机最高 240 帧，120 Hz 播放。' },
-			{ name: 'Android', req: 'Android 10 及以上', text: '相机最高 60 帧，自己控制曝光。' },
-			{ name: '桌面', req: 'macOS、Windows、Linux', text: '大屏发送，摄像头接收。' }
+			{
+				title: '不保密',
+				text: '帧没有加密。能看到屏幕（或录像）的人都能读出文件。需要保密时先加密再发送。'
+			},
+			{ title: '不认证', text: 'CRC 只能发现意外错误，防不了篡改。需要确认来源时对文件签名。' },
+			{
+				title: '每秒几十 KB',
+				text: '适合文档、密钥、配置、照片。按 50 KB/s 计算 1 MB 约 20 秒。参考接收端单个文件上限 256 MiB。'
+			},
+			{
+				title: '需要看得清',
+				text: '相机画面里每格需要约 3.5 像素以上。反光、斜拍和模糊都会降低速度。'
+			},
+			{ title: '会闪烁', text: '码每秒最多变化 60 次，对闪光敏感的人请勿注视。' }
 		]
 	},
 	open: {
-		title: '开放协议，1.0 已冻结',
+		title: '开放、冻结、可验证',
 		items: [
-			{ title: '已冻结', text: '1.0 的线格式不会再变。' },
-			{ title: '两个实现', text: 'JavaScript 与 Rust 通过同一套一致性向量。' },
-			{ title: '集成进你的应用', text: '不用装包：让编程 agent 读这个仓库。' },
-			{ title: '开源', text: '协议、实现和应用均为 MIT 许可证。' }
+			{ title: '1.0 已冻结', text: '线格式不会再变。规范有中英文两版。' },
+			{
+				title: '两个实现',
+				text: 'JavaScript 与 Rust 通过同一套一致性测试向量，并在 20 000 个帧头、20 000 个描述符、5 000 个损坏的 DEFLATE 流和 2 000 组喷泉符号上做出完全相同的判断。'
+			},
+			{
+				title: '不用装包',
+				text: '网页取 src/core，原生用 Rust crate 或它的 C ABI。编程 agent 可以照着接入指南完成集成。'
+			},
+			{ title: 'MIT 许可证', text: '协议、两个实现和所有应用。' }
+		]
+	},
+	apps: {
+		title: '应用',
+		lead: '各版本用同一套协议，可以互相收发。',
+		items: [
+			{
+				name: '网页',
+				req: '带相机的浏览器',
+				text: 'JavaScript 或 Rust/WebAssembly 引擎，无需安装。'
+			},
+			{ name: 'iPhone', req: 'iOS 17 及以上', text: '发送端够快时相机最高 240 帧；120 Hz 播放。' },
+			{ name: 'Android', req: 'Android 10 及以上', text: '相机最高 60 帧，由应用自己控制曝光。' },
+			{ name: '桌面', req: 'macOS、Windows、Linux', text: '大屏发送，摄像头接收。' }
 		]
 	},
 	pricing: {
 		title: `网页免费，应用 ${PRICE}`,
-		lead: '同一套协议，传同样的文件。应用更快。',
+		lead: '同一套协议，传同样的文件；应用直接读取相机，速度更快。',
 		web: {
 			name: '网页版',
 			price: '免费',
@@ -285,17 +388,18 @@ const zh: Landing = {
 		title: '常见问题',
 		items: [
 			{
-				q: '网页版免费，为什么买应用？',
-				a: '不买也行。应用直接读取相机，更快、发热更少；购买的钱用于后续开发。'
+				q: '文件会经过服务器吗？',
+				a: '不会。网页从本站加载，文件只从屏幕传到相机。本站统计页面访问（见隐私政策），应用不发送任何数据。'
 			},
-			{ q: '文件会经过服务器吗？', a: '不会，只从屏幕传到相机。' },
-			{ q: '文件最大多大？', a: '256 MiB。按 50 KB/s 计算，1 MB 约 20 秒。' },
 			{ q: '没网能用吗？', a: '应用完全不需要网络；网页版只在打开页面时需要。' },
-			{ q: '闪烁安全吗？', a: '码每秒最多闪烁 60 次，对闪光敏感的人请勿注视。' },
-			{ q: '能集成到我的应用吗？', a: '可以：协议开放且已冻结，代码为 MIT 许可证，见开发者指南。' }
+			{ q: '为什么买应用？', a: '不买也行。应用直接读取相机，比浏览器快；购买的钱用于后续开发。' },
+			{
+				q: '为什么不用隔空投送或数据线？',
+				a: '能用就用它们。这个用在用不了的时候：不同品牌的设备、没有共同网络、物理隔离或受管控的电脑、只能看的屏幕。'
+			}
 		]
 	},
-	cta: { title: '用手边的两台设备试试。', text: '一台发送，一台接收。' },
+	cta: { title: '用手边的两台设备试试。', text: '一台打开发送，一台打开接收。' },
 	soon: '即将上架',
 	license: '以 MIT 许可证开源。'
 };

@@ -62,12 +62,12 @@
 		g.putImageData(img, 0, 0);
 	});
 
-	// 24-pixel line icons, in the order of c.features.items and c.apps.items
+	// 24-pixel line icons, in the order of c.how.items: frame, Reed–Solomon, fountain code, checks
 	const featureIcons = [
 		'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5z',
+		'M12 3l7 3v5.2c0 4.4-3 8-7 9.8-4-1.8-7-5.4-7-9.8V6z',
 		'M12 3.5c3.2 4.2 5.2 6.9 5.2 9.6a5.2 5.2 0 0 1-10.4 0c0-2.7 2-5.4 5.2-9.6zM9.6 13.6a2.6 2.6 0 0 0 2.4 2.5',
-		'M4 9V4h5M15 4h5v5M4 15v5h5M15.5 15.5l5 5M20.5 15.5l-5 5',
-		'M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'
+		'M10 6h10M10 12h10M10 18h10M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17'
 	];
 	const appIcons = [
 		'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM3.5 12h17M12 3c2.4 2.7 3.6 5.7 3.6 9s-1.2 6.3-3.6 9c-2.4-2.7-3.6-5.7-3.6-9S9.6 5.7 12 3z',
@@ -98,11 +98,11 @@
 		<nav class="wrap nav" aria-label="Lumen Code">
 			<a class="brand" href={path(lang, '')}><Mark /><span>Lumen Code</span></a>
 			<div class="links">
+				<a href="#start">{c.nav.start}</a>
 				<a href="#how">{c.nav.how}</a>
 				<a href="#speed">{c.nav.speed}</a>
-				<a href="#apps">{c.nav.apps}</a>
+				<a href="#limits">{c.nav.limits}</a>
 				<a href="#pricing">{c.nav.pricing}</a>
-				<a href="#faq">{c.nav.faq}</a>
 				<a class="gh" href={REPO} title={t('ghTitle')} aria-label={t('ghTitle')} rel="external">
 					<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"
 						><path
@@ -121,7 +121,7 @@
 		<section class="hero wrap">
 			<div class="hero-text">
 				<p class="eyebrow">{c.hero.eyebrow}</p>
-				<h1><span>{t('heroA')}</span><br /><em>{t('heroB')}</em></h1>
+				<h1><span>{c.hero.title[0]}</span><br /><em>{c.hero.title[1]}</em></h1>
 				<p class="lead">{c.hero.lead}</p>
 				<div class="actions">
 					<a class="button primary" href={path(lang, 'send')}>{c.hero.send}</a>
@@ -146,19 +146,10 @@
 			</div>
 		</section>
 
-		<section id="how" class="section wrap">
-			<h2>{c.how.title}</h2>
-			<ol class="flow" aria-label={c.how.flow.map(([a]) => a).join(' → ')}>
-				{#each c.how.flow as [what, note], i (i)}
-					<li class:mid={i > 0 && i < c.how.flow.length - 1}>
-						<span class:mono={i === 0 || i === c.how.flow.length - 1}>{what}</span><small
-							>{note}</small
-						>
-					</li>
-				{/each}
-			</ol>
+		<section id="start" class="section wrap">
+			<h2>{c.start.title}</h2>
 			<ol class="steps">
-				{#each c.how.steps as step, i (step.title)}
+				{#each c.start.steps as step, i (step.title)}
 					<li>
 						<span class="step-number">{i + 1}</span>
 						<h3>{step.title}</h3>
@@ -168,31 +159,17 @@
 			</ol>
 		</section>
 
-		<section id="speed" class="section wrap">
-			<h2>{c.speed.title}</h2>
-			<p class="section-lead">{c.speed.lead}</p>
-			<div class="card table-card">
-				<table>
-					<thead>
-						<tr>
-							{#each c.speed.head as cell, i (i)}<th scope="col" class:ours={i === 2}>{cell}</th
-								>{/each}
-						</tr>
-					</thead>
-					<tbody>
-						{#each c.speed.rows as row (row[0])}
-							<tr><th scope="row">{row[0]}</th><td>{row[1]}</td><td class="ours">{row[2]}</td></tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-			<p class="caption">{c.speed.note}</p>
-		</section>
-
-		<section class="section wrap">
-			<h2>{c.features.title}</h2>
-			<ul class="grid three">
-				{#each c.features.items as item, i (item.title)}
+		<section id="how" class="section wrap">
+			<h2>{c.how.title}</h2>
+			<ol class="flow" aria-label={c.how.flow.map(([a]) => a).join(' → ')}>
+				{#each c.how.flow as [what, note], i (i)}
+					<li class:mid={i > 0 && i < c.how.flow.length - 1}>
+						<span>{what}</span><small>{note}</small>
+					</li>
+				{/each}
+			</ol>
+			<ul class="grid two">
+				{#each c.how.items as item, i (item.title)}
 					<li class="card">
 						<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"
 							><path d={featureIcons[i]} /></svg
@@ -204,23 +181,47 @@
 			</ul>
 		</section>
 
-		<section id="apps" class="section wrap">
-			<h2>{c.apps.title}</h2>
-			<p class="section-lead">{c.apps.lead}</p>
-			<ul class="grid four">
-				{#each c.apps.items as item, i (item.name)}
-					<li class="card">
-						<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={appIcons[i]} /></svg>
-						<h3>{item.name}</h3>
-						<p class="req">{item.req}</p>
+		<section id="speed" class="section wrap">
+			<h2>{c.speed.title}</h2>
+			<div class="card table-card">
+				<table>
+					<thead>
+						<tr>
+							{#each c.speed.head as cell, i (i)}<th scope="col" class:ours={i >= 2}>{cell}</th
+								>{/each}
+						</tr>
+					</thead>
+					<tbody>
+						{#each c.speed.rows as row (row[0])}
+							<tr>
+								<th scope="row">{row[0]}</th><td>{row[1]}</td><td class="ours">{row[2]}</td><td
+									class="ours">{row[3]}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<p class="caption">
+				{c.speed.note}
+				<a
+					href={`${REPO}/blob/main/docs/${zh ? 'guide/04-performance.zh-CN.md' : 'guide/04-performance.md'}`}
+					rel="external">{c.speed.more} →</a
+				>
+			</p>
+		</section>
+
+		<section id="limits" class="section wrap">
+			<h2>{c.limits.title}</h2>
+			<p class="section-lead">{c.limits.lead}</p>
+			<ul class="open limits">
+				{#each c.limits.items as item (item.title)}
+					<li>
+						<h3>{item.title}</h3>
 						<p>{item.text}</p>
 					</li>
 				{/each}
 			</ul>
-			<div class="actions">
-				<a class="button tonal" href={`${REPO}/releases`} rel="external">{t('releasesLink')}</a>
-				<a class="button tonal" href={buildGuide} rel="external">{c.pricing.build.action}</a>
-			</div>
 		</section>
 
 		<section class="section wrap">
@@ -246,6 +247,25 @@
 					rel="external">{t('vectorsLink')}</a
 				>
 				<a class="button tonal" href={REPO} rel="external">{t('ghLink')}</a>
+			</div>
+		</section>
+
+		<section id="apps" class="section wrap">
+			<h2>{c.apps.title}</h2>
+			<p class="section-lead">{c.apps.lead}</p>
+			<ul class="grid four">
+				{#each c.apps.items as item, i (item.name)}
+					<li class="card">
+						<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d={appIcons[i]} /></svg>
+						<h3>{item.name}</h3>
+						<p class="req">{item.req}</p>
+						<p>{item.text}</p>
+					</li>
+				{/each}
+			</ul>
+			<div class="actions">
+				<a class="button tonal" href={`${REPO}/releases`} rel="external">{t('releasesLink')}</a>
+				<a class="button tonal" href={buildGuide} rel="external">{c.pricing.build.action}</a>
 			</div>
 		</section>
 
@@ -367,9 +387,6 @@
 	}
 	a {
 		color: var(--accent);
-	}
-	.mono {
-		font-family: var(--mono);
 	}
 	.skip {
 		position: absolute;
@@ -783,8 +800,8 @@
 		padding: 0;
 		margin: 36px 0 0;
 	}
-	.grid.three {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+	.grid.two {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	.grid.four {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -813,13 +830,13 @@
 		stroke-linejoin: round;
 	}
 	@media (max-width: 960px) {
-		.grid.three,
+		.grid.two,
 		.grid.four {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 	}
 	@media (max-width: 560px) {
-		.grid.three,
+		.grid.two,
 		.grid.four {
 			grid-template-columns: minmax(0, 1fr);
 		}
@@ -838,6 +855,12 @@
 		padding-left: 20px;
 		border-left: 3px solid;
 		border-image: linear-gradient(var(--cyan), var(--pink)) 1;
+	}
+	.open.limits li {
+		border-image: linear-gradient(var(--amber), var(--pink)) 1;
+	}
+	.caption a {
+		white-space: nowrap;
 	}
 	.open p {
 		margin-top: 8px;

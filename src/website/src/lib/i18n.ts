@@ -23,8 +23,6 @@ export const DICT = {
 		ghTitle: 'GitHub 源码',
 		releasesLink: '下载桌面版',
 		privacy: '文件不经过任何服务器。',
-		heroA: '把文件变成',
-		heroB: '流动的光',
 		guideLink: '开发者指南',
 		home: '返回首页',
 		goSend: '要发送？去发送页',
@@ -142,8 +140,6 @@ export const DICT = {
 		titleRecv: 'Receive a file — Lumen Code',
 		descRecv:
 			'Scan the Lumen Code on another screen with a phone or computer camera to receive a file or text. No network, no pairing; everything stays in the browser.',
-		heroA: 'Turn files into',
-		heroB: 'moving light',
 		guideLink: 'Developer guides',
 		home: 'Back to home',
 		goSend: 'Sending instead? Go to Send',
