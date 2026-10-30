@@ -212,19 +212,19 @@ const en: Landing = {
 		items: [
 			{
 				q: 'Does the file go through a server?',
-				a: 'No. The page loads from this site; the file goes only from the screen to the camera. The site counts page visits (see the privacy policy); the apps send nothing.'
+				a: 'No. It goes only from the sending screen to the receiving camera. The website counts page visits (see the privacy policy); the apps never connect to the network.'
 			},
 			{
-				q: 'Does it work offline?',
-				a: 'The apps need no connection. The web version needs one only to load the page.'
+				q: 'Does it work without internet?',
+				a: 'The apps work fully offline. The web version needs a connection to open the page; the transfer itself does not use the network.'
 			},
 			{
-				q: 'Why pay for an app?',
-				a: 'You don’t have to. The apps read the camera directly and are faster than the browser; buying one pays for development.'
+				q: 'The web version is free. Do I need the app?',
+				a: 'No. The apps read the camera directly, so they are faster than the browser. Buying one pays for further development.'
 			},
 			{
 				q: 'Why not AirDrop or a cable?',
-				a: 'Use them when you can. This is for when you can’t: different makers, no shared network, an air-gapped or locked-down machine, a screen you can only look at.'
+				a: 'If you can use them, do. Lumen Code is for when you can’t: devices from different makers, no shared network, an isolated computer or one with USB disabled, or a screen you can only look at.'
 			}
 		]
 	},
@@ -360,14 +360,20 @@ const zh: Landing = {
 		title: '常见问题',
 		items: [
 			{
-				q: '文件会经过服务器吗？',
-				a: '不会。网页从本站加载，文件只从屏幕传到相机。本站统计页面访问（见隐私政策），应用不发送任何数据。'
+				q: '文件会上传到服务器吗？',
+				a: '不会。文件只从发送端屏幕传到接收端相机。网站只统计页面访问量（见隐私政策），应用完全不联网。'
 			},
-			{ q: '没网能用吗？', a: '应用完全不需要网络；网页版只在打开页面时需要。' },
-			{ q: '为什么买应用？', a: '不买也行。应用直接读取相机，比浏览器快；购买的钱用于后续开发。' },
 			{
-				q: '为什么不用隔空投送或数据线？',
-				a: '能用就用它们。这个用在用不了的时候：不同品牌的设备、没有共同网络、物理隔离或受管控的电脑、只能看的屏幕。'
+				q: '没有网络能用吗？',
+				a: '应用可以完全离线使用。网页版需要联网打开页面，传输本身不用网络。'
+			},
+			{
+				q: '网页版免费，还需要买应用吗？',
+				a: '不需要。应用直接读取相机画面，比网页版快。买应用是在支持后续开发。'
+			},
+			{
+				q: '有隔空投送或数据线，为什么还用它？',
+				a: '能用它们就用它们。Lumen Code 适合用不了的情况：两台设备品牌不同、没有共同网络、电脑被隔离或禁用了 USB，或者只能看到对方的屏幕。'
 			}
 		]
 	},
