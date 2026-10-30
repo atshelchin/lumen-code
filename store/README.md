@@ -1,5 +1,7 @@
 # 上架 App Store 与 Google Play
 
+可勾选的上线前检查清单：用浏览器打开 [`launch-checklist.html`](launch-checklist.html)。
+
 iPhone 和 Android 应用以 MONDAY LABS LTD 的名义上架，售价 US$2.99，一次买断。本文按顺序列出要做的事：账号和协议只能由你在网页上完成，标注了“仓库”的项由代码改动完成。审查清单的依据见 `docs/STATUS.md`。
 
 ## 0 两个商店都要的前提

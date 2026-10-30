@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>上架检查清单 · Lumen Code</title>
+<style>
+:root {
+	--bg: #0b0e14; --card: #131822; --line: #232a37; --text: #e8ecf3; --muted: #9aa4b5; --faint: #6b7487;
+	--accent: #22d8ff; --done: #2bdc74; --you: #ffd60a; --me: #b48cff; --warn: #ff9f43;
+	color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) {
+		--bg: #f6f7f9; --card: #ffffff; --line: #e3e6ec; --text: #161a22; --muted: #566072; --faint: #8a93a3;
+		--accent: #0a84a8; --done: #18924b; --you: #a87400; --me: #6a43c9; --warn: #c25a00;
+		color-scheme: light;
+	}
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 26px; margin: 0 0 6px; }
+h2 { font-size: 18px; margin: 34px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+h2 .count { font-size: 13px; font-weight: 500; color: var(--faint); }
+p { margin: 0 0 10px; color: var(--muted); }
+a { color: var(--accent); }
+code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; }
+.note { border: 1px solid var(--line); border-left: 3px solid var(--warn); background: var(--card); border-radius: 10px; padding: 12px 14px; margin: 16px 0; }
+.note p { margin: 0; color: var(--text); }
+.bar { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.progress { flex: 1; min-width: 140px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--done); transition: width .2s; }
+.legend span { margin-right: 10px; white-space: nowrap; }
+ul { list-style: none; margin: 0; padding: 0; }
+li { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; }
+label { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; padding: 12px 14px; cursor: pointer; align-items: start; }
+input[type=checkbox] { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--done); }
+.t { font-weight: 600; }
+.d { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.d code { background: var(--line); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.d pre code, pre { overflow-wrap: normal; }
+li:has(input:checked) .t { color: var(--faint); text-decoration: line-through; }
+.who { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid; }
+.who.you { color: var(--you); }
+.who.me { color: var(--me); }
+.who.done { color: var(--done); }
+pre { margin: 8px 0 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; white-space: pre; position: relative; }
+button.copy { float: right; font: 12px inherit; background: var(--line); color: var(--text); border: 0; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+footer { margin-top: 40px; color: var(--faint); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>上架检查清单</h1>
+<p>Lumen Code · iPhone 与 Android · US$2.99 一次买断 · 运营者 MONDAY LABS LTD。详细说明见 <a href="README.md">store/README.md</a>。勾选状态保存在本机浏览器里。</p>
+
+<div class="note"><p><b>今天能做到的是“提交审核”，不是“当天上架”。</b>苹果审核通常 1–3 天；谷歌新应用首次审核可能要几天；如果公司账号的 D-U-N-S 和身份验证还没完成，这一步本身就要几天。先做第 1 节，确认账号状态。</p></div>
+
+<div class="bar">
+	<div class="progress" aria-hidden="true"><i id="prog"></i></div>
+	<span id="progText">0 / 0</span>
+	<span class="legend"><span style="color:var(--you)">● 你</span><span style="color:var(--me)">● Claude 可做</span><span style="color:var(--done)">● 已完成</span></span>
+</div>
+
+<h2>1 账号与协议 <span class="count">两边都要，最容易卡住</span></h2>
+<ul>
+	<li><label><input type="checkbox" data-k="duns"><div><div class="t">MONDAY LABS LTD 的 D-U-N-S 编号</div><div class="d">苹果和谷歌的公司账号都要。没有的话先申请（免费，通常 1–2 周）。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="apple-acct"><div><div class="t">Apple Developer Program（公司身份）</div><div class="d">developer.apple.com/programs，US$99/年。工程里的团队是 <code>F9W689P9NE</code>，确认它就是公司账号。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="apple-paid"><div><div class="t">付费 App 协议、税务、银行</div><div class="d">App Store Connect → 商务：接受 Paid Apps Agreement，填税表（非美国公司一般是 W-8BEN-E）和银行账户。没完成就不能卖付费应用。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="apple-dsa"><div><div class="t">欧盟交易商身份（DSA）</div><div class="d">App Store Connect 里声明，公开公司地址、电话、邮箱；不声明就不能在欧盟上架。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-acct"><div><div class="t">Google Play 开发者账号（组织）</div><div class="d">play.google.com/console，US$25 一次性，选“组织”并完成身份验证。组织账号不需要“12 人测试 14 天”。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-pay"><div><div class="t">Google 付款资料（商家）</div><div class="d">设置 → 付款资料，填公司银行和税务信息。付费应用必须有。</div></div><span class="who you">你</span></label></li>
+</ul>
+
+<h2>2 素材 <span class="count">文字已备好，图片待做</span></h2>
+<ul>
+	<li><label><input type="checkbox" data-k="texts" checked><div><div class="t">商店文字（中英文）</div><div class="d">名称、副标题、关键词、简短说明、完整说明，字数已核对：<a href="app-store/listing.md">app-store/listing.md</a>、<a href="google-play/listing.md">google-play/listing.md</a>、<a href="description-zh.txt">description-zh.txt</a> / <a href="description-en.txt">description-en.txt</a>。</div></div><span class="who done">已完成</span></label></li>
+	<li><label><input type="checkbox" data-k="compliance" checked><div><div class="t">隐私与合规问卷答案</div><div class="d"><a href="privacy-and-compliance.md">privacy-and-compliance.md</a>：App 隐私“不收集数据”、Data safety“不收集不分享”、分级、出口合规。</div></div><span class="who done">已完成</span></label></li>
+	<li><label><input type="checkbox" data-k="policy" checked><div><div class="t">隐私政策网址可访问</div><div class="d"><a href="https://lumencode.link/privacy">lumencode.link/privacy</a>（已上线，返回 200）。</div></div><span class="who done">已完成</span></label></li>
+	<li><label><input type="checkbox" data-k="shots-ios"><div><div class="t">iPhone 截图：6.9 英寸 1320×2868，中英文各 3–6 张</div><div class="d">首页、播放中的码、设置、接收进度、收到文字的阅读视图。可用 iPhone 17 Pro Max 模拟器加调试脚本生成。</div></div><span class="who me">Claude 可做</span></label></li>
+	<li><label><input type="checkbox" data-k="shots-gp"><div><div class="t">Android 手机截图：每种语言至少 2 张</div><div class="d">可在 Galaxy S22 上用调试脚本截取。</div></div><span class="who me">Claude 可做</span></label></li>
+	<li><label><input type="checkbox" data-k="icon512"><div><div class="t">Google Play 图标 512×512、宣传图 1024×500</div><div class="d">图标：<code>python3 src/tools/icon.py 512 store/google-play/icon-512.png</code>；宣传图需另做。</div></div><span class="who me">Claude 可做</span></label></li>
+	<li><label><input type="checkbox" data-k="video"><div><div class="t">演示视频，并把链接填进审核说明</div><div class="d">一台设备播放、一台手机接收、打开文件，30–60 秒，放在能直接打开的地址。然后替换 <a href="review-notes.md">review-notes.md</a> 里的 <code>&lt;VIDEO LINK&gt;</code>。</div></div><span class="who you">你</span></label></li>
+</ul>
+
+<h2>3 构建 <span class="count">代码侧已就绪</span></h2>
+<ul>
+	<li><label><input type="checkbox" data-k="ready" checked><div><div class="t">上架前的代码问题已修</div><div class="d">iOS 隐私清单、只上 iPhone、首次播放前的光敏确认、Android 发布签名配置、应用标识 <code>ltd.mondaylabs.lumencode</code>。</div></div><span class="who done">已完成</span></label></li>
+	<li><label><input type="checkbox" data-k="key"><div><div class="t">生成 Android 上传密钥（只做一次，离线备份）</div><div class="d">再建 <code>src/android/keystore.properties</code>（git 已忽略）：<code>storeFile</code>、<code>storePassword</code>、<code>keyAlias=upload</code>、<code>keyPassword</code>。
+		<pre><button class="copy">复制</button>keytool -genkeypair -keystore lumencode-upload.jks -alias upload \
+  -keyalg RSA -keysize 4096 -validity 10000</pre></div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="aab"><div><div class="t">打 Android 发布包（AAB）</div><div class="d">产物：<code>src/android/app/build/outputs/bundle/release/app-release.aab</code>。工作区要干净，否则版本号带 +dev。
+		<pre><button class="copy">复制</button>cd src/android && ./gradlew :app:bundleRelease</pre></div></div><span class="who me">Claude 可做</span></label></li>
+	<li><label><input type="checkbox" data-k="ipa"><div><div class="t">打 iOS 包并上传到 App Store Connect</div><div class="d">Xcode 里选 Any iOS Device → Product → Archive → Distribute App → App Store Connect → Upload。Xcode 需登录公司账号。
+		<pre><button class="copy">复制</button>cd src/ios && scripts/build-core.sh && xcodegen generate && open Lumen.xcodeproj</pre></div></div><span class="who you">你</span></label></li>
+</ul>
+
+<h2>4 App Store Connect</h2>
+<ul>
+	<li><label><input type="checkbox" data-k="as-new"><div><div class="t">新建 App</div><div class="d">我的 App → “+”：iOS，名称 <b>Lumen Code</b>，Bundle ID <code>ltd.mondaylabs.lumencode</code>，SKU <code>lumencode-ios</code>。名称被占用时用 “Lumen Code: Screen to Camera”。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="as-price"><div><div class="t">价格与销售范围</div><div class="d">基准美国 US$2.99；中国大陆没有 ICP 备案就先不选；确认 Mac 和 Vision Pro 未勾选。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="as-privacy"><div><div class="t">App 隐私、年龄分级</div><div class="d">“不收集数据”；隐私政策 <code>https://lumencode.link/privacy</code>；分级问题全选“无”（4+）。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="as-listing"><div><div class="t">填商店页、上传截图</div><div class="d">中英文两套，粘贴 listing.md 和 description 文件；分类：工具。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="as-tf"><div><div class="t">TestFlight 真机收发一次</div><div class="d">构建处理完（十几分钟到一小时）后装到自己手机，实际传一个文件。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="as-submit"><div><div class="t">审核说明 → 提交审核</div><div class="d">粘贴 review-notes.md（含视频链接），选构建版本，提交。</div></div><span class="who you">你</span></label></li>
+</ul>
+
+<h2>5 Google Play Console</h2>
+<ul>
+	<li><label><input type="checkbox" data-k="gp-new"><div><div class="t">创建应用：选“付费”</div><div class="d">名称 <b>Lumen Code</b>，类型“应用”，<b>付费</b>。免费应用以后不能改成付费。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-content"><div><div class="t">应用内容（政策 → 应用内容）</div><div class="d">隐私政策网址；应用访问权限粘贴 review-notes.md；无广告；IARC 分级全选否；目标受众 13+；Data safety 不收集不分享。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-listing"><div><div class="t">商店页</div><div class="d">中英文文字、512 图标、1024×500 宣传图、手机截图；分类：工具；邮箱 hello@mondaylabs.ltd。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-price"><div><div class="t">价格 US$2.99，选国家和地区</div><div class="d">获利 → 应用价格；其他国家用谷歌换算的价格。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-internal"><div><div class="t">内部测试：上传 AAB，接受 Play 应用签名</div><div class="d">测试和发布 → 内部测试 → 新建版本。从 Play 安装后实际收发一次。</div></div><span class="who you">你</span></label></li>
+	<li><label><input type="checkbox" data-k="gp-prod"><div><div class="t">正式版 → 发送审核</div><div class="d">从内部测试推广版本，写版本说明，提交。</div></div><span class="who you">你</span></label></li>
+</ul>
+
+<h2>6 通过以后</h2>
+<ul>
+	<li><label><input type="checkbox" data-k="stores-links"><div><div class="t">网站填上商店链接</div><div class="d"><code>src/website/src/lib/landing.ts</code> 的 <code>STORES</code>，首页的“即将上架”会变成商店按钮。</div></div><span class="who me">Claude 可做</span></label></li>
+	<li><label><input type="checkbox" data-k="tag"><div><div class="t">给发布的提交打标签</div><div class="d"><code>git tag ios-1.0.0</code>、<code>git tag android-1.0.0</code>，商店版本可对应到源码。</div></div><span class="who me">Claude 可做</span></label></li>
+	<li><label><input type="checkbox" data-k="sha"><div><div class="t">公布 Android 签名证书 SHA-256</div><div class="d">Play Console → 应用完整性里复制，写进 README，方便核对安装包。</div></div><span class="who you">你</span></label></li>
+</ul>
+
+<footer>版本 1.0.0（iOS build 1，Android versionCode 1）。每次重新上传都要把 iOS 的 <code>CURRENT_PROJECT_VERSION</code> 和 Android 的 <code>versionCode</code> 加 1。</footer>
+</main>
+<script>
+(() => {
+	const KEY = 'lumen.launch.checklist';
+	let saved = {};
+	try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+	const boxes = [...document.querySelectorAll('input[type=checkbox][data-k]')];
+	const update = () => {
+		const done = boxes.filter((b) => b.checked).length;
+		document.getElementById('prog').style.width = (100 * done / boxes.length) + '%';
+		document.getElementById('progText').textContent = done + ' / ' + boxes.length;
+	};
+	for (const b of boxes) {
+		if (b.dataset.k in saved) b.checked = saved[b.dataset.k];
+		b.addEventListener('change', () => {
+			saved[b.dataset.k] = b.checked;
+			try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch {}
+			update();
+		});
+	}
+	for (const btn of document.querySelectorAll('button.copy')) {
+		btn.addEventListener('click', (e) => {
+			e.preventDefault();
+			const text = btn.parentElement.textContent.replace(btn.textContent, '').trim();
+			navigator.clipboard?.writeText(text).then(() => { btn.textContent = '已复制'; setTimeout(() => (btn.textContent = '复制'), 1200); });
+		});
+	}
+	update();
+})();
+</script>
+</body>
+</html>
