@@ -170,27 +170,27 @@ const en: Landing = {
 	},
 	apps: {
 		title: 'Apps',
-		lead: 'Every version speaks the same protocol and sends to every other.',
+		lead: 'The web version and every app can send to and receive from each other.',
 		items: [
 			{
 				name: 'Web',
-				req: 'A browser with a camera',
-				text: 'JavaScript or Rust/WebAssembly engine; nothing to install.'
+				req: 'Any browser with a camera',
+				text: 'Open the page and use it; nothing to install. JavaScript or Rust/WebAssembly engine.'
 			},
 			{
 				name: 'iPhone',
 				req: 'iOS 17 or later',
-				text: 'Camera up to 240 fps when the sender is fast; 120 Hz playback.'
+				text: 'Uses the camera directly, at up to 240 frames a second, and plays codes at 120 Hz.'
 			},
 			{
 				name: 'Android',
 				req: 'Android 10 or later',
-				text: 'Camera up to 60 fps with the app’s own exposure control.'
+				text: 'Uses the camera directly, at up to 60 frames a second, with its own exposure control to avoid washed-out colours and blur.'
 			},
 			{
 				name: 'Desktop',
 				req: 'macOS, Windows, Linux',
-				text: 'Send from a large screen, receive with a webcam.'
+				text: 'Send from a computer screen, or receive with a webcam.'
 			}
 		]
 	},
@@ -331,16 +331,24 @@ const zh: Landing = {
 	},
 	apps: {
 		title: '应用',
-		lead: '各版本用同一套协议，可以互相收发。',
+		lead: '网页版和各个应用之间都能互相收发。',
 		items: [
 			{
 				name: '网页',
-				req: '带相机的浏览器',
-				text: 'JavaScript 或 Rust/WebAssembly 引擎，无需安装。'
+				req: '任何带相机的浏览器',
+				text: '打开网页就能用，不用安装；可选 JavaScript 或 Rust/WebAssembly 引擎。'
 			},
-			{ name: 'iPhone', req: 'iOS 17 及以上', text: '发送端够快时相机最高 240 帧；120 Hz 播放。' },
-			{ name: 'Android', req: 'Android 10 及以上', text: '相机最高 60 帧，由应用自己控制曝光。' },
-			{ name: '桌面', req: 'macOS、Windows、Linux', text: '大屏发送，摄像头接收。' }
+			{
+				name: 'iPhone',
+				req: 'iOS 17 及以上',
+				text: '直接调用相机，最高每秒 240 帧；以 120 Hz 播放码。'
+			},
+			{
+				name: 'Android',
+				req: 'Android 10 及以上',
+				text: '直接调用相机，最高每秒 60 帧；曝光由应用控制，减少过曝和拖影。'
+			},
+			{ name: '桌面', req: 'macOS、Windows、Linux', text: '用电脑屏幕发送，或用摄像头接收。' }
 		]
 	},
 	pricing: {
