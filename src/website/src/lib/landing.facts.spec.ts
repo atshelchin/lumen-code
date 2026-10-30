@@ -19,6 +19,7 @@ const coreApp = read('src/app/core/src/app/mod.rs');
 const coreView = read('src/app/core/src/app/view.rs');
 const sendPage = read('src/website/src/routes/[[lang=lang]]/send/+page.svelte');
 const webReceiver = read('src/website/src/lib/recv/receiver.svelte.ts');
+const androidCamera = read('src/android/app/src/main/java/com/shelchin/lumen/platform/Camera.kt');
 const num = (re: RegExp, text: string) => Number(re.exec(text)?.[1]);
 
 /** Payload bytes per frame of the reference sender for a grid (default ECC). */
@@ -93,6 +94,31 @@ describe('settings the apps offer', () => {
 		expect(page('en')).toContain(`${min}–${max} fps (${dflt} by default)`);
 		expect(page('zh')).toContain(`每秒 ${min}–${max} 帧`);
 		expect(page('zh')).toContain(`${min}–${max} fps（默认 ${dflt}）`);
+	});
+
+	it('phone cameras: the fastest capture a sender can ask for', () => {
+		const maxFps = num(/pub const MAX_FPS: u32 = (\d+)/, coreApp);
+		// the core's capture bands: (camera fps, sender fps from which it is chosen, …)
+		const bands = [
+			...(/const BANDS[^=]*= \[([^;]*)\];/.exec(coreApp)?.[1] ?? '').matchAll(/\((\d+), ([\d.]+),/g)
+		].map((m) => [Number(m[1]), Number(m[2])]);
+		expect(bands.length).toBeGreaterThan(1);
+		// faster bands exist for faster senders, but no Lumen Code sender plays above MAX_FPS
+		const iphone = Math.max(...bands.filter(([, from]) => from <= maxFps).map(([fps]) => fps));
+		const android = num(/maxFps\(\): Int = if \(rangeFor\((\d+)\)/, androidCamera);
+		const [en, zh] = [LANDING.en.apps.items, LANDING.zh.apps.items];
+		expect(en[1].text).toContain(`up to ${iphone} frames a second`);
+		expect(en[2].text).toContain(`up to ${android} frames a second`);
+		expect(zh[1].text).toContain(`最高每秒 ${iphone} 帧`);
+		expect(zh[2].text).toContain(`最高每秒 ${android} 帧`);
+		expect(read('README.md')).toContain(
+			`up to ${iphone} fps on iPhone and ${android} fps on Android`
+		);
+		expect(read('README.zh-CN.md')).toContain(
+			`iPhone 最高 ${iphone} 帧，Android 最高 ${android} 帧`
+		);
+		// the screen refresh rate is not a code rate: codes change at most MAX_FPS times a second
+		for (const lang of LANGS) expect(page(lang)).not.toMatch(/\bHz\b/);
 	});
 
 	it('camera: the cell sizes at which the receivers stop and become steady', () => {

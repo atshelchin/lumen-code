@@ -42,7 +42,7 @@ bun run build          # prerendered pages and a Cloudflare Worker in .svelte-ki
 
 ## Native apps (iOS, Android, desktop)
 
-The native apps do the same transfer on one shared Rust core ([`src/app`](src/app/README.md): app logic, scan pipeline and the protocol crate). Each platform shell only draws the UI and calls the platform. The apps look and behave like the web pages, and add what native code allows: camera planes read in place, 60–240 fps capture where the camera allows it, the app's own exposure control on Android, 120 Hz playback, haptics, screen brightness, and less work when the phone gets hot.
+The native apps do the same transfer on one shared Rust core ([`src/app`](src/app/README.md): app logic, scan pipeline and the protocol crate). Each platform shell only draws the UI and calls the platform. The apps look and behave like the web pages, and add what native code allows: camera planes read in place, capture at up to 120 fps on iPhone and 60 fps on Android, following the sender's rate, the app's own exposure control on Android, frame timing locked to 120 Hz screens, haptics, screen brightness, and less work when the phone gets hot.
 
 | App | Shell | Build and run | Guide |
 |---|---|---|---|

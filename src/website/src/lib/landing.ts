@@ -126,7 +126,7 @@ const en: Landing = {
 			['Payload per frame', '1.24 KB', '2.2 KB', '6.9 / 10.3 KB'],
 			['Raw rate at 12 fps', '15 KB/s', '27 KB/s', '82 / 124 KB/s']
 		],
-		note: 'The sender plays 4–60 fps (12 by default). Best end-to-end result so far, measured on real phones: 96 KB/s, Android app to iPhone app. What a receiver achieves depends on its camera; the receive screen shows the live rate and what limits it.',
+		note: 'The sender plays 4–60 fps (12 by default). Measured end to end on real phones, Android app sending to iPhone app: 96 KB/s. What a receiver achieves depends on its camera; the receive screen shows the live rate and what limits it.',
 		more: 'Methodology and measurements'
 	},
 	limits: {
@@ -185,7 +185,7 @@ const en: Landing = {
 			{
 				name: 'iPhone',
 				req: 'iOS 17 or later',
-				text: 'Uses the camera directly, at up to 240 frames a second, so it usually receives faster than the browser. Plays codes at 120 Hz.'
+				text: 'Uses the camera directly, at up to 120 frames a second, so it usually receives faster than the browser.'
 			},
 			{
 				name: 'Android',
@@ -304,7 +304,7 @@ const zh: Landing = {
 			['每帧有效数据', '1.24 KB', '2.2 KB', '6.9 / 10.3 KB'],
 			['12 fps 原始速率', '15 KB/s', '27 KB/s', '82 / 124 KB/s']
 		],
-		note: '发送端 4–60 fps（默认 12）。目前真机端到端最好成绩：96 KB/s，Android 应用发送、iPhone 应用接收。接收端实际能到多少取决于相机，接收界面会实时显示速率和限速环节。',
+		note: '发送端 4–60 fps（默认 12）。真机端到端实测：Android 应用发送、iPhone 应用接收，96 KB/s。接收端实际能到多少取决于相机，接收界面会实时显示速率和限速环节。',
 		more: '测量方法与数据'
 	},
 	limits: {
@@ -354,7 +354,7 @@ const zh: Landing = {
 			{
 				name: 'iPhone',
 				req: 'iOS 17 及以上',
-				text: '直接调用相机，最高每秒 240 帧，接收通常比网页版快；以 120 Hz 播放码。'
+				text: '直接调用相机，最高每秒 120 帧，接收通常比网页版快。'
 			},
 			{
 				name: 'Android',
