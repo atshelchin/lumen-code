@@ -7,7 +7,7 @@ GETTING STARTED
 
 HOW IT WORKS
 - Frames: a grid sized to the physical screen, 2 bits per cell (4 colours) or 3 (8 colours). Any three of the four corners locate a frame.
-- Error correction: Reed–Solomon on every codeword (10–30 % parity), CRC-16 on every packet, size and CRC-32 on the whole file. A file that fails the check is never delivered.
+- Error correction: Reed–Solomon on every codeword (10, 16 or 22 % parity), CRC-16 on every packet, size and CRC-32 on the whole file. A file that fails the check is never delivered.
 - Fountain code: missed or blurred frames and any order are fine. A block decodes from slightly more symbols than it holds (on average 1.6 extra for blocks of up to 1000 symbols).
 
 PERFORMANCE

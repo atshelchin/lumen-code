@@ -91,16 +91,16 @@ const en: Landing = {
 			['fountain code', 'blocks ≤ 16 384 symbols'],
 			['packets', 'CRC-16'],
 			['codewords', 'Reed–Solomon'],
-			['frames', '12–60 per second']
+			['frames', '4–60 per second']
 		],
 		items: [
 			{
 				title: 'Frame',
-				text: 'A grid sized to the physical screen, 2 bits per cell (4 colours) or 3 (8 colours). Three finders and a corner mark: any three of the four corners locate it. Alignment markers follow lens distortion.'
+				text: 'Cell size follows the screen’s physical size (estimated from CSS pixels on the web); 2 bits per cell (4 colours) or 3 (8 colours). Three finders and a corner mark: any three of the four corners locate it. Alignment markers follow lens distortion.'
 			},
 			{
 				title: 'Reed–Solomon',
-				text: 'Every codeword is RS over GF(2⁸) with 10–30 % parity (16 % by default). Codewords lie along a Hilbert curve, so a capture torn between two frames loses only a few of them.'
+				text: 'Every codeword is RS over GF(2⁸) with 10, 16 or 22 % parity (16 % by default). Codewords lie along a Hilbert curve, so a capture torn between two frames loses only a few of them.'
 			},
 			{
 				title: 'Fountain code',
@@ -114,14 +114,14 @@ const en: Landing = {
 	},
 	speed: {
 		title: 'Performance',
-		head: ['', 'Animated QR v25-L', 'Phone screen', '13″ laptop screen'],
+		head: ['', 'Animated QR v25-L', 'Phone screen (example)', '13″ laptop (example)'],
 		rows: [
 			['Grid (cells)', '117 × 117', '83 × 147', '143 × 254'],
 			['Bits per cell', '1', '2', '2 / 3'],
 			['Payload per frame', '1.24 KB', '2.2 KB', '6.9 / 10.3 KB'],
 			['Raw rate at 12 fps', '15 KB/s', '27 KB/s', '82 / 124 KB/s']
 		],
-		note: 'The sender plays 12–60 fps. Best end-to-end result so far: 96 KB/s, Android app to iPhone app. What a receiver achieves depends on its camera; the receive screen shows the live rate and what limits it.',
+		note: 'The sender plays 4–60 fps (12 by default). Best end-to-end result so far, measured on real phones: 96 KB/s, Android app to iPhone app. What a receiver achieves depends on its camera; the receive screen shows the live rate and what limits it.',
 		more: 'Methodology and measurements'
 	},
 	limits: {
@@ -142,7 +142,7 @@ const en: Landing = {
 			},
 			{
 				title: 'Line of sight',
-				text: 'The camera needs about 3.5 or more pixels per cell. Glare, steep angles and blur slow it down.'
+				text: 'The camera needs at least 3.4 pixels per cell, 4.5 or more to be steady. Glare, steep angles and blur slow it down.'
 			},
 			{
 				title: 'Flashing',
@@ -261,16 +261,16 @@ const zh: Landing = {
 			['喷泉码', '每块 ≤ 16 384 个符号'],
 			['数据包', 'CRC-16'],
 			['码字', 'Reed–Solomon'],
-			['帧', '每秒 12–60 帧']
+			['帧', '每秒 4–60 帧']
 		],
 		items: [
 			{
 				title: '帧',
-				text: '网格按屏幕物理尺寸确定，每格 2 bit（4 色）或 3 bit（8 色）。三个定位图案加一个角标，看到任意三个角即可定位；对齐点阵跟随镜头畸变。'
+				text: '格子大小按屏幕物理尺寸确定（网页版按 CSS 像素估算），每格 2 bit（4 色）或 3 bit（8 色）。三个定位图案加一个角标，看到任意三个角即可定位；对齐点阵跟随镜头畸变。'
 			},
 			{
 				title: 'Reed–Solomon',
-				text: '每个码字是 GF(2⁸) 上的 RS 码，校验占 10–30 %（默认 16 %）。码字沿 Hilbert 曲线排布，相机拍到两帧之间的撕裂画面时只损失少量码字。'
+				text: '每个码字是 GF(2⁸) 上的 RS 码，校验占 10 %、16 % 或 22 %（默认 16 %）。码字沿 Hilbert 曲线排布，相机拍到两帧之间的撕裂画面时只损失少量码字。'
 			},
 			{
 				title: '喷泉码',
@@ -284,14 +284,14 @@ const zh: Landing = {
 	},
 	speed: {
 		title: '性能',
-		head: ['', '动态二维码 v25-L', '手机屏幕', '13 英寸笔记本'],
+		head: ['', '动态二维码 v25-L', '手机屏幕（示例）', '13 英寸笔记本（示例）'],
 		rows: [
 			['网格（格）', '117 × 117', '83 × 147', '143 × 254'],
 			['每格比特', '1', '2', '2 / 3'],
 			['每帧有效数据', '1.24 KB', '2.2 KB', '6.9 / 10.3 KB'],
 			['12 fps 原始速率', '15 KB/s', '27 KB/s', '82 / 124 KB/s']
 		],
-		note: '发送端 12–60 fps。目前端到端最好成绩：96 KB/s，Android 应用发送、iPhone 应用接收。接收端实际能到多少取决于相机，接收界面会实时显示速率和限速环节。',
+		note: '发送端 4–60 fps（默认 12）。目前真机端到端最好成绩：96 KB/s，Android 应用发送、iPhone 应用接收。接收端实际能到多少取决于相机，接收界面会实时显示速率和限速环节。',
 		more: '测量方法与数据'
 	},
 	limits: {
@@ -309,7 +309,7 @@ const zh: Landing = {
 			},
 			{
 				title: '需要看得清',
-				text: '相机画面里每格需要约 3.5 像素以上。反光、斜拍和模糊都会降低速度。'
+				text: '相机画面里每格至少 3.4 像素，4.5 以上才稳定。反光、斜拍和模糊都会降低速度。'
 			},
 			{ title: '会闪烁', text: '码每秒最多变化 60 次，对闪光敏感的人请勿注视。' }
 		]
