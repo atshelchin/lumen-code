@@ -273,27 +273,27 @@
 			<h2>{c.pricing.title}</h2>
 			<p class="section-lead">{c.pricing.lead}</p>
 			<div class="plans">
-				{#each [c.pricing.web, c.pricing.build, c.pricing.store] as plan, i (plan.name)}
-					<div class="card plan" class:featured={i === 2}>
-						<h3>{plan.name}</h3>
-						<p class="price">{plan.price} <small>{plan.per}</small></p>
-						<ul>
-							{#each plan.points as point (point)}<li>{point}</li>{/each}
-						</ul>
-						{#if i === 0}
-							<a class="button primary" href={path(lang, 'send')}>{plan.action}</a>
-						{:else if i === 1}
-							<a class="button tonal" href={buildGuide} rel="external">{plan.action}</a>
+				<div class="card plan">
+					<h3>{c.pricing.build.name}</h3>
+					<p class="price">{c.pricing.build.price} <small>{c.pricing.build.per}</small></p>
+					<ul>
+						{#each c.pricing.build.points as point (point)}<li>{point}</li>{/each}
+					</ul>
+					<a class="button tonal" href={buildGuide} rel="external">{c.pricing.build.action}</a>
+				</div>
+				<div class="card plan featured">
+					<h3>{c.pricing.store.name}</h3>
+					<p class="price">{c.pricing.store.price} <small>{c.pricing.store.per}</small></p>
+					<div class="stores">
+						{#if stores.some((s) => s.url)}
+							{#each stores as s (s.name)}
+								{#if s.url}<a class="store" href={s.url} rel="external">{s.name}</a>{/if}
+							{/each}
 						{:else}
-							<div class="stores">
-								{#each stores as s (s.name)}
-									{#if s.url}<a class="store" href={s.url} rel="external">{s.name}</a>
-									{:else}<span class="store soon">{s.name} · {c.soon}</span>{/if}
-								{/each}
-							</div>
+							<span class="store soon">{c.soon}</span>
 						{/if}
 					</div>
-				{/each}
+				</div>
 			</div>
 			<p class="caption">{c.pricing.note}</p>
 		</section>
@@ -876,7 +876,7 @@
 	/* pricing */
 	.plans {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 16px;
 		margin-top: 36px;
 	}

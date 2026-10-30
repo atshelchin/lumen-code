@@ -47,7 +47,7 @@ export interface Landing {
 	limits: { title: string; lead: string; items: Item[] };
 	open: { title: string; items: Item[] };
 	apps: { title: string; lead: string; items: { name: string; req: string; text: string }[] };
-	pricing: { title: string; lead: string; web: Plan; build: Plan; store: Plan; note: string };
+	pricing: { title: string; lead: string; build: Plan; store: Plan; note: string };
 	faq: { title: string; items: { q: string; a: string }[] };
 	cta: { title: string; text: string };
 	soon: string;
@@ -195,33 +195,17 @@ const en: Landing = {
 		]
 	},
 	pricing: {
-		title: `Free in the browser. ${PRICE} for the apps.`,
-		lead: 'The same protocol and the same files; the apps read the camera directly and are faster.',
-		web: {
-			name: 'Web',
-			price: 'Free',
-			per: 'forever',
-			points: ['Any browser with a camera', 'No install, no account'],
-			action: 'Open the web app'
-		},
+		title: 'Pricing',
+		lead: 'The web version is free. The store app and the one you build yourself are the same app; buying it saves the build and supports Lumen Code’s maintenance.',
 		build: {
 			name: 'Build it yourself',
 			price: 'Free',
 			per: 'forever',
-			points: ['Full source, MIT License', 'Desktop builds on GitHub Releases'],
+			points: ['Needs Android Studio, or Xcode on a Mac'],
 			action: 'How to build'
 		},
-		store: {
-			name: 'App Store and Google Play',
-			price: PRICE,
-			per: 'once',
-			points: [
-				'Signed apps for iPhone and Android',
-				'No subscription, ads or account',
-				'Pays for further development'
-			]
-		},
-		note: 'One price worldwide, shown in your currency. iPhone and Android are bought separately.'
+		store: { name: 'Google Play and App Store', price: PRICE, per: 'once', points: [] },
+		note: 'Android and iPhone are bought separately.'
 	},
 	faq: {
 		title: 'Questions',
@@ -360,29 +344,17 @@ const zh: Landing = {
 		]
 	},
 	pricing: {
-		title: `网页免费，应用 ${PRICE}`,
-		lead: '同一套协议，传同样的文件；应用直接读取相机，速度更快。',
-		web: {
-			name: '网页版',
-			price: '免费',
-			per: '永久',
-			points: ['带相机的浏览器', '无需安装和账号'],
-			action: '打开网页版'
-		},
+		title: '定价',
+		lead: '网页版免费。商店版和自己编译的是同一个应用；买商店版省去编译，也支持 Lumen Code 的持续维护。',
 		build: {
 			name: '自己编译',
 			price: '免费',
 			per: '永久',
-			points: ['完整源码，MIT 许可证', '桌面版在 GitHub Releases'],
+			points: ['需要 Android Studio，或 Mac 上的 Xcode'],
 			action: '怎样编译'
 		},
-		store: {
-			name: 'App Store 与 Google Play',
-			price: PRICE,
-			per: '一次性',
-			points: ['iPhone 与 Android 签名应用', '不订阅、无广告、无需账号', '用于后续开发']
-		},
-		note: '全球统一定价，按当地货币显示。iPhone 和 Android 需分别购买。'
+		store: { name: 'Google Play 与 App Store', price: PRICE, per: '一次性', points: [] },
+		note: 'Android 和 iPhone 需要分别购买。'
 	},
 	faq: {
 		title: '常见问题',

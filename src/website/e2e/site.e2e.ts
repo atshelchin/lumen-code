@@ -49,12 +49,9 @@ test('home page: pricing, the store apps not yet published, the receiver screens
 	]) {
 		await page.goto(url);
 		const pricing = page.locator('#pricing');
-		await expect(pricing.locator('.plan')).toHaveCount(3);
+		await expect(pricing.locator('.plan')).toHaveCount(2);
 		await expect(pricing.locator('.plan.featured .price')).toContainText('US$2.99');
-		await expect(pricing.locator('.store')).toHaveText([
-			`App Store · ${soon}`,
-			`Google Play · ${soon}`
-		]);
+		await expect(pricing.locator('.store')).toHaveText([soon]);
 		const shot = await page.locator('img.phone').getAttribute('src');
 		expect((await request.get(shot!)).status()).toBe(200);
 	}

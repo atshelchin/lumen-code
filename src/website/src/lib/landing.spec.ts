@@ -29,14 +29,13 @@ describe('home page content', () => {
 		for (const lang of ['en', 'zh'] as const) {
 			const c = LANDING[lang];
 			expect(c.pricing.store.price).toBe(PRICE);
-			expect(c.pricing.title).toContain(PRICE);
 			expect(c.hero.note).toContain(PRICE);
 			// no other amount anywhere
 			expect(
 				texts(c)
 					.join(' ')
 					.match(/US\$[\d.]+/g)
-			).toEqual(Array(3).fill(PRICE));
+			).toEqual(Array(2).fill(PRICE));
 		}
 	});
 });
