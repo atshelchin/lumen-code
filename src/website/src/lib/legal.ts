@@ -10,7 +10,7 @@ export const UPDATED = '2026-10-27';
 /** The company that publishes Lumen Code, and its address for questions about these pages. */
 export const COMPANY = 'MONDAY LABS LTD';
 export const CONTACT = 'hello@mondaylabs.ltd';
-const ISSUES = 'https://github.com/atshelchin/lumen-code/issues';
+const ISSUES = 'https://github.com/mondaylabsltd/lumen-code/issues';
 
 export interface LegalDoc {
 	title: string;
@@ -115,7 +115,7 @@ const en: Legal = {
 			{
 				h: 'Open source',
 				p: [
-					'The Lumen Code source code, the protocol and the apps are published under the [MIT License](https://github.com/atshelchin/lumen-code/blob/main/LICENSE). Nothing in these terms limits what that licence allows you to do with the code. These terms cover the website we run and the apps we distribute.'
+					'The Lumen Code source code, the protocol and the apps are published under the [MIT License](https://github.com/mondaylabsltd/lumen-code/blob/main/LICENSE). Nothing in these terms limits what that licence allows you to do with the code. These terms cover the website we run and the apps we distribute.'
 				]
 			},
 			{
@@ -255,7 +255,7 @@ const zh: Legal = {
 			{
 				h: '开源',
 				p: [
-					'Lumen Code 的源代码、协议和应用以 [MIT 许可证](https://github.com/atshelchin/lumen-code/blob/main/LICENSE) 发布。本条款不限制该许可证赋予你的任何权利。本条款适用于我们运营的网站和我们分发的应用。'
+					'Lumen Code 的源代码、协议和应用以 [MIT 许可证](https://github.com/mondaylabsltd/lumen-code/blob/main/LICENSE) 发布。本条款不限制该许可证赋予你的任何权利。本条款适用于我们运营的网站和我们分发的应用。'
 				]
 			},
 			{

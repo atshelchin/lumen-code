@@ -50,7 +50,7 @@ The native apps do the same transfer on one shared Rust core ([`src/app`](src/ap
 | Android 10+ | Jetpack Compose | `cd src/android && ./gradlew :app:installDebug` | [src/android](src/android/README.md) |
 | macOS, Windows, Linux | GPUI | `cd src/desktop && cargo run --release` | [src/desktop](src/desktop/README.md) |
 
-Desktop builds are on the [Releases](https://github.com/atshelchin/lumen-code/releases) page: a signed and notarized macOS image, and Windows and Linux archives. The desktop app is tested on macOS. The Windows and Linux builds, webcam included, are new and have not yet been tried on real machines.
+Desktop builds are on the [Releases](https://github.com/mondaylabsltd/lumen-code/releases) page: a signed and notarized macOS image, and Windows and Linux archives. The desktop app is tested on macOS. The Windows and Linux builds, webcam included, are new and have not yet been tried on real machines.
 
 The iPhone and Android apps are coming to the App Store and Google Play at US$2.99, paid once (no subscription, no in-app purchases, no ads). The web version and the desktop builds stay free, and anyone can build every app from this repository for free.
 
@@ -61,7 +61,7 @@ There is no package to install: take the code from this repository, pinned to a 
 | You build | Take | Then read |
 |---|---|---|
 | A web page or a Node program | the folder `src/core/` — ES modules, no build step, no dependencies. For the faster engine add `dist/wasm/lumen.wasm`; `src/core/wasm-engine.js` loads it | [Integration guide](docs/guide/03-integration.md) §3.2–§3.3 |
-| A Rust program | `lumen-code = { git = "https://github.com/atshelchin/lumen-code" }` in `Cargo.toml`; the library is `lumen` (no dependencies) | [src/rust/README.md](src/rust/README.md) |
+| A Rust program | `lumen-code = { git = "https://github.com/mondaylabsltd/lumen-code" }` in `Cargo.toml`; the library is `lumen` (no dependencies) | [src/rust/README.md](src/rust/README.md) |
 | An app in another language (Swift, Kotlin, C, …) | the C ABI of the same crate: `src/rust/include/lumen.h`, built with `--features ffi` | [Integration guide](docs/guide/03-integration.md) §3.5 |
 | A new implementation | the [specification](docs/PROTOCOL.md) and [`test/vectors/test-vectors.json`](test/vectors/test-vectors.json) | [Integration guide](docs/guide/03-integration.md) §3.7 |
 

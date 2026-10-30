@@ -18,5 +18,5 @@ A video of a complete transfer: <VIDEO LINK>
 
 The code flashes up to 60 times a second; the app shows a photosensitivity warning and waits for confirmation before the first code plays.
 
-The app makes no network connections, has no account and collects no data. The protocol and the app are open source (MIT): https://github.com/atshelchin/lumen-code
+The app makes no network connections, has no account and collects no data. The protocol and the app are open source (MIT): https://github.com/mondaylabsltd/lumen-code
 ```

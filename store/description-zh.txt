@@ -23,4 +23,4 @@ Lumen Code 把文件从一块屏幕传到相机。发送端把文件显示成一
 应用不发起任何网络连接，不收集任何数据。
 
 互通
-其他手机上的同一应用、桌面版，以及 lumencode.link 上的免费网页版。协议（1.0，已冻结）和全部代码以 MIT 许可证开源：https://github.com/atshelchin/lumen-code
+其他手机上的同一应用、桌面版，以及 lumencode.link 上的免费网页版。协议（1.0，已冻结）和全部代码以 MIT 许可证开源：https://github.com/mondaylabsltd/lumen-code

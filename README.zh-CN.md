@@ -52,7 +52,7 @@ bun run build          # 预渲染页面和 Cloudflare Worker，输出到 .svelt
 
 各子目录的说明文档只有英文版。
 
-桌面版安装包在 [Releases](https://github.com/atshelchin/lumen-code/releases) 页面：已签名并经过公证的 macOS 镜像，以及 Windows、Linux 压缩包。桌面版在 macOS 上测试过；Windows、Linux 版（含摄像头接收）是新加的，还没有在真机上试过。
+桌面版安装包在 [Releases](https://github.com/mondaylabsltd/lumen-code/releases) 页面：已签名并经过公证的 macOS 镜像，以及 Windows、Linux 压缩包。桌面版在 macOS 上测试过；Windows、Linux 版（含摄像头接收）是新加的，还没有在真机上试过。
 
 iPhone 和 Android 应用即将上架 App Store 和 Google Play，定价 US$2.99，一次买断（不订阅、不内购、无广告）。网页版和桌面版继续免费，任何人也都可以从本仓库免费编译所有应用。
 
@@ -63,7 +63,7 @@ iPhone 和 Android 应用即将上架 App Store 和 Google Play，定价 US$2.99
 | 你要做的 | 取什么 | 再读 |
 |---|---|---|
 | 网页或 Node 程序 | `src/core/` 整个目录：ES 模块，无需构建，无依赖。要用更快的引擎，再加上 `dist/wasm/lumen.wasm`，由 `src/core/wasm-engine.js` 加载 | [接入指南](docs/guide/03-integration.zh-CN.md) §3.2–§3.3 |
-| Rust 程序 | 在 `Cargo.toml` 里写 `lumen-code = { git = "https://github.com/atshelchin/lumen-code" }`；库名为 `lumen`（无依赖） | [src/rust/README.md](src/rust/README.md) |
+| Rust 程序 | 在 `Cargo.toml` 里写 `lumen-code = { git = "https://github.com/mondaylabsltd/lumen-code" }`；库名为 `lumen`（无依赖） | [src/rust/README.md](src/rust/README.md) |
 | 其他语言的应用（Swift、Kotlin、C……） | 同一个 crate 的 C ABI：`src/rust/include/lumen.h`，用 `--features ffi` 构建 | [接入指南](docs/guide/03-integration.zh-CN.md) §3.5 |
 | 全新的实现 | [规范](docs/PROTOCOL.zh-CN.md)和 [`test/vectors/test-vectors.json`](test/vectors/test-vectors.json) | [接入指南](docs/guide/03-integration.zh-CN.md) §3.7 |
 

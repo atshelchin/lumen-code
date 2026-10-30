@@ -101,7 +101,7 @@ Add the crate from this repository (it has no dependencies; pin a tag or a commi
 
 ```toml
 [dependencies]
-lumen-code = { git = "https://github.com/atshelchin/lumen-code" }
+lumen-code = { git = "https://github.com/mondaylabsltd/lumen-code" }
 ```
 
 The library name is `lumen`:

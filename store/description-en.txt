@@ -23,4 +23,4 @@ PRIVACY
 The app makes no network connections and collects no data.
 
 WORKS WITH
-The same app on other phones, the desktop app, and the free web version at lumencode.link. The protocol (version 1.0, frozen) and all the code are open source under the MIT License: https://github.com/atshelchin/lumen-code
+The same app on other phones, the desktop app, and the free web version at lumencode.link. The protocol (version 1.0, frozen) and all the code are open source under the MIT License: https://github.com/mondaylabsltd/lumen-code

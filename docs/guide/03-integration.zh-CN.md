@@ -101,7 +101,7 @@ WASM 识别比 JS 快 1.5–2 倍，手机发热明显降低。模块用 `npm ru
 
 ```toml
 [dependencies]
-lumen-code = { git = "https://github.com/atshelchin/lumen-code" }
+lumen-code = { git = "https://github.com/mondaylabsltd/lumen-code" }
 ```
 
 库名为 `lumen`：

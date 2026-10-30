@@ -8,7 +8,7 @@
   "homepage": "https://lumencode.awesometools.dev",
   "repository": {
     "type": "git",
-    "url": "https://github.com/atshelchin/lumen-code"
+    "url": "https://github.com/mondaylabsltd/lumen-code"
   },
   "scripts": {
     "test": "node test/vectors.js --check && node test/test-vectors.js && node test/test-fuzz.js && node test/test-core.js && node test/test-transfer.js && node test/test-e2e.js && node test/test-wasm.js && node test/test-view.js && node test/test-site.js",
