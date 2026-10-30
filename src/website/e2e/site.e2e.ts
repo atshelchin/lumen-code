@@ -2,6 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { camVideo } from '../playwright.config';
+import pkg from '../package.json' with { type: 'json' };
+
+const { version } = pkg;
 
 // The pages count visits on tj.appsdata.org; tests load the counter but do not report to it.
 test.beforeEach(async ({ context }) => {
@@ -35,7 +38,10 @@ for (const [url, title, text] of pages) {
 		expect(html).toContain(
 			'<script src="https://tj.appsdata.org/api/script.js" data-site-id="b9594b9f1c70" defer></script>'
 		);
-		expect(html).toMatch(/data-build[^>]*>[^<]*[0-9a-f]{7}/);
+		// the version as in the apps: "1.0.0 · 1a2b3c4 · date"
+		expect(html).toMatch(
+			new RegExp(`data-build[^>]*>[^<]*${version.replaceAll('.', '\\.')} · [0-9a-f]{7}`)
+		);
 	});
 }
 

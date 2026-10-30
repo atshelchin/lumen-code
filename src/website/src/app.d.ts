@@ -2,7 +2,14 @@
 // for information about these interfaces
 declare global {
 	/** The version of this build (vite.config.ts): the last commit of the site's sources. */
-	const __BUILD__: { commit: string; full: string; date: string; dirty: boolean; protocol: string };
+	const __BUILD__: {
+		commit: string;
+		full: string;
+		date: string;
+		dirty: boolean;
+		protocol: string;
+		version: string;
+	};
 	/** The public address of the site, e.g. https://lumencode.link */
 	const __SITE__: string;
 

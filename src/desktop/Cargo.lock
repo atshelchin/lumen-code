@@ -3327,7 +3327,7 @@ dependencies = [
 
 [[package]]
 name = "lumen-app"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "crux_core",
  "lumen-code",
@@ -3337,11 +3337,11 @@ dependencies = [
 
 [[package]]
 name = "lumen-code"
-version = "0.1.0"
+version = "1.0.0"
 
 [[package]]
 name = "lumen-desktop"
-version = "0.1.2"
+version = "1.0.0"
 dependencies = [
  "futures",
  "gpui",

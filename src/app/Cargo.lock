@@ -579,7 +579,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lumen-app"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "crux_core",
  "lumen-code",
@@ -589,18 +589,18 @@ dependencies = [
 
 [[package]]
 name = "lumen-bindgen"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "uniffi",
 ]
 
 [[package]]
 name = "lumen-code"
-version = "0.1.0"
+version = "1.0.0"
 
 [[package]]
 name = "lumen-ffi"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "lumen-app",
  "serde_json",

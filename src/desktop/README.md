@@ -17,15 +17,15 @@ The GPUI revision is pinned in `Cargo.lock`. When the app is started from a term
 Pushing a `release/vX.Y.Z` branch makes a release ([`.github/workflows/release.yml`](../../.github/workflows/release.yml)):
 
 ```sh
-git switch -c release/v0.1.1 main      # bump version in Cargo.toml, cargo update -p lumen-desktop, commit
-git push origin release/v0.1.1
+git switch -c release/v1.0.1 main      # bump version in Cargo.toml, cargo update -p lumen-desktop, commit
+git push origin release/v1.0.1
 ```
 
 CI checks that the branch name and `Cargo.toml` agree, builds Windows (x86_64) and Linux (x86_64, aarch64) archives and a macOS build check, then tags the branch's head commit and publishes a GitHub Release with the archives, `SHA256SUMS` and build provenance. The macOS build is signed on the maintainer's Mac, so no signing key is stored on GitHub:
 
 ```sh
-git fetch --tags && git checkout v0.1.1
-scripts/release-macos-local.sh v0.1.1 --upload   # Developer ID signature, notarization, three .dmg images
+git fetch --tags && git checkout v1.0.1
+scripts/release-macos-local.sh v1.0.1 --upload   # Developer ID signature, notarization, three .dmg images
 ```
 
 `scripts/build-macos-app.sh` can also be run by itself to make the app and disk image: ad-hoc signed for local use, or signed and notarized when `LUMEN_SIGN_IDENTITY` and `LUMEN_NOTARY_PROFILE` are set. The bundle (`packaging/macos/`) declares the camera entitlement for the hardened runtime; without it a notarized build gets no camera at all.

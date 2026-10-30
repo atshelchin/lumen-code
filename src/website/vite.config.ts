@@ -9,6 +9,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../..', import.meta.url));
+// the version shown on the pages (as in the apps: "1.0.0 · commit · date")
+const pkg = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8')) as {
+	version: string;
+};
 const SITE = 'https://lumencode.link';
 
 // The inline scripts of src/app.html (the language redirect) are not SvelteKit's, so the CSP gets
@@ -37,10 +41,18 @@ function buildInfo() {
 			full,
 			date: git('log', '-1', '--format=%cs', '--', ...SOURCES),
 			dirty: git('status', '--porcelain', '--', ...SOURCES) !== '',
-			protocol: '1.0'
+			protocol: '1.0',
+			version: pkg.version
 		};
 	} catch {
-		return { commit: 'unknown', full: '', date: '', dirty: false, protocol: '1.0' };
+		return {
+			commit: 'unknown',
+			full: '',
+			date: '',
+			dirty: false,
+			protocol: '1.0',
+			version: pkg.version
+		};
 	}
 }
 
