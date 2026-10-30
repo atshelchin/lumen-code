@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Lumen Code: high-throughput screen-to-camera file transfer. Zero dependencies.",
+  "description": "Lumen Code: high-throughput screen-to-camera file transfer.",
   "homepage": "https://lumencode.awesometools.dev",
   "repository": {
     "type": "git",
